@@ -29,6 +29,7 @@
    - Edit/delete saved ingredients
    - View all saved ingredients
    - **Status:** Ingredients save automatically but no management UI yet
+   - **Note:** Recipe ingredient editing is now implemented - can edit nutrition values for ingredients in recipes
 
 ### Medium Priority
 

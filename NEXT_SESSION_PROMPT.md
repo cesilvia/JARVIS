@@ -29,6 +29,7 @@ I'm working on J.A.R.V.I.S., a personal nutrition and macro tracking web applica
    - Calculate recipe macros (total, per serving, per 100g)
    - Search and filter recipes
    - Edit/delete recipes
+   - **Edit ingredient nutrition values** - Click "Edit" on any ingredient to modify calories, carbs, protein, and fat
    - Fraction-based amount input with quick buttons (1/8, 1/4, etc.)
    - Amounts can be added together, displayed in fraction form
    - Quick unit buttons (g, oz, cup, tbsp, tsp, ml)
@@ -95,6 +96,7 @@ I'm working on J.A.R.V.I.S., a personal nutrition and macro tracking web applica
 - ✅ Export/Import backup functionality (recipes and saved ingredients)
 - ✅ Recipe persistence bug fix
 - ✅ Per serving macros displayed first in recipe view
+- ✅ Ingredient nutrition editing - Can edit calories, carbs, protein, and fat for imported ingredients
 
 ## Current Issues / In Progress
 

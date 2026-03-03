@@ -77,3 +77,8 @@
 - **Rationale:** Original parser was incorrectly extracting navigation items and preparation instructions instead of ingredients. User provided expert rules for recipe scraping with priority order: JSON-LD → Microdata → Headings → Classes.
 - **Implementation:** Complete rewrite of `/app/api/recipes/import/route.ts` following structured parsing approach with proper ingredient detection heuristics, navigation filtering, and support for grouped ingredients (e.g., "Dressing" subsections).
 - **Status:** Implemented (currently debugging - parser may need further refinement)
+
+**Decision:** Add ingredient nutrition editing capability in Recipe Builder
+- **Rationale:** User requested ability to edit calories (and other macros) for imported ingredients, since imported recipes often have incomplete or incorrect nutrition data.
+- **Implementation:** Added inline editing functionality in Recipe Builder. Each ingredient shows an "Edit" button that opens input fields for calories, carbohydrates, protein, and fat. Changes update recipe totals automatically.
+- **Status:** Implemented
