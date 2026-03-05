@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.jarvis-hud {
+  /* This ensures the 'box' is always a perfect square */
+  width: 100%; 
+  height: 100%; 
+  
+  /* This prevents the circle inside the file from stretching */
+  object-fit: contain; 
+  
+  /* Critical: remove background colors and ensure transparency */
+  background: transparent;
+  
+  /* Optional: Adds a 'pulse' animation to make it feel alive */
+  animation: pulse 4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0.8; transform: scale(1); }
+}
+
+.hud-element {
+  background-color: transparent !important; /* This is the most important part! */
+  display: block;
+  margin: 0 auto;
+  pointer-events: none; /* Optional: allows clicks to pass through the empty center to elements below */
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  
+  /* If you want the container to be perfectly round too */
+  /* (even though the image transparency should handle it) */
+  border-radius: 50%;
+  overflow: hidden; /* Clips any corners if they accidentally show */
+}
+
+/* HUD Style Classes */
+.hud-card {
+  position: relative;
+  border: 2px solid;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+.hud-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(90deg, transparent 0%, currentColor 1px, transparent 1px),
+    linear-gradient(0deg, transparent 0%, currentColor 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.hud-card::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid;
+  border-radius: inherit;
+  opacity: 0.3;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.hud-glow {
+  box-shadow: 
+    0 0 10px currentColor,
+    0 0 20px currentColor,
+    0 0 30px currentColor,
+    inset 0 0 20px currentColor;
+}
+
+.hud-text {
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px currentColor;
+  letter-spacing: 0.05em;
+}
+
+.hud-circuit-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-circuit-bg::before {
+  display: none;
+}
+
+.hud-corner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid;
+}
+
+.hud-corner-top-left {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.hud-corner-top-right {
+  top: -2px;
+  right: -2px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.hud-corner-bottom-left {
+  bottom: -2px;
+  left: -2px;
+  border-right: none;
+  border-top: none;
+}
+
+.hud-corner-bottom-right {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+}
+
+.hud-pulse {
+  animation: hudPulse 3s ease-in-out infinite;
+}
+
+@keyframes hudPulse {
+  0%, 100% { 
+    opacity: 0.8;
+    filter: brightness(1);
+  }
+  50% { 
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+}
+
+.hud-modern {
+  border: 1px solid;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
+}
+
+.hud-modern::before {
+  display: none;
+}
+
+.hud-modern::after {
+  display: none;
+}

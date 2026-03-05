@@ -86,12 +86,37 @@
     - Import recipes from friends
     - **Status:** Not started
 
+## Hub Page Features
+
+16. **Command Center Data Integration**
+    - Replace mock data with real calendar/appointment data
+    - Integrate task management system
+    - Add weather API integration
+    - **Status:** Mock data implemented, real data integration pending
+
+17. **Module Dashboard Views**
+    - Create detailed dashboard views for each module when selected
+    - Show relevant stats and quick actions
+    - **Status:** Basic dashboard implemented for Nutrition module, others pending
+
+18. **Bottom Frame Functionality**
+    - Implement Settings panel
+    - User Profile management
+    - System Status monitoring
+    - Notifications/alerts system
+    - **Status:** Frames created, functionality pending
+
+19. **Custom Module Frames**
+    - Design unique frame images for each module
+    - Replace placeholder frames with custom designs
+    - **Status:** Using placeholder frame image, custom designs pending
+
 ## Technical Improvements
 
 - **Error Handling:** Better error messages and recovery
 - **Performance:** Optimize recipe calculations for large recipes
 - **Accessibility:** Improve keyboard navigation and screen reader support
-- **Mobile Optimization:** Better mobile experience
+- **Mobile Optimization:** Better mobile experience (JARVIS 4.0 layout adapts to mobile)
 - **Offline Support:** Work offline with service workers
 - **Testing:** Add unit and integration tests
 

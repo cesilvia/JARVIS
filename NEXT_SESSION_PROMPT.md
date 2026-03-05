@@ -97,6 +97,29 @@ I'm working on J.A.R.V.I.S., a personal nutrition and macro tracking web applica
 - ✅ Recipe persistence bug fix
 - ✅ Per serving macros displayed first in recipe view
 - ✅ Ingredient nutrition editing - Can edit calories, carbs, protein, and fat for imported ingredients
+- ✅ Hub page with multiple theme options (JARVIS, F.R.I.D.A.Y., JARVIS 2.0, JARVIS 3.0, JARVIS 4.0)
+- ✅ HUD-style visual effects (glowing borders, circuit patterns, corner decorations)
+- ✅ JARVIS 4.0 command center layout (top module frames, left command panel, center dashboard, bottom utility frames)
+
+## Hub Page Details
+
+**Location:** `/app/hub/page.tsx`
+
+**Themes Available:**
+- **JARVIS:** Electric blue/cyan, classic HUD style with glowing effects
+- **F.R.I.D.A.Y.:** Orange with electric blue/green highlights, modern/minimal style
+- **JARVIS 2.0:** Gold/amber colors, classic HUD style
+- **JARVIS 3.0:** Module frames across top (circular icons), dashboard in center when module selected
+- **JARVIS 4.0:** Command center layout:
+  - Top: Module frames (circular icons, 50px) - clicking shows dashboard in center
+  - Left panel: Command center with appointments, tasks, weather (currently mock data)
+  - Center: Large frame showing placeholder image when no module selected, module dashboard when selected
+  - Bottom: Settings, Profile, System Status, Notifications frames (functionality pending)
+  - Clicking selected module frame again closes dashboard
+
+**Module Icons:** Currently using placeholder frame image (`/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png`) for all modules. User plans to create custom frames for each module.
+
+**Styling:** HUD-style effects implemented in `/app/globals.css` with classes for glowing borders, circuit patterns, corner decorations, and animations.
 
 ## Current Issues / In Progress
 
@@ -107,5 +130,11 @@ I'm working on J.A.R.V.I.S., a personal nutrition and macro tracking web applica
 - User reported that recipe import was importing navigation items ("Gut Health") and preparation instructions instead of ingredients
 - Parser was rewritten to follow expert rules but currently not working - nothing is being imported
 - Need to debug why ingredients aren't being extracted (check console logs, verify HTML structure matches expectations)
+- User wants to eventually integrate real data sources for command center (calendar, tasks, weather)
+- Custom module frame images need to be designed and implemented
 
-Please help me continue building features and improving the app. The immediate priority is fixing the recipe import parser so it correctly extracts ingredients from recipe websites.
+Please help me continue building features and improving the app. Current focus areas:
+1. Fixing the recipe import parser
+2. Implementing functionality for bottom utility frames in JARVIS 4.0
+3. Integrating real data sources for command center panel
+4. Creating custom module frame designs

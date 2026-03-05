@@ -82,3 +82,33 @@
 - **Rationale:** User requested ability to edit calories (and other macros) for imported ingredients, since imported recipes often have incomplete or incorrect nutrition data.
 - **Implementation:** Added inline editing functionality in Recipe Builder. Each ingredient shows an "Edit" button that opens input fields for calories, carbohydrates, protein, and fat. Changes update recipe totals automatically.
 - **Status:** Implemented
+
+**Decision:** Create modular hub page with multiple theme options
+- **Rationale:** User wanted a main hub page to access different JARVIS modules (nutrition tracker, tasks, email, calendar, fitness, weather). Started with three view options: Simple Menu, Dashboard, and Hybrid.
+- **Implementation:** Created `/app/hub/page.tsx` with module cards, stats overview, and navigation to different modules.
+- **Status:** Implemented
+
+**Decision:** Implement multiple theme options (JARVIS, F.R.I.D.A.Y., JARVIS 2.0, JARVIS 3.0, JARVIS 4.0)
+- **Rationale:** User wanted different visual themes inspired by Iron Man interfaces. Each theme has distinct color schemes and styling approaches.
+- **Implementation:** 
+  - **JARVIS:** Electric blue/cyan, classic HUD style
+  - **F.R.I.D.A.Y.:** Orange with electric blue/green highlights, modern/minimal style
+  - **JARVIS 2.0:** Gold/amber colors, classic HUD style
+  - **JARVIS 3.0:** Module frames across top, dashboard in center (circular icon navigation)
+  - **JARVIS 4.0:** Command center layout with top module frames, left panel (appointments/tasks/weather), center dashboard, bottom utility frames
+- **Status:** Implemented
+
+**Decision:** Use HUD-style visual effects (glowing borders, circuit patterns, corner decorations)
+- **Rationale:** User wanted futuristic HUD aesthetic matching Iron Man interfaces. Classic HUD themes get glow effects, circuit patterns, and geometric decorations.
+- **Implementation:** Added CSS classes for HUD cards, glowing effects, circuit board backgrounds, corner brackets, and pulse animations. Modern/minimal themes use cleaner styling.
+- **Status:** Implemented
+
+**Decision:** JARVIS 4.0 command center layout design
+- **Rationale:** User wanted a command center-style interface with module frames at top, information panels on left, large center frame, and utility frames at bottom. Inspired by HUD interface images.
+- **Implementation:** 
+  - Top: Circular module frames (50px) that show dashboard when clicked
+  - Left panel: Command center with appointments, tasks, and weather (mock data for now)
+  - Center: Large frame showing image placeholder when no module selected, module dashboard when selected
+  - Bottom: Settings, Profile, System Status, and Notifications frames
+  - Clicking selected module frame again closes dashboard
+- **Status:** Implemented
