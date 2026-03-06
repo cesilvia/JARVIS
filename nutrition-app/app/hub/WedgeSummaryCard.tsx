@@ -11,7 +11,6 @@ interface WedgeSummaryCardProps {
   angleDeg: number; // direction toward icon (0 = right, 90 = down in screen coords)
   length: number;
   wedgeAngleDeg: number; // 60-120
-  moduleName: string;
   moduleHref: string;
   themeColor: string;
   onNavigate: () => void;
@@ -23,7 +22,6 @@ export default function WedgeSummaryCard({
   angleDeg,
   length,
   wedgeAngleDeg,
-  moduleName,
   moduleHref,
   themeColor,
   onNavigate,
@@ -109,31 +107,6 @@ export default function WedgeSummaryCard({
             filter="url(#wedgeGlow)"
           />
         </svg>
-        {/* Summary content - positioned in the wedge */}
-        <div
-          className="absolute flex flex-col items-center justify-center pointer-events-none"
-          style={{
-            left: length * 0.6,
-            top: length,
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <span
-            className="font-mono font-bold text-sm uppercase tracking-wider"
-            style={{
-              color: themeColor,
-              textShadow: `0 0 8px ${themeColor}80`,
-            }}
-          >
-            {moduleName}
-          </span>
-          <span
-            className="font-mono text-xs mt-1 opacity-80"
-            style={{ color: themeColor }}
-          >
-            Summary
-          </span>
-        </div>
         </div>
       </Link>
     </div>

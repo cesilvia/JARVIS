@@ -204,3 +204,7 @@
 **Decision:** Top row module icon size – 90px (slightly reduced from 96px)
 - **Rationale:** User requested very slight decrease in icon size.
 - **Status:** Implemented
+
+**Decision:** Remove wedge label from summary card
+- **Rationale:** User found the module name and "Summary" label unnecessary.
+- **Status:** Implemented

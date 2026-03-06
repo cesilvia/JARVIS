@@ -684,7 +684,6 @@ export default function HubPage() {
                       angleDeg={wedgeProps.angleDeg}
                       length={wedgeProps.length}
                       wedgeAngleDeg={wedgeProps.wedgeAngleDeg}
-                      moduleName={module.name}
                       moduleHref={module.href}
                       themeColor={currentTheme.primary}
                       onNavigate={() => handleWedgeNavigate(wedgeModule)}
