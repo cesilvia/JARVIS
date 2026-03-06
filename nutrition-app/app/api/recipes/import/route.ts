@@ -72,60 +72,75 @@ function isNavigation(text: string): boolean {
 }
 
 // Step 1: Extract from JSON-LD Recipe
+// Trust schema.org recipeIngredient; only filter obvious navigation (no looksLikeIngredient filter)
 function extractFromJsonLd(html: string): ParsedIngredients | null {
-  const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  // Flexible regex: allow whitespace around =, attribute order, and optional s in "ld+json"
+  const jsonLdMatches = html.match(/<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
   if (!jsonLdMatches) return null;
-  
+
+  const decodeEntities = (s: string) =>
+    s
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+
   for (const match of jsonLdMatches) {
     try {
-      const jsonContent = match.replace(/<script[^>]*type=["']application\/ld\+json["'][^>]*>/, "").replace(/<\/script>/, "");
+      let jsonContent = match
+        .replace(/<script[^>]*>/, "")
+        .replace(/<\/script>\s*$/i, "")
+        .trim();
+      jsonContent = decodeEntities(jsonContent);
       const parsed = JSON.parse(jsonContent);
-      
-      const items = Array.isArray(parsed) ? parsed : [parsed];
-      
+
+      let items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+      if (items.length === 1 && items[0] && typeof items[0] === "object" && "@graph" in (items[0] as object)) {
+        const graph = (items[0] as { "@graph"?: unknown[] })["@graph"];
+        items = Array.isArray(graph) ? graph : items;
+      }
+
       for (const item of items) {
-        if (item["@type"] === "Recipe" || (Array.isArray(item["@type"]) && item["@type"].includes("Recipe"))) {
-          if (item.recipeIngredient && Array.isArray(item.recipeIngredient)) {
+        if (item && (item["@type"] === "Recipe" || (Array.isArray(item["@type"]) && item["@type"].includes("Recipe")))) {
+          const raw = item.recipeIngredient;
+          if (raw && Array.isArray(raw)) {
             const ingredients: string[] = [];
-            
-            for (const ing of item.recipeIngredient) {
-              if (typeof ing === 'string') {
+
+            for (const ing of raw) {
+              if (typeof ing === "string") {
                 const text = ing.trim();
-                if (text && looksLikeIngredient(text) && !isNavigation(text)) {
+                if (text && !isNavigation(text)) {
                   ingredients.push(text);
                 }
-              } else if (ing && typeof ing === 'object') {
-                // Handle structured ingredient objects
-                let text = '';
+              } else if (ing && typeof ing === "object") {
+                let text = "";
                 if (ing.name) {
                   text = ing.name.trim();
-                  if (ing.value) text = `${ing.value} ${text}`;
-                  if (ing.unitCode || ing.unitText) text = `${text} ${ing.unitCode || ing.unitText}`;
+                  if (ing.value) text = `${String(ing.value).trim()} ${text}`;
+                  if (ing.unitCode || ing.unitText) text = `${text} ${(ing.unitCode || ing.unitText || "").toString().trim()}`;
                 } else if (ing.text) {
-                  text = ing.text.trim();
+                  text = String(ing.text).trim();
                 }
-                if (text && looksLikeIngredient(text) && !isNavigation(text)) {
+                if (text && !isNavigation(text)) {
                   ingredients.push(text);
                 }
               }
             }
-            
+
             if (ingredients.length > 0) {
               return {
-                groups: [{
-                  name: null,
-                  ingredients: ingredients
-                }]
+                groups: [{ name: null, ingredients }],
               };
             }
           }
         }
       }
-    } catch (e) {
-      // Continue to next match
+    } catch {
+      // Continue to next script block
     }
   }
-  
+
   return null;
 }
 
@@ -173,63 +188,54 @@ function extractFromMicrodata(html: string): ParsedIngredients | null {
   return null;
 }
 
-// Step 3: Extract from "Ingredients" heading + following lists
+// Step 3: Extract from "Ingredients" heading + following lists (and/or lines in paragraphs)
 function extractFromHeadings(html: string): ParsedIngredients | null {
-  // Find "Ingredients" heading (try without container first for simplicity)
-  const ingredientsHeadingMatch = html.match(/<h[1-4][^>]*>.*?[Ii]ngredients?.*?<\/h[1-4]>/i);
-  if (!ingredientsHeadingMatch) {
-    console.log("No ingredients heading found");
-    return null;
-  }
-  
+  // Find "Ingredients" or "Ingredient list" etc.
+  const ingredientsHeadingMatch = html.match(/<h[1-4][^>]*>[\s\S]*?[Ii]ngredients?[\s\S]*?<\/h[1-4]>/i);
+  if (!ingredientsHeadingMatch) return null;
+
   const headingIndex = html.indexOf(ingredientsHeadingMatch[0]);
   const afterHeading = html.substring(headingIndex + ingredientsHeadingMatch[0].length);
-  
+
   // Stop at Instructions/Directions/Method
-  const stopMatch = afterHeading.match(/<h[1-4][^>]*>.*?(?:[Ii]nstructions?|[Dd]irections?|[Mm]ethod|[Ss]teps?).*?<\/h[1-4]>/i);
+  const stopMatch = afterHeading.match(/<h[1-4][^>]*>[\s\S]*?(?:[Ii]nstructions?|[Dd]irections?|[Mm]ethod|[Ss]teps?)[\s\S]*?<\/h[1-4]>/i);
   const sectionHtml = stopMatch ? afterHeading.substring(0, afterHeading.indexOf(stopMatch[0])) : afterHeading;
-  
-  console.log("Ingredients section HTML length:", sectionHtml.length);
-  
-  const groups: IngredientGroup[] = [];
+
   const allIngredients: string[] = [];
-  
-  // Get all list items from this section
+  const seen = new Set<string>();
+  const addIngredient = (text: string) => {
+    const t = text.trim();
+    if (!t || t.length < 2) return;
+    const lower = t.toLowerCase();
+    if (lower === "dressing" || lower === "dressing:" || lower === "sauce" || lower === "sauce:" || lower === "topping" || lower === "topping:" || lower === "marinade" || lower === "marinade:") return;
+    if (!looksLikeIngredient(t) || isNavigation(t)) return;
+    const key = t.toLowerCase().slice(0, 80);
+    if (seen.has(key)) return;
+    seen.add(key);
+    allIngredients.push(t);
+  };
+
+  // 1) List items <li>...</li>
   const listItems = sectionHtml.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
-  console.log("Found list items:", listItems.length);
-  
   for (const item of listItems) {
-    const text = item.replace(/<[^>]*>/g, "").trim();
-    console.log("Checking item:", text.substring(0, 50));
-    
-    // Skip section labels
-    const lower = text.toLowerCase();
-    if (lower === 'dressing' || lower === 'dressing:' || 
-        lower === 'sauce' || lower === 'sauce:' ||
-        lower === 'topping' || lower === 'topping:' ||
-        lower === 'marinade' || lower === 'marinade:') {
-      console.log("Skipping section label:", text);
-      continue;
-    }
-    
-    if (text && looksLikeIngredient(text) && !isNavigation(text)) {
-      allIngredients.push(text);
-      console.log("Added ingredient:", text);
-    } else {
-      console.log("Rejected:", text, "looksLikeIngredient:", looksLikeIngredient(text), "isNavigation:", isNavigation(text));
-    }
+    const text = item.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    addIngredient(text);
   }
-  
+
+  // 2) Lines from paragraphs/blocks (sites that use <p>, <div> with <br> or newlines)
+  const stripTags = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const blockSplitters = /<br\s*\/?>|<\/p>\s*<p[^>]*>|<\/div>\s*<div[^>]*>|\n/gi;
+  const parts = sectionHtml.split(blockSplitters);
+  for (const part of parts) {
+    const line = stripTags(part);
+    if (line && !line.match(/^<|^$/)) addIngredient(line);
+  }
+
   if (allIngredients.length > 0) {
-    groups.push({
-      name: null,
-      ingredients: allIngredients
-    });
-    console.log("Returning", allIngredients.length, "ingredients");
-    return { groups };
+    return {
+      groups: [{ name: null, ingredients: allIngredients }],
+    };
   }
-  
-  console.log("No ingredients found after filtering");
   return null;
 }
 
@@ -312,45 +318,39 @@ export async function GET(request: NextRequest) {
 
     const html = await response.text();
 
-    // Try extraction methods in priority order
+    // Try extraction methods in priority order; collect debug info on failure
     let parsedIngredients: ParsedIngredients | null = null;
     let method = "";
-    
-    console.log("Attempting JSON-LD extraction...");
+    const debug: Record<string, unknown> = {};
+
     parsedIngredients = extractFromJsonLd(html);
+    debug.jsonLdScripts = (html.match(/<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>/gi) || []).length;
     if (parsedIngredients && parsedIngredients.groups.length > 0) {
       method = "JSON-LD Recipe";
-      console.log(`Found ${parsedIngredients.groups.reduce((sum, g) => sum + g.ingredients.length, 0)} ingredients via JSON-LD`);
     } else {
-      console.log("JSON-LD failed, trying microdata...");
       parsedIngredients = extractFromMicrodata(html);
       if (parsedIngredients && parsedIngredients.groups.length > 0) {
         method = "Microdata itemprop";
-        console.log(`Found ${parsedIngredients.groups.reduce((sum, g) => sum + g.ingredients.length, 0)} ingredients via microdata`);
       } else {
-        console.log("Microdata failed, trying headings...");
         parsedIngredients = extractFromHeadings(html);
+        debug.hasIngredientsHeading = /<h[1-4][^>]*>[\s\S]*?[Ii]ngredients?[\s\S]*?<\/h[1-4]>/i.test(html);
         if (parsedIngredients && parsedIngredients.groups.length > 0) {
           method = "Ingredients heading + lists";
-          console.log(`Found ${parsedIngredients.groups.reduce((sum, g) => sum + g.ingredients.length, 0)} ingredients via headings`);
         } else {
-          console.log("Headings failed, trying classes...");
           parsedIngredients = extractFromClasses(html);
           if (parsedIngredients && parsedIngredients.groups.length > 0) {
             method = "Class-based fallback";
-            console.log(`Found ${parsedIngredients.groups.reduce((sum, g) => sum + g.ingredients.length, 0)} ingredients via classes`);
           }
         }
       }
     }
 
     if (!parsedIngredients || parsedIngredients.groups.length === 0) {
-      console.error("Failed to extract any ingredients. HTML length:", html.length);
-      // Debug: Check if ingredients heading exists
-      const hasIngredientsHeading = /<h[1-4][^>]*>.*?[Ii]ngredients?.*?<\/h[1-4]>/i.test(html);
-      console.error("Has ingredients heading:", hasIngredientsHeading);
       return NextResponse.json(
-        { error: "Could not extract recipe ingredients from this URL. Please try a different recipe site or enter manually." },
+        {
+          error: "Could not extract recipe ingredients from this URL. Please try a different recipe site or enter manually.",
+          debug: { ...debug, htmlLength: html.length },
+        },
         { status: 400 }
       );
     }

@@ -154,3 +154,40 @@
 **Decision:** Remove circle from bike gear icon
 - **Rationale:** User preferred bike gear without outer circle (vertical lines only).
 - **Status:** Implemented
+
+**Decision:** Expand hub with new modules (Calendar, Tasks, Weather, Notes, Health)
+- **Rationale:** User wanted JARVIS as a personal assistant with additional modules. Added Calendar, Task Manager, Weather, Notes (Craft), and Health to top row.
+- **Implementation:** Created JarvisCalendarIcon, JarvisTaskManagerIcon, JarvisWeatherIcon, JarvisNotesIcon, JarvisHealthIcon. Added modules to hub with placeholder pages at /calendar, /tasks, /weather, /notes, /health.
+- **Status:** Implemented
+
+**Decision:** Nutrition icon – plate with fork (left) and knife (right)
+- **Rationale:** User wanted nutrition icon inspired by place setting. Plate with fork on left, knife (straight line) on right, all fit within circle.
+- **Status:** Implemented
+
+**Decision:** Settings icon – sliders instead of gear
+- **Rationale:** User wanted to change bottom row settings icon. Replaced gear with three horizontal sliders (control panel style).
+- **Status:** Implemented
+
+**Decision:** Task manager icon – checklist with empty circles
+- **Rationale:** User tried clipboard (task1) then checklist style. Final design: three rows with circle + line per row. Backup at JarvisTaskManagerIcon.task1.backup.tsx.
+- **Status:** Implemented
+
+**Decision:** Notes icon – clipboard with list lines
+- **Rationale:** User wanted notes connected to Craft. Clipboard design with top clip bar, main board, and list lines.
+- **Status:** Implemented
+
+**Decision:** Health icon – EKG waveform
+- **Rationale:** User wanted heart rate graph. Final design: EKG trace with P wave, QRS complex (tall spike), S dip, T wave.
+- **Status:** Implemented
+
+**Decision:** Profile icon – bald head, rectangular glasses, no smile
+- **Rationale:** User wanted icon inspired by professional headshot. Simplified to bald head, glasses, no smile.
+- **Status:** Implemented
+
+**Decision:** Fix icons to fit within circle (bike gear, settings gear)
+- **Rationale:** Several icons had lines extending outside r=18 circle. Shortened teeth/lines, added clipPath where needed.
+- **Status:** Implemented
+
+**Decision:** Hub module order – Calendar, Nutrition, Bike, Strava, Tasks, Weather, Notes, Health
+- **Rationale:** Logical grouping: calendar/schedule first, core nutrition/bike/Strava, then productivity (tasks, notes), health/weather last.
+- **Status:** Implemented

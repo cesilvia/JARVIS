@@ -93,6 +93,7 @@
     - Integrate task management system
     - Add weather API integration
     - **Status:** Mock data implemented, real data integration pending
+    - **Note:** Calendar, Tasks, Weather, Notes, Health modules added to hub with placeholder pages. Craft integration planned for Notes.
 
 17. **Module Dashboard Views**
     - Create detailed dashboard views for each module when selected
@@ -110,6 +111,30 @@
     - Design unique frame images for each module
     - Replace placeholder frames with custom designs
     - **Status:** Using jarvis-frame.png (cyan circular HUD with circuitry) for center frame. Custom per-module frames pending
+
+## New Module Integrations (Hub)
+
+20. **Craft Notes Integration**
+    - Connect Notes module to Craft account
+    - Sync notes, documents, spaces via Craft API
+    - **Status:** Placeholder page at /notes, integration pending
+
+21. **Calendar Integration**
+    - Connect Calendar module to user's calendar
+    - View events and schedule
+    - **Status:** Placeholder page at /calendar, integration pending
+
+22. **Task Manager Functionality**
+    - Full task/to-do management in Tasks module
+    - **Status:** Placeholder page at /tasks, functionality pending
+
+23. **Health Data Integration**
+    - Health metrics, activity, wellness data
+    - **Status:** Placeholder page at /health, integration pending
+
+24. **Weather API Integration**
+    - Real weather data for Weather module
+    - **Status:** Placeholder page at /weather, API integration pending
 
 ## Technical Improvements
 

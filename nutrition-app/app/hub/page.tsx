@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import CircuitBackground from "./CircuitBackground";
 
 interface Module {
   id: string;
@@ -14,6 +15,15 @@ interface Module {
 }
 
 const modules: Module[] = [
+  {
+    id: "calendar",
+    name: "Calendar",
+    description: "Connect and view your calendar",
+    icon: "◇",
+    href: "/calendar",
+    color: "red",
+    available: true,
+  },
   {
     id: "nutrition",
     name: "Nutrition Tracker",
@@ -41,9 +51,45 @@ const modules: Module[] = [
     color: "red",
     available: true,
   },
+  {
+    id: "tasks",
+    name: "Task Manager",
+    description: "Manage your tasks and to-dos",
+    icon: "◇",
+    href: "/tasks",
+    color: "red",
+    available: true,
+  },
+  {
+    id: "weather",
+    name: "Weather",
+    description: "Weather forecast and conditions",
+    icon: "◇",
+    href: "/weather",
+    color: "red",
+    available: true,
+  },
+  {
+    id: "notes",
+    name: "Notes",
+    description: "Notes connected to Craft",
+    icon: "◇",
+    href: "/notes",
+    color: "red",
+    available: true,
+  },
+  {
+    id: "health",
+    name: "Health",
+    description: "Health metrics and activity",
+    icon: "◇",
+    href: "/health",
+    color: "red",
+    available: true,
+  },
 ];
 
-// Profile icon: bald male head outline with rectangular glasses; same style as other icons
+// Profile icon: bald head, rectangular glasses
 const JarvisProfileIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
@@ -57,23 +103,22 @@ const JarvisProfileIcon = ({ className = "w-12 h-12", style, stroke: strokeColor
     style={style}
     aria-hidden
   >
-    {/* Bald head outline: round top (dome), natural sides, rounded chin – oval */}
-    <path d="M24 8 C33 8 37 14 37 23 C37 31 34 38 24 39 C14 38 11 31 11 23 C11 14 15 8 24 8 Z" strokeWidth="2.25" />
-    {/* Rectangular glasses – left lens */}
-    <rect x="12" y="18" width="8" height="6" rx="0.5" strokeWidth="2.25" fill="none" />
-    {/* Rectangular glasses – right lens */}
-    <rect x="28" y="18" width="8" height="6" rx="0.5" strokeWidth="2.25" fill="none" />
-    {/* Bridge between lenses */}
-    <line x1="20" y1="20.5" x2="28" y2="20.5" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Bald head: dome top, rounded chin */}
+    <path d="M24 8 C34 8 38 15 38 24 C38 32 34 38 24 38 C14 38 10 32 10 24 C10 15 14 8 24 8 Z" strokeWidth="2.25" />
+    {/* Glasses */}
+    <rect x="12" y="18" width="8" height="5" rx="0.5" strokeWidth="2.25" fill="none" />
+    <rect x="28" y="18" width="8" height="5" rx="0.5" strokeWidth="2.25" fill="none" />
+    <line x1="20" y1="20" x2="28" y2="20" strokeWidth="2.25" />
   </svg>
 );
 
-// JARVIS-style settings gear icon (HUD / Iron Man aesthetic: wireframe cog, geometric, tech)
-const JarvisSettingsIcon = ({ className = "w-8 h-8", style }: { className?: string; style?: React.CSSProperties }) => (
+// JARVIS-style settings icon: sliders (control panel)
+const JarvisSettingsIcon = ({ className = "w-8 h-8", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
     fill="none"
-    stroke="currentColor"
+    stroke={strokeColor ?? "currentColor"}
     strokeWidth="2.25"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -81,19 +126,14 @@ const JarvisSettingsIcon = ({ className = "w-8 h-8", style }: { className?: stri
     style={style}
     aria-hidden
   >
-    {/* Inner hub */}
-    <circle cx="24" cy="24" r="6" strokeWidth="2.25" opacity="0.9" />
-    {/* Outer ring (r=14 to match other icons) */}
-    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
-    {/* 8 gear teeth (short, within r=14 boundary) */}
-    <line x1="24" y1="12" x2="24" y2="10" strokeWidth="2.25" />
-    <line x1="24" y1="36" x2="24" y2="38" strokeWidth="2.25" />
-    <line x1="12" y1="24" x2="10" y2="24" strokeWidth="2.25" />
-    <line x1="36" y1="24" x2="38" y2="24" strokeWidth="2.25" />
-    <line x1="17" y1="17" x2="14" y2="14" strokeWidth="2.25" />
-    <line x1="31" y1="31" x2="34" y2="34" strokeWidth="2.25" />
-    <line x1="17" y1="31" x2="14" y2="34" strokeWidth="2.25" />
-    <line x1="31" y1="17" x2="34" y2="14" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Three sliders: track + knob */}
+    <line x1="16" y1="18" x2="32" y2="18" strokeWidth="2.25" />
+    <circle cx="22" cy="18" r="2.5" strokeWidth="2.25" fill="none" />
+    <line x1="16" y1="24" x2="32" y2="24" strokeWidth="2.25" />
+    <circle cx="28" cy="24" r="2.5" strokeWidth="2.25" fill="none" />
+    <line x1="16" y1="30" x2="32" y2="30" strokeWidth="2.25" />
+    <circle cx="24" cy="30" r="2.5" strokeWidth="2.25" fill="none" />
   </svg>
 );
 
@@ -114,7 +154,7 @@ const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeCol
         x2={24 + rimR * Math.cos(a2)}
         y2={24 - rimR * Math.sin(a2)}
         strokeWidth="1.25"
-        strokeLinecap="round"
+        strokeLinecap="butt"
       />
     );
   });
@@ -130,9 +170,9 @@ const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeCol
       style={style}
       aria-hidden
     >
-      {/* Deep-section rim (r=14 to match other icons) */}
-      <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
-      <circle cx="24" cy="24" r="12" strokeWidth="2.25" />
+      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      {/* Rim (single circle where spokes meet) */}
+      <circle cx="24" cy="24" r={rimR} strokeWidth="2.25" />
       {/* Small hub */}
       <circle cx="24" cy="24" r={hubR} strokeWidth="2.25" opacity="0.9" />
       {/* Crossed spokes (2-cross lacing, thin) */}
@@ -141,30 +181,31 @@ const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeCol
   );
 };
 
-// JARVIS-style bike gear / cassette icon (HUD: side view – vertical lines, short to long)
+// JARVIS-style bike gear / cassette icon: thin circle, vertical lines inside (all fit within r=18)
 const JarvisBikeGearIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
     fill="none"
     stroke={strokeColor ?? "currentColor"}
     strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    strokeLinecap="butt"
+    strokeLinejoin="miter"
     className={className}
     style={style}
     aria-hidden
   >
-    {/* Vertical lines (short left → long right) */}
-    <line x1="14" y1="20" x2="14" y2="28" strokeWidth="2.25" />
-    <line x1="18" y1="16" x2="18" y2="32" strokeWidth="2.25" />
-    <line x1="22" y1="14" x2="22" y2="34" strokeWidth="2.25" />
-    <line x1="26" y1="12" x2="26" y2="36" strokeWidth="2.25" />
-    <line x1="30" y1="10" x2="30" y2="38" strokeWidth="2.25" />
-    <line x1="34" y1="8" x2="34" y2="40" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Vertical lines (short left → long right), scaled to fit inside circle r=17 */}
+    <line x1="15" y1="20" x2="15" y2="28" strokeWidth="2.25" />
+    <line x1="18.5" y1="17" x2="18.5" y2="31" strokeWidth="2.25" />
+    <line x1="22" y1="15" x2="22" y2="33" strokeWidth="2.25" />
+    <line x1="25.5" y1="13" x2="25.5" y2="35" strokeWidth="2.25" />
+    <line x1="29" y1="11" x2="29" y2="37" strokeWidth="2.25" />
+    <line x1="32.5" y1="10" x2="32.5" y2="38" strokeWidth="2.25" />
   </svg>
 );
 
-// JARVIS-style status icon (realistic gauge: dial arc, tick marks, center pivot, needle)
+// JARVIS-style status icon: thin circle, gauge inside
 const JarvisStatusIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
@@ -177,8 +218,7 @@ const JarvisStatusIcon = ({ className = "w-12 h-12", style, stroke: strokeColor 
     style={style}
     aria-hidden
   >
-    {/* Outer ring */}
-    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
     {/* Dial arc (bottom half of circle, like a speedometer) */}
     <path d="M10 24 A14 14 0 0 1 38 24" strokeWidth="2.25" />
     {/* Tick marks at 0°, 45°, 90°, 135°, 180° (radial, on the arc) */}
@@ -207,7 +247,7 @@ const JarvisAlertIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }
     style={style}
     aria-hidden
   >
-    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
     {/* Triangle (warning shape) – fully inside circle */}
     <path d="M24 12 L32 34 L16 34 Z" strokeWidth="2.25" fill="none" />
     {/* Exclamation: dot + vertical line */}
@@ -216,7 +256,124 @@ const JarvisAlertIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }
   </svg>
 );
 
-// JARVIS-style nutrition icon (HUD / Iron Man: macro wheel – carbs/protein/fat segments)
+// JARVIS-style notes icon: clipboard (Craft)
+const JarvisNotesIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Clipboard: top bar (clip) + main board + list lines */}
+    <rect x="18" y="10" width="12" height="4" rx="1" strokeWidth="2.25" fill="none" />
+    <rect x="14" y="14" width="20" height="22" rx="1" strokeWidth="2.25" fill="none" />
+    <line x1="18" y1="20" x2="30" y2="20" strokeWidth="2.25" />
+    <line x1="18" y1="26" x2="30" y2="26" strokeWidth="2.25" />
+    <line x1="18" y1="32" x2="26" y2="32" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style health icon: heart rate / EKG graph
+const JarvisHealthIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* EKG: P (small bump), Q (dip), R (tall spike), S (dip), T (rounded) */}
+    <path d="M14 26 L15.5 24 L17 26 L19 26 L19.5 28 L20 12 L20.5 30 L22 26 L23.5 22 L25 26 L34 26" strokeWidth="2.25" fill="none" />
+  </svg>
+);
+
+// JARVIS-style weather icon: sun with rays
+const JarvisWeatherIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Sun: center circle + 8 rays */}
+    <circle cx="24" cy="24" r="4" strokeWidth="2.25" fill="none" />
+    <line x1="24" y1="10" x2="24" y2="14" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="24" y1="34" x2="24" y2="38" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="10" y1="24" x2="14" y2="24" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="34" y1="24" x2="38" y2="24" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="13.2" y1="13.2" x2="16" y2="16" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="32" y1="32" x2="34.8" y2="34.8" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="34.8" y1="13.2" x2="32" y2="16" strokeWidth="2.25" strokeLinecap="round" />
+    <line x1="16" y1="32" x2="13.2" y2="34.8" strokeWidth="2.25" strokeLinecap="round" />
+  </svg>
+);
+
+// JARVIS-style task manager icon: checklist with empty circles (task2)
+const JarvisTaskManagerIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Checklist: circles + horizontal lines */}
+    <circle cx="16" cy="18" r="2.5" strokeWidth="2.25" fill="none" />
+    <line x1="22" y1="18" x2="34" y2="18" strokeWidth="2.25" />
+    <circle cx="16" cy="24" r="2.5" strokeWidth="2.25" fill="none" />
+    <line x1="22" y1="24" x2="34" y2="24" strokeWidth="2.25" />
+    <circle cx="16" cy="30" r="2.5" strokeWidth="2.25" fill="none" />
+    <line x1="22" y1="30" x2="30" y2="30" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style calendar icon: calendar page with grid
+const JarvisCalendarIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Calendar: rectangle with top bar + grid lines */}
+    <rect x="14" y="12" width="20" height="24" rx="1" strokeWidth="2.25" fill="none" />
+    <line x1="14" y1="18" x2="34" y2="18" strokeWidth="2.25" />
+    <line x1="20" y1="18" x2="20" y2="36" strokeWidth="1.5" opacity="0.8" />
+    <line x1="28" y1="18" x2="28" y2="36" strokeWidth="1.5" opacity="0.8" />
+    <line x1="14" y1="24" x2="34" y2="24" strokeWidth="1.5" opacity="0.8" />
+    <line x1="14" y1="30" x2="34" y2="30" strokeWidth="1.5" opacity="0.8" />
+  </svg>
+);
+
+// JARVIS-style nutrition icon: plate with fork (left) and knife (right)
 const JarvisNutritionIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
@@ -229,14 +386,17 @@ const JarvisNutritionIcon = ({ className = "w-12 h-12", style, stroke: strokeCol
     style={style}
     aria-hidden
   >
-    {/* Outer ring */}
-    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
-    {/* Inner hub */}
-    <circle cx="24" cy="24" r="5" strokeWidth="2.25" opacity="0.9" />
-    {/* Three macro segments (120° each) – radial lines to rim */}
-    <line x1="24" y1="24" x2="24" y2="10" strokeWidth="2.25" />
-    <line x1="24" y1="24" x2="12" y2="17" strokeWidth="2.25" />
-    <line x1="24" y1="24" x2="36" y2="17" strokeWidth="2.25" />
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    {/* Plate (inner circle) */}
+    <circle cx="24" cy="24" r="9" strokeWidth="2.25" fill="none" />
+    {/* Fork (left): handle + 3 tines, inside r=18 */}
+    <line x1="11" y1="15" x2="11" y2="33" strokeWidth="2.25" />
+    <line x1="9" y1="15" x2="9" y2="20" strokeWidth="2.25" />
+    <line x1="11" y1="15" x2="11" y2="20" strokeWidth="2.25" />
+    <line x1="13" y1="15" x2="13" y2="20" strokeWidth="2.25" />
+    <line x1="9" y1="15" x2="13" y2="15" strokeWidth="2.25" />
+    {/* Knife (right): straight vertical line */}
+    <line x1="37" y1="15" x2="37" y2="33" strokeWidth="2.25" />
   </svg>
 );
 
@@ -264,9 +424,14 @@ const StylizedIcon = ({ moduleId, size = "text-4xl", iconColor }: { moduleId: st
   const borderWidth = isLarge ? "border-[3px]" : "border-2";
 
   const iconStyles: { [key: string]: React.ReactElement } = {
+    calendar: <JarvisCalendarIcon className={nutritionIconSize} stroke={iconColor} />,
     nutrition: <JarvisNutritionIcon className={nutritionIconSize} stroke={iconColor} />,
     bike: <JarvisBikeGearIcon className={nutritionIconSize} stroke={iconColor} />,
     strava: <JarvisBikeWheelIcon className={nutritionIconSize} stroke={iconColor} />,
+    tasks: <JarvisTaskManagerIcon className={nutritionIconSize} stroke={iconColor} />,
+    weather: <JarvisWeatherIcon className={nutritionIconSize} stroke={iconColor} />,
+    notes: <JarvisNotesIcon className={nutritionIconSize} stroke={iconColor} />,
+    health: <JarvisHealthIcon className={nutritionIconSize} stroke={iconColor} />,
   };
 
   const icon = iconStyles[moduleId] || <div className={`${iconSize} ${borderWidth} border-[#FBCA03]`}></div>;
@@ -294,30 +459,6 @@ export default function HubPage() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [nutritionStats, setNutritionStats] = useState({ recipes: 0, ingredients: 0 });
   const [hasAlerts, setHasAlerts] = useState(false);
-  const hudClass = currentTheme.style === "classic" ? "hud-card" : "hud-modern";
-
-  // Mock data for command center
-  const mockAppointments = [
-    { time: "09:00", title: "Team Meeting", location: "Conference Room A" },
-    { time: "14:30", title: "Client Call", location: "Zoom" },
-    { time: "16:00", title: "Project Review", location: "Office" }
-  ];
-  
-  const mockTasks = [
-    { id: 1, title: "Review quarterly reports", priority: "high", due: "Today" },
-    { id: 2, title: "Update project documentation", priority: "medium", due: "Tomorrow" },
-    { id: 3, title: "Schedule team lunch", priority: "low", due: "This week" }
-  ];
-  
-  const mockWeather = {
-    location: "San Francisco, CA",
-    temp: "72°F",
-    condition: "Partly Cloudy",
-    high: "75°F",
-    low: "68°F",
-    humidity: "65%",
-    wind: "10 mph NW"
-  };
 
   // Load nutrition stats
   useEffect(() => {
@@ -345,12 +486,13 @@ export default function HubPage() {
   }, []);
 
   return (
-    <div className="min-h-screen hud-circuit-bg" style={{ 
+    <div className="min-h-screen hud-scifi-bg" style={{ 
       backgroundColor: currentTheme.background,
       color: currentTheme.primary
     }}>
-      <main className="container mx-auto px-4 py-8 max-w-6xl relative z-10" style={{ position: "relative", zIndex: 1 }}>
-        <div className="h-[calc(100vh-200px)] flex flex-col">
+      <CircuitBackground />
+      <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10">
+        <div className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6">
             {/* Top Module Frames */}
             <div className="flex-shrink-0 mb-4">
               <div className="flex items-center justify-center gap-2">
@@ -360,7 +502,12 @@ export default function HubPage() {
                   const isNutrition = module.id === "nutrition";
                   const isBikeGear = module.id === "bike";
                   const isStrava = module.id === "strava";
-                  const frameSize = (isNutrition || isBikeGear || isStrava) ? 96 : 50;
+                  const isCalendar = module.id === "calendar";
+                  const isTasks = module.id === "tasks";
+                  const isWeather = module.id === "weather";
+                  const isNotes = module.id === "notes";
+                  const isHealth = module.id === "health";
+                  const frameSize = (isNutrition || isBikeGear || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth) ? 96 : 50;
                   return (
                     <button
                       key={module.id}
@@ -388,7 +535,9 @@ export default function HubPage() {
                           isSelected ? "hud-pulse" : ""
                         }`}
                         style={{
-                          filter: isSelected ? `drop-shadow(0 0 15px ${currentTheme.primary})` : `drop-shadow(0 0 10px ${currentTheme.primary})`
+                          filter: isSelected
+                            ? `drop-shadow(0 0 4px ${currentTheme.primary}) drop-shadow(0 0 8px ${currentTheme.primary}80)`
+                            : `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)`
                         }}
                       >
                         <div className="w-full h-full flex items-center justify-center" style={{ background: "transparent", color: currentTheme.primary }}>
@@ -407,107 +556,18 @@ export default function HubPage() {
               </div>
             </div>
 
-            {/* Main Content Area - Left Panel + Center Frame */}
-            <div className="flex-1 flex gap-4 min-h-0">
-              {/* Left Command Center Panel */}
-              <div className="w-80 flex-shrink-0 flex flex-col gap-4">
-                {/* Appointments */}
-                <div className={`${hudClass} rounded-lg p-4 relative flex-shrink-0`} style={{
-                  backgroundColor: currentTheme.cardBg,
-                  borderColor: currentTheme.primary,
-                  color: currentTheme.primary
-                }}>
-                  <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  <h3 className="text-sm font-mono uppercase mb-3 hud-text" style={{
-                    color: currentTheme.primary,
-                    textShadow: `0 0 10px ${currentTheme.primary}`
-                  }}>
-                    Appointments
-                  </h3>
-                  <div className="space-y-2">
-                    {mockAppointments.map((apt, idx) => (
-                      <div key={idx} className="text-xs font-mono" style={{ color: currentTheme.textSecondary, opacity: 0.8 }}>
-                        <span style={{ color: currentTheme.accent }}>{apt.time}</span> - {apt.title}
-                        <div className="text-xs opacity-60 ml-8">{apt.location}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tasks */}
-                <div className={`${hudClass} rounded-lg p-4 relative flex-shrink-0`} style={{
-                  backgroundColor: currentTheme.cardBg,
-                  borderColor: currentTheme.primary,
-                  color: currentTheme.primary
-                }}>
-                  <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  <h3 className="text-sm font-mono uppercase mb-3 hud-text" style={{
-                    color: currentTheme.primary,
-                    textShadow: `0 0 10px ${currentTheme.primary}`
-                  }}>
-                    Tasks
-                  </h3>
-                  <div className="space-y-2">
-                    {mockTasks.map((task) => (
-                      <div key={task.id} className="text-xs font-mono" style={{ color: currentTheme.textSecondary, opacity: 0.8 }}>
-                        <span style={{ 
-                          color: task.priority === "high" ? currentTheme.accent : currentTheme.primary 
-                        }}>●</span> {task.title}
-                        <div className="text-xs opacity-60 ml-4">Due: {task.due}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Weather */}
-                <div className={`${hudClass} rounded-lg p-4 relative flex-1`} style={{
-                  backgroundColor: currentTheme.cardBg,
-                  borderColor: currentTheme.primary,
-                  color: currentTheme.primary
-                }}>
-                  <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  <h3 className="text-sm font-mono uppercase mb-3 hud-text" style={{
-                    color: currentTheme.primary,
-                    textShadow: `0 0 10px ${currentTheme.primary}`
-                  }}>
-                    Weather
-                  </h3>
-                  <div className="space-y-2 text-xs font-mono" style={{ color: currentTheme.textSecondary }}>
-                    <div className="text-lg hud-text" style={{ color: currentTheme.primary }}>
-                      {mockWeather.temp}
-                    </div>
-                    <div>{mockWeather.condition}</div>
-                    <div className="opacity-70">{mockWeather.location}</div>
-                    <div className="mt-3 pt-3 border-t" style={{ borderColor: `${currentTheme.primary}30` }}>
-                      <div>High: {mockWeather.high} / Low: {mockWeather.low}</div>
-                      <div>Humidity: {mockWeather.humidity}</div>
-                      <div>Wind: {mockWeather.wind}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Center Large Frame */}
-              <div className="flex-1 flex items-center justify-center min-w-0">
+            {/* Main Content Area - Center Frame Only (no left panel) */}
+            <div className="flex-1 flex items-center justify-center min-h-0">
                 {selectedModule ? (
                   (() => {
                     const module = modules.find(m => m.id === selectedModule);
                     if (!module) return null;
                     
                     return (
-                      <div className={`${hudClass} rounded-xl p-8 w-full h-full max-w-4xl relative flex flex-col`} style={{
-                        backgroundColor: currentTheme.cardBg,
-                        borderColor: currentTheme.primary,
+                      <div className="p-8 w-full max-w-2xl relative flex flex-col" style={{
+                        backgroundColor: "transparent",
                         color: currentTheme.primary
                       }}>
-                        <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                        <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                        <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                        <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-
                         <div className="mb-6 text-center">
                           <h2 className="text-3xl font-bold hud-text font-mono" style={{
                             color: currentTheme.primary,
@@ -517,12 +577,112 @@ export default function HubPage() {
                           </h2>
                         </div>
 
-                        {module.id === "nutrition" && module.available ? (
+                        {module.id === "calendar" && module.available ? (
+                          <div className="space-y-6 flex-1 flex flex-col">
+                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
+                              Connect your calendar to view events and schedule.
+                            </p>
+                            <div className="flex justify-center mt-auto">
+                              <Link
+                                href={module.href}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
+                                style={{
+                                  backgroundColor: `${currentTheme.primary}20`,
+                                  borderColor: currentTheme.primary,
+                                  color: currentTheme.primary,
+                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
+                                }}
+                              >
+                                Open Calendar
+                              </Link>
+                            </div>
+                          </div>
+                        ) : module.id === "tasks" && module.available ? (
+                          <div className="space-y-6 flex-1 flex flex-col">
+                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
+                              Manage your tasks and to-do lists.
+                            </p>
+                            <div className="flex justify-center mt-auto">
+                              <Link
+                                href={module.href}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
+                                style={{
+                                  backgroundColor: `${currentTheme.primary}20`,
+                                  borderColor: currentTheme.primary,
+                                  color: currentTheme.primary,
+                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
+                                }}
+                              >
+                                Open Task Manager
+                              </Link>
+                            </div>
+                          </div>
+                        ) : module.id === "weather" && module.available ? (
+                          <div className="space-y-6 flex-1 flex flex-col">
+                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
+                              View weather forecast and conditions.
+                            </p>
+                            <div className="flex justify-center mt-auto">
+                              <Link
+                                href={module.href}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
+                                style={{
+                                  backgroundColor: `${currentTheme.primary}20`,
+                                  borderColor: currentTheme.primary,
+                                  color: currentTheme.primary,
+                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
+                                }}
+                              >
+                                Open Weather
+                              </Link>
+                            </div>
+                          </div>
+                        ) : module.id === "notes" && module.available ? (
+                          <div className="space-y-6 flex-1 flex flex-col">
+                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
+                              Notes connected to your Craft account.
+                            </p>
+                            <div className="flex justify-center mt-auto">
+                              <Link
+                                href={module.href}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
+                                style={{
+                                  backgroundColor: `${currentTheme.primary}20`,
+                                  borderColor: currentTheme.primary,
+                                  color: currentTheme.primary,
+                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
+                                }}
+                              >
+                                Open Notes
+                              </Link>
+                            </div>
+                          </div>
+                        ) : module.id === "health" && module.available ? (
+                          <div className="space-y-6 flex-1 flex flex-col">
+                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
+                              Health metrics, activity, and wellness.
+                            </p>
+                            <div className="flex justify-center mt-auto">
+                              <Link
+                                href={module.href}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
+                                style={{
+                                  backgroundColor: `${currentTheme.primary}20`,
+                                  borderColor: currentTheme.primary,
+                                  color: currentTheme.primary,
+                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
+                                }}
+                              >
+                                Open Health
+                              </Link>
+                            </div>
+                          </div>
+                        ) : module.id === "nutrition" && module.available ? (
                           <div className="space-y-6 flex-1 flex flex-col">
                             <div className="grid grid-cols-2 gap-6">
-                              <div className={`${hudClass} p-6 rounded-lg relative`} style={{
+                              <div className="p-6 rounded-xl relative backdrop-blur-sm" style={{
                                 backgroundColor: `${currentTheme.primary}10`,
-                                borderColor: currentTheme.primary
+                                border: `1px solid ${currentTheme.primary}20`
                               }}>
                                 <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
                                   color: currentTheme.textSecondary,
@@ -537,9 +697,9 @@ export default function HubPage() {
                                   {nutritionStats.recipes}
                                 </div>
                               </div>
-                              <div className={`${hudClass} p-6 rounded-lg relative`} style={{
+                              <div className="p-6 rounded-xl relative backdrop-blur-sm" style={{
                                 backgroundColor: `${currentTheme.primary}10`,
-                                borderColor: currentTheme.primary
+                                border: `1px solid ${currentTheme.primary}20`
                               }}>
                                 <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
                                   color: currentTheme.textSecondary,
@@ -558,7 +718,7 @@ export default function HubPage() {
                             <div className="flex justify-center mt-auto">
                               <Link
                                 href={module.href}
-                                className={`${hudClass} px-6 py-3 rounded-lg font-mono transition-all hover:scale-105`}
+                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
                                 style={{
                                   backgroundColor: `${currentTheme.primary}20`,
                                   borderColor: currentTheme.primary,
@@ -584,26 +744,15 @@ export default function HubPage() {
                     );
                   })()
                 ) : (
-                  <div className={`${hudClass} rounded-xl w-full h-full max-w-4xl relative flex items-center justify-center`} style={{
-                    backgroundColor: currentTheme.cardBg,
-                    borderColor: currentTheme.primary,
-                    color: currentTheme.primary
-                  }}>
-                    <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className="w-96 h-96 flex items-center justify-center">
+                  <div className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center" style={{ background: "transparent" }}>
                       <img
                         src="/assets/jarvis-frame.png"
                         alt="JARVIS Frame"
                         className="jarvis-hud hud-element"
                         style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
                       />
-                    </div>
                   </div>
                 )}
-              </div>
             </div>
 
             {/* Bottom Frames - Settings, Profile, Status, Notifications */}
@@ -616,8 +765,8 @@ export default function HubPage() {
                   style={{ color: currentTheme.primary }}
                   title="Settings"
                 >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
-                    <JarvisSettingsIcon className="w-24 h-24" />
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
+                    <JarvisSettingsIcon className="w-24 h-24" stroke={currentTheme.primary} />
                   </div>
                 </Link>
 
@@ -627,7 +776,7 @@ export default function HubPage() {
                   style={{ color: currentTheme.primary }}
                   title="Profile"
                 >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
                     <JarvisProfileIcon className="w-24 h-24" stroke={currentTheme.primary} />
                   </div>
                 </Link>
@@ -638,7 +787,7 @@ export default function HubPage() {
                   style={{ color: currentTheme.primary }}
                   title="System Status"
                 >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
                     <JarvisStatusIcon className="w-24 h-24" stroke={currentTheme.primary} />
                   </div>
                 </Link>
@@ -652,7 +801,7 @@ export default function HubPage() {
                   <div
                     className="w-full h-full flex items-center justify-center"
                     style={{
-                      filter: `drop-shadow(0 0 10px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary})`,
+                      filter: `drop-shadow(0 0 3px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary}) drop-shadow(0 0 6px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary}60)`,
                       color: hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary,
                     }}
                   >

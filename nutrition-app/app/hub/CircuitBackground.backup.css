@@ -1,0 +1,15 @@
+/**
+ * Backup: Repeating circuit pattern (previous design).
+ * Restore by replacing .hud-scifi-bg::after in globals.css with this.
+ */
+
+/* Circuit pattern – thin traces and nodes, no grid squares */
+.hud-scifi-bg::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%2300D9FF' stroke-width='0.4' opacity='0.4'%3E%3Cpath d='M0 30 h160 M0 60 h100 M60 90 h100 M0 120 h160 M30 0 v60 M90 60 v100 M130 0 v100'/%3E%3Cpath d='M30 30 L90 90 M110 30 L110 90 M60 120 L110 120'/%3E%3Cpath d='M50 50 L70 50 L70 70 M100 80 L120 80 L120 100'/%3E%3Ccircle cx='30' cy='30' r='1.2' fill='%2300D9FF'/%3E%3Ccircle cx='90' cy='90' r='1.2' fill='%2300D9FF'/%3E%3Ccircle cx='110' cy='60' r='1.2' fill='%2300D9FF'/%3E%3Ccircle cx='60' cy='120' r='1.2' fill='%2300D9FF'/%3E%3Ccircle cx='70' cy='70' r='1.2' fill='%2300D9FF'/%3E%3Ccircle cx='120' cy='100' r='1.2' fill='%2300D9FF'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  pointer-events: none;
+  z-index: 0;
+}
