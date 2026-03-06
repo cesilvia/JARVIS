@@ -91,6 +91,13 @@ const modules: Module[] = [
   },
 ];
 
+const bottomModules = [
+  { id: "settings", name: "Settings", href: "/settings" },
+  { id: "profile", name: "Profile", href: "/profile" },
+  { id: "status", name: "System Status", href: "/status" },
+  { id: "alerts", name: "Alerts", href: "/alerts" },
+];
+
 // Profile icon: bald head, rectangular glasses
 const JarvisProfileIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
@@ -557,37 +564,35 @@ export default function HubPage() {
     if (!wedgeModule) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest("[data-wedge]") || target.closest("[data-module-icon]")) return;
+      if (target.closest("[data-wedge]") || target.closest("[data-module-icon]") || target.closest("[data-bottom-icon]")) return;
       setWedgeModule(null);
     };
     document.addEventListener("click", handler, true);
     return () => document.removeEventListener("click", handler, true);
   }, [wedgeModule]);
 
-  const handleIconClick = useCallback(
-    (moduleId: string) => {
-      const module = modules.find((m) => m.id === moduleId);
-      if (!module?.available) return;
-      setWedgeModule((prev) => (prev === moduleId ? null : moduleId));
-    },
-    []
-  );
+  const handleIconClick = useCallback((moduleId: string) => {
+    const topModule = modules.find((m) => m.id === moduleId);
+    const bottomModule = bottomModules.find((m) => m.id === moduleId);
+    if (topModule && !topModule.available) return;
+    setWedgeModule((prev) => (prev === moduleId ? null : moduleId));
+  }, []);
 
   const handleIconDoubleClick = useCallback(
-    (moduleId: string) => {
-      const module = modules.find((m) => m.id === moduleId);
-      if (!module?.available) return;
-      router.push(module.href);
+    (moduleId: string, href: string) => {
+      router.push(href);
     },
     [router]
   );
 
   const handleWedgeNavigate = useCallback(
     (moduleId: string) => {
-      const module = modules.find((m) => m.id === moduleId);
-      if (!module) return;
+      const topModule = modules.find((m) => m.id === moduleId);
+      const bottomModule = bottomModules.find((m) => m.id === moduleId);
+      const href = topModule?.href ?? bottomModule?.href;
+      if (!href) return;
       setWedgeModule(null);
-      router.push(module.href);
+      router.push(href);
     },
     [router]
   );
@@ -621,7 +626,7 @@ export default function HubPage() {
                       ref={(el) => { iconRefs.current[module.id] = el; }}
                       data-module-icon
                       onClick={() => handleIconClick(module.id)}
-                      onDoubleClick={() => handleIconDoubleClick(module.id)}
+                      onDoubleClick={() => handleIconDoubleClick(module.id, module.href)}
                       className={`relative transition-all bg-transparent border-none p-0 ${
                         isAvailable ? "cursor-pointer hover:scale-110" : "cursor-not-allowed opacity-40"
                       }`}
@@ -673,8 +678,11 @@ export default function HubPage() {
             </div>
             {/* Wedge summary overlay - positioned relative to content area */}
             {wedgeModule && wedgeProps && (() => {
-              const module = modules.find((m) => m.id === wedgeModule);
-              if (!module) return null;
+              const topModule = modules.find((m) => m.id === wedgeModule);
+              const bottomModule = bottomModules.find((m) => m.id === wedgeModule);
+              const href = topModule?.href ?? bottomModule?.href;
+              if (!href) return null;
+              const themeColor = wedgeModule === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary;
               return (
                 <div className="absolute inset-0 overflow-visible" style={{ zIndex: 20, pointerEvents: "none" }}>
                   <div style={{ pointerEvents: "auto" }}>
@@ -684,8 +692,8 @@ export default function HubPage() {
                       angleDeg={wedgeProps.angleDeg}
                       length={wedgeProps.length}
                       wedgeAngleDeg={wedgeProps.wedgeAngleDeg}
-                      moduleHref={module.href}
-                      themeColor={currentTheme.primary}
+                      moduleHref={href}
+                      themeColor={themeColor}
                       onNavigate={() => handleWedgeNavigate(wedgeModule)}
                     />
                   </div>
@@ -693,59 +701,41 @@ export default function HubPage() {
               );
             })()}
 
-            {/* Bottom Frames - Settings, Profile, Status, Notifications */}
-            <div className="flex-shrink-0 mt-4">
+            {/* Bottom Frames - Settings, Profile, Status, Notifications - z-30 so icons stay clickable */}
+            <div className="flex-shrink-0 mt-4 relative z-30">
               <div className="flex items-center justify-center gap-4">
-                {/* Bottom row icons: fixed 96×96px for consistent size */}
-                <Link
-                  href="/settings"
-                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
-                  style={{ color: currentTheme.primary }}
-                  title="Settings"
-                >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
-                    <JarvisSettingsIcon className="w-24 h-24" stroke={currentTheme.primary} />
-                  </div>
-                </Link>
-
-                <Link
-                  href="/profile"
-                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
-                  style={{ color: currentTheme.primary }}
-                  title="Profile"
-                >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
-                    <JarvisProfileIcon className="w-24 h-24" stroke={currentTheme.primary} />
-                  </div>
-                </Link>
-
-                <Link
-                  href="/status"
-                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
-                  style={{ color: currentTheme.primary }}
-                  title="System Status"
-                >
-                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)` }}>
-                    <JarvisStatusIcon className="w-24 h-24" stroke={currentTheme.primary} />
-                  </div>
-                </Link>
-
-                <Link
-                  href="/alerts"
-                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
-                  style={{ color: hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary }}
-                  title="Alerts"
-                >
-                  <div
-                    className="w-full h-full flex items-center justify-center"
-                    style={{
-                      filter: `drop-shadow(0 0 3px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary}) drop-shadow(0 0 6px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary}60)`,
-                      color: hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary,
-                    }}
-                  >
-                    <JarvisAlertIcon className="w-24 h-24" stroke={hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary} />
-                  </div>
-                </Link>
+                {bottomModules.map((module) => {
+                  const isSelected = wedgeModule === module.id;
+                  const iconColor = module.id === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary;
+                  const BottomIcon = module.id === "settings" ? JarvisSettingsIcon : module.id === "profile" ? JarvisProfileIcon : module.id === "status" ? JarvisStatusIcon : JarvisAlertIcon;
+                  return (
+                    <button
+                      key={module.id}
+                      ref={(el) => { iconRefs.current[module.id] = el; }}
+                      data-bottom-icon
+                      onClick={() => handleIconClick(module.id)}
+                      onDoubleClick={() => handleIconDoubleClick(module.id, module.href)}
+                      className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent cursor-pointer"
+                      title={module.name}
+                    >
+                      <div
+                        className={`w-full h-full flex items-center justify-center transition-all rounded-full ${
+                          isSelected ? "hud-pulse" : ""
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? iconColor : "transparent",
+                          filter: isSelected
+                            ? `drop-shadow(0 0 4px ${currentTheme.background}) drop-shadow(0 0 8px ${currentTheme.background}80)`
+                            : `drop-shadow(0 0 3px ${iconColor}) drop-shadow(0 0 6px ${iconColor}60)`,
+                        }}
+                      >
+                        <div className="w-full h-full flex items-center justify-center rounded-full" style={{ background: "transparent", color: isSelected ? currentTheme.background : iconColor }}>
+                          <BottomIcon className="w-24 h-24" stroke={isSelected ? currentTheme.background : iconColor} />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

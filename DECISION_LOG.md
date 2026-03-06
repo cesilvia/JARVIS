@@ -208,3 +208,8 @@
 **Decision:** Remove wedge label from summary card
 - **Rationale:** User found the module name and "Summary" label unnecessary.
 - **Status:** Implemented
+
+**Decision:** Wedge summary cards for bottom row icons (Settings, Profile, Status, Alerts)
+- **Rationale:** User wanted same wedge behavior for bottom row as top row.
+- **Implementation:** Single click opens wedge; double-click or click wedge navigates. Same color inversion when selected. Alerts icon keeps orange when unread. Wedges point from center toward each bottom icon.
+- **Status:** Implemented

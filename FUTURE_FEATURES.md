@@ -6,8 +6,8 @@
 
 1. **Module Summary Content**
    - Define what each module's wedge summary displays when an icon is clicked
-   - User to specify content per module (Calendar, Nutrition, Bike, Strava, Tasks, Weather, Notes, Health)
-   - **Status:** Wedge UI implemented (wedge shape, overlay, click behavior). Content definitions pending.
+   - User to specify content per module: top row (Calendar, Nutrition, Bike, Strava, Tasks, Weather, Notes, Health) and bottom row (Settings, Profile, Status, Alerts)
+   - **Status:** Wedge UI implemented for all icons (wedge shape, overlay, click behavior). Content definitions pending.
 
 ### High Priority
 
