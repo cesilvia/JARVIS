@@ -196,3 +196,11 @@
 - **Rationale:** User wanted HUD-style summary inspired by Iron Man interface. Single click opens wedge; double-click or click wedge navigates to module.
 - **Implementation:** Wedge originates from center of frame, points toward clicked icon. All wedges same dimensions, size, shape (based on Strava wedge). Fixed 120° angle. Length = healthDist × 0.6. Rounded opposite edge. Overlays center frame. Slides in from center (~200ms). Click same icon to close; click elsewhere to close; click other icon switches wedge. Icon row z-30 so icons stay clickable above wedge overlay.
 - **Status:** Implemented
+
+**Decision:** Active wedge indicator – color inversion instead of green dot
+- **Rationale:** User preferred inverted colors over green dot. Selected icon: blue becomes black (icon stroke), black becomes blue (circle background).
+- **Status:** Implemented
+
+**Decision:** Top row module icon size – 90px (slightly reduced from 96px)
+- **Rationale:** User requested very slight decrease in icon size.
+- **Status:** Implemented

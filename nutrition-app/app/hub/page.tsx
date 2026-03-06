@@ -422,7 +422,7 @@ const StylizedIcon = ({ moduleId, size = "text-4xl", iconColor }: { moduleId: st
   // Adjust frame size based on icon size - smaller for compact display
   const frameSize = isLarge ? "w-12 h-12" : isMedium ? "w-8 h-8" : isSmall ? "w-10 h-10" : "w-6 h-6";
   const iconSize = isLarge ? "w-12 h-12" : isMedium ? "w-8 h-8" : isSmall ? "w-10 h-10" : "w-6 h-6";
-  const nutritionIconSize = isLarge ? "w-32 h-32" : isMedium ? "w-20 h-20" : isSmall ? "w-24 h-24" : "w-16 h-16";
+  const nutritionIconSize = isLarge ? "w-32 h-32" : isMedium ? "w-20 h-20" : isSmall ? "w-[90px] h-[90px]" : "w-16 h-16";
   const borderWidth = isLarge ? "border-[3px]" : "border-2";
 
   const iconStyles: { [key: string]: React.ReactElement } = {
@@ -614,7 +614,7 @@ export default function HubPage() {
                   const isWeather = module.id === "weather";
                   const isNotes = module.id === "notes";
                   const isHealth = module.id === "health";
-                  const frameSize = (isNutrition || isBikeGear || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth) ? 96 : 50;
+                  const frameSize = (isNutrition || isBikeGear || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth) ? 90 : 50;
                   return (
                     <button
                       key={module.id}
@@ -636,25 +636,20 @@ export default function HubPage() {
                       title={module.name}
                     >
                       <div
-                        className={`w-full h-full flex items-center justify-center transition-all ${
+                        className={`w-full h-full flex items-center justify-center transition-all rounded-full ${
                           isSelected ? "hud-pulse" : ""
                         }`}
                         style={{
+                          backgroundColor: isSelected ? currentTheme.primary : "transparent",
                           filter: isSelected
-                            ? `drop-shadow(0 0 4px ${currentTheme.primary}) drop-shadow(0 0 8px ${currentTheme.primary}80)`
+                            ? `drop-shadow(0 0 4px ${currentTheme.background}) drop-shadow(0 0 8px ${currentTheme.background}80)`
                             : `drop-shadow(0 0 3px ${currentTheme.primary}) drop-shadow(0 0 6px ${currentTheme.primary}60)`
                         }}
                       >
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: "transparent", color: currentTheme.primary }}>
-                          <StylizedIcon moduleId={module.id} size="text-xl" iconColor={currentTheme.primary} />
+                        <div className="w-full h-full flex items-center justify-center rounded-full" style={{ background: "transparent", color: isSelected ? currentTheme.background : currentTheme.primary }}>
+                          <StylizedIcon moduleId={module.id} size="text-xl" iconColor={isSelected ? currentTheme.background : currentTheme.primary} />
                         </div>
                       </div>
-                      {isSelected && (
-                        <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 rounded-full" style={{
-                          backgroundColor: currentTheme.accent,
-                          boxShadow: `0 0 8px ${currentTheme.accent}`
-                        }}></div>
-                      )}
                     </button>
                   );
                 })}
