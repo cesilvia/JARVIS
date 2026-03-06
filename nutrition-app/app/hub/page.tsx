@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import CircuitBackground from "./CircuitBackground";
+import WedgeSummaryCard from "./WedgeSummaryCard";
 
 interface Module {
   id: string;
@@ -456,9 +458,13 @@ const currentTheme = {
 const ALERT_ICON_ORANGE = "#FF6600";
 
 export default function HubPage() {
-  const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  const router = useRouter();
+  const [wedgeModule, setWedgeModule] = useState<string | null>(null);
   const [nutritionStats, setNutritionStats] = useState({ recipes: 0, ingredients: 0 });
   const [hasAlerts, setHasAlerts] = useState(false);
+  const centerRef = useRef<HTMLDivElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+  const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   // Load nutrition stats
   useEffect(() => {
@@ -485,6 +491,107 @@ export default function HubPage() {
     }
   }, []);
 
+  // Wedge geometry: compute from center and icon positions
+  const [wedgeProps, setWedgeProps] = useState<{
+    originX: number;
+    originY: number;
+    angleDeg: number;
+    length: number;
+    wedgeAngleDeg: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!wedgeModule || !centerRef.current || !contentAreaRef.current) {
+      setWedgeProps(null);
+      return;
+    }
+    const centerRect = centerRef.current.getBoundingClientRect();
+    const contentRect = contentAreaRef.current.getBoundingClientRect();
+    const centerX = centerRect.left - contentRect.left + centerRect.width / 2;
+    const centerY = centerRect.top - contentRect.top + centerRect.height / 2;
+
+    const iconEl = iconRefs.current[wedgeModule];
+    if (!iconEl) {
+      setWedgeProps(null);
+      return;
+    }
+    const iconRect = iconEl.getBoundingClientRect();
+    const iconX = iconRect.left - contentRect.left + iconRect.width / 2;
+    const iconY = iconRect.top - contentRect.top + iconRect.height / 2;
+
+    const dx = iconX - centerX;
+    const dy = iconY - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Angle: 0 = east, 90 = south (screen coords). atan2(dy, dx) gives standard math angle.
+    const angleRad = Math.atan2(dy, dx);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    // Wedge angle: standardized at 120° for all
+    const wedgeAngleDeg = 120;
+
+    // Use Strava wedge as reference - all wedges stop at same Y (same distance from icon row).
+    const healthEl = iconRefs.current["health"];
+    const healthDist = healthEl
+      ? (() => {
+          const r = healthEl.getBoundingClientRect();
+          const ix = r.left - contentRect.left + r.width / 2;
+          const iy = r.top - contentRect.top + r.height / 2;
+          return Math.sqrt((ix - centerX) ** 2 + (iy - centerY) ** 2);
+        })()
+      : distance;
+    const stravaLength = healthDist * 0.6;
+
+    // All wedges: same dimensions, size, shape as Strava wedge.
+    const length = stravaLength;
+
+    setWedgeProps({
+      originX: centerX,
+      originY: centerY,
+      angleDeg,
+      length,
+      wedgeAngleDeg,
+    });
+  }, [wedgeModule]);
+
+  // Click outside to close wedge
+  useEffect(() => {
+    if (!wedgeModule) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-wedge]") || target.closest("[data-module-icon]")) return;
+      setWedgeModule(null);
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [wedgeModule]);
+
+  const handleIconClick = useCallback(
+    (moduleId: string) => {
+      const module = modules.find((m) => m.id === moduleId);
+      if (!module?.available) return;
+      setWedgeModule((prev) => (prev === moduleId ? null : moduleId));
+    },
+    []
+  );
+
+  const handleIconDoubleClick = useCallback(
+    (moduleId: string) => {
+      const module = modules.find((m) => m.id === moduleId);
+      if (!module?.available) return;
+      router.push(module.href);
+    },
+    [router]
+  );
+
+  const handleWedgeNavigate = useCallback(
+    (moduleId: string) => {
+      const module = modules.find((m) => m.id === moduleId);
+      if (!module) return;
+      setWedgeModule(null);
+      router.push(module.href);
+    },
+    [router]
+  );
+
   return (
     <div className="min-h-screen hud-scifi-bg" style={{ 
       backgroundColor: currentTheme.background,
@@ -492,12 +599,12 @@ export default function HubPage() {
     }}>
       <CircuitBackground />
       <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10">
-        <div className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6">
-            {/* Top Module Frames */}
-            <div className="flex-shrink-0 mb-4">
+        <div ref={contentAreaRef} className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6 relative">
+            {/* Top Module Frames - z-30 so icons stay clickable above wedge overlay */}
+            <div className="flex-shrink-0 mb-4 relative z-30">
               <div className="flex items-center justify-center gap-2">
                 {modules.map((module) => {
-                  const isSelected = selectedModule === module.id;
+                  const isSelected = wedgeModule === module.id;
                   const isAvailable = module.available;
                   const isNutrition = module.id === "nutrition";
                   const isBikeGear = module.id === "bike";
@@ -511,12 +618,10 @@ export default function HubPage() {
                   return (
                     <button
                       key={module.id}
-                      onClick={() => {
-                        if (isAvailable) {
-                          // Toggle: if already selected, deselect it; otherwise select it
-                          setSelectedModule(isSelected ? null : module.id);
-                        }
-                      }}
+                      ref={(el) => { iconRefs.current[module.id] = el; }}
+                      data-module-icon
+                      onClick={() => handleIconClick(module.id)}
+                      onDoubleClick={() => handleIconDoubleClick(module.id)}
                       className={`relative transition-all bg-transparent border-none p-0 ${
                         isAvailable ? "cursor-pointer hover:scale-110" : "cursor-not-allowed opacity-40"
                       }`}
@@ -557,203 +662,42 @@ export default function HubPage() {
             </div>
 
             {/* Main Content Area - Center Frame Only (no left panel) */}
-            <div className="flex-1 flex items-center justify-center min-h-0">
-                {selectedModule ? (
-                  (() => {
-                    const module = modules.find(m => m.id === selectedModule);
-                    if (!module) return null;
-                    
-                    return (
-                      <div className="p-8 w-full max-w-2xl relative flex flex-col" style={{
-                        backgroundColor: "transparent",
-                        color: currentTheme.primary
-                      }}>
-                        <div className="mb-6 text-center">
-                          <h2 className="text-3xl font-bold hud-text font-mono" style={{
-                            color: currentTheme.primary,
-                            textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                          }}>
-                            {module.name}
-                          </h2>
-                        </div>
-
-                        {module.id === "calendar" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
-                              Connect your calendar to view events and schedule.
-                            </p>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Calendar
-                              </Link>
-                            </div>
-                          </div>
-                        ) : module.id === "tasks" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
-                              Manage your tasks and to-do lists.
-                            </p>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Task Manager
-                              </Link>
-                            </div>
-                          </div>
-                        ) : module.id === "weather" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
-                              View weather forecast and conditions.
-                            </p>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Weather
-                              </Link>
-                            </div>
-                          </div>
-                        ) : module.id === "notes" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
-                              Notes connected to your Craft account.
-                            </p>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Notes
-                              </Link>
-                            </div>
-                          </div>
-                        ) : module.id === "health" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <p className="text-center hud-text" style={{ color: currentTheme.textSecondary, opacity: 0.9 }}>
-                              Health metrics, activity, and wellness.
-                            </p>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Health
-                              </Link>
-                            </div>
-                          </div>
-                        ) : module.id === "nutrition" && module.available ? (
-                          <div className="space-y-6 flex-1 flex flex-col">
-                            <div className="grid grid-cols-2 gap-6">
-                              <div className="p-6 rounded-xl relative backdrop-blur-sm" style={{
-                                backgroundColor: `${currentTheme.primary}10`,
-                                border: `1px solid ${currentTheme.primary}20`
-                              }}>
-                                <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
-                                  color: currentTheme.textSecondary,
-                                  opacity: 0.7
-                                }}>
-                                  Recipes
-                                </div>
-                                <div className="text-4xl font-bold font-mono hud-text" style={{
-                                  color: currentTheme.primary,
-                                  textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                                }}>
-                                  {nutritionStats.recipes}
-                                </div>
-                              </div>
-                              <div className="p-6 rounded-xl relative backdrop-blur-sm" style={{
-                                backgroundColor: `${currentTheme.primary}10`,
-                                border: `1px solid ${currentTheme.primary}20`
-                              }}>
-                                <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
-                                  color: currentTheme.textSecondary,
-                                  opacity: 0.7
-                                }}>
-                                  Ingredients
-                                </div>
-                                <div className="text-4xl font-bold font-mono hud-text" style={{
-                                  color: currentTheme.primary,
-                                  textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                                }}>
-                                  {nutritionStats.ingredients}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex justify-center mt-auto">
-                              <Link
-                                href={module.href}
-                                className="px-6 py-3 rounded-xl font-mono transition-all hover:scale-105"
-                                style={{
-                                  backgroundColor: `${currentTheme.primary}20`,
-                                  borderColor: currentTheme.primary,
-                                  color: currentTheme.primary,
-                                  boxShadow: `0 0 20px ${currentTheme.primary}30`
-                                }}
-                              >
-                                Open Module
-                              </Link>
-                            </div>
-                          </div>
-                        ) : !module.available ? (
-                          <div className="text-center py-12 flex-1 flex items-center justify-center">
-                            <div className="text-lg font-mono hud-text" style={{
-                              color: currentTheme.primary,
-                              opacity: 0.5
-                            }}>
-                              [COMING SOON]
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center" style={{ background: "transparent" }}>
-                      <img
-                        src="/assets/jarvis-frame.png"
-                        alt="JARVIS Frame"
-                        className="jarvis-hud hud-element"
-                        style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-                      />
-                  </div>
-                )}
+            <div className="flex-1 flex items-center justify-center min-h-0 relative">
+              <div
+                ref={centerRef}
+                className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center flex-shrink-0"
+                style={{ background: "transparent" }}
+              >
+                <img
+                  src="/assets/jarvis-frame.png"
+                  alt="JARVIS Frame"
+                  className="jarvis-hud hud-element"
+                  style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
+                />
+              </div>
             </div>
+            {/* Wedge summary overlay - positioned relative to content area */}
+            {wedgeModule && wedgeProps && (() => {
+              const module = modules.find((m) => m.id === wedgeModule);
+              if (!module) return null;
+              return (
+                <div className="absolute inset-0 overflow-visible" style={{ zIndex: 20, pointerEvents: "none" }}>
+                  <div style={{ pointerEvents: "auto" }}>
+                    <WedgeSummaryCard
+                      originX={wedgeProps.originX}
+                      originY={wedgeProps.originY}
+                      angleDeg={wedgeProps.angleDeg}
+                      length={wedgeProps.length}
+                      wedgeAngleDeg={wedgeProps.wedgeAngleDeg}
+                      moduleName={module.name}
+                      moduleHref={module.href}
+                      themeColor={currentTheme.primary}
+                      onNavigate={() => handleWedgeNavigate(wedgeModule)}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Bottom Frames - Settings, Profile, Status, Notifications */}
             <div className="flex-shrink-0 mt-4">

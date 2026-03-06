@@ -2,6 +2,13 @@
 
 ## Planned Features
 
+### P0 Priority
+
+1. **Module Summary Content**
+   - Define what each module's wedge summary displays when an icon is clicked
+   - User to specify content per module (Calendar, Nutrition, Bike, Strava, Tasks, Weather, Notes, Health)
+   - **Status:** Wedge UI implemented (wedge shape, overlay, click behavior). Content definitions pending.
+
 ### High Priority
 
 1. **Convex Backend Integration**

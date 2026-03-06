@@ -191,3 +191,8 @@
 **Decision:** Hub module order – Calendar, Nutrition, Bike, Strava, Tasks, Weather, Notes, Health
 - **Rationale:** Logical grouping: calendar/schedule first, core nutrition/bike/Strava, then productivity (tasks, notes), health/weather last.
 - **Status:** Implemented
+
+**Decision:** Wedge-shaped summary card on single icon click
+- **Rationale:** User wanted HUD-style summary inspired by Iron Man interface. Single click opens wedge; double-click or click wedge navigates to module.
+- **Implementation:** Wedge originates from center of frame, points toward clicked icon. All wedges same dimensions, size, shape (based on Strava wedge). Fixed 120° angle. Length = healthDist × 0.6. Rounded opposite edge. Overlays center frame. Slides in from center (~200ms). Click same icon to close; click elsewhere to close; click other icon switches wedge. Icon row z-30 so icons stay clickable above wedge overlay.
+- **Status:** Implemented
