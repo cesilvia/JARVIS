@@ -3,9 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
-type HubView = "menu" | "dashboard" | "hybrid";
-type Theme = "jarvis" | "friday" | "jarvis2" | "jarvis3" | "jarvis4";
-
 interface Module {
   id: string;
   name: string;
@@ -22,62 +19,232 @@ const modules: Module[] = [
     name: "Nutrition Tracker",
     description: "Track macros, ingredients, and recipes",
     icon: "◇",
-    href: "/",
+    href: "/nutrition",
     color: "red",
     available: true,
   },
   {
-    id: "tasks",
-    name: "Task Management",
-    description: "Extract and manage tasks from emails",
-    icon: "□",
-    href: "/tasks",
+    id: "bike",
+    name: "Bike Gear",
+    description: "Cycling and bike gear",
+    icon: "◇",
+    href: "/bike",
     color: "red",
-    available: false,
+    available: true,
   },
   {
-    id: "email",
-    name: "Email Assistant",
-    description: "Draft emails and manage inbox",
-    icon: "✉",
-    href: "/email",
+    id: "strava",
+    name: "Strava",
+    description: "Strava",
+    icon: "◇",
+    href: "/strava",
     color: "red",
-    available: false,
-  },
-  {
-    id: "calendar",
-    name: "Calendar",
-    description: "Schedule management and workload awareness",
-    icon: "▦",
-    href: "/calendar",
-    color: "red",
-    available: false,
-  },
-  {
-    id: "fitness",
-    name: "Fitness & Training",
-    description: "Training plans and nutrition prep",
-    icon: "⚡",
-    href: "/fitness",
-    color: "orange",
-    available: false,
-  },
-  {
-    id: "weather",
-    name: "Weather",
-    description: "Weather-aware planning",
-    icon: "⊙",
-    href: "/weather",
-    color: "red",
-    available: false,
+    available: true,
   },
 ];
+
+// Profile icon: bald male head outline with rectangular glasses; same style as other icons
+const JarvisProfileIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    preserveAspectRatio="xMidYMid meet"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    {/* Bald head outline: round top (dome), natural sides, rounded chin – oval */}
+    <path d="M24 8 C33 8 37 14 37 23 C37 31 34 38 24 39 C14 38 11 31 11 23 C11 14 15 8 24 8 Z" strokeWidth="2.25" />
+    {/* Rectangular glasses – left lens */}
+    <rect x="12" y="18" width="8" height="6" rx="0.5" strokeWidth="2.25" fill="none" />
+    {/* Rectangular glasses – right lens */}
+    <rect x="28" y="18" width="8" height="6" rx="0.5" strokeWidth="2.25" fill="none" />
+    {/* Bridge between lenses */}
+    <line x1="20" y1="20.5" x2="28" y2="20.5" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style settings gear icon (HUD / Iron Man aesthetic: wireframe cog, geometric, tech)
+const JarvisSettingsIcon = ({ className = "w-8 h-8", style }: { className?: string; style?: React.CSSProperties }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    {/* Inner hub */}
+    <circle cx="24" cy="24" r="6" strokeWidth="2.25" opacity="0.9" />
+    {/* Outer ring (r=14 to match other icons) */}
+    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    {/* 8 gear teeth (short, within r=14 boundary) */}
+    <line x1="24" y1="12" x2="24" y2="10" strokeWidth="2.25" />
+    <line x1="24" y1="36" x2="24" y2="38" strokeWidth="2.25" />
+    <line x1="12" y1="24" x2="10" y2="24" strokeWidth="2.25" />
+    <line x1="36" y1="24" x2="38" y2="24" strokeWidth="2.25" />
+    <line x1="17" y1="17" x2="14" y2="14" strokeWidth="2.25" />
+    <line x1="31" y1="31" x2="34" y2="34" strokeWidth="2.25" />
+    <line x1="17" y1="31" x2="14" y2="34" strokeWidth="2.25" />
+    <line x1="31" y1="17" x2="34" y2="14" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style bike wheel icon (HUD: deep-section rim, small hub, thin crossed spokes)
+const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
+  const hubR = 2.5;
+  const rimR = 14;
+  const n = 16;
+  const cross = 4; // 2-cross lacing: each spoke goes to rim 4 positions over
+  const spokes = Array.from({ length: n }, (_, i) => {
+    const a1 = (i * 2 * Math.PI) / n;
+    const a2 = ((i + cross) * 2 * Math.PI) / n;
+    return (
+      <line
+        key={i}
+        x1={24 + hubR * Math.cos(a1)}
+        y1={24 - hubR * Math.sin(a1)}
+        x2={24 + rimR * Math.cos(a2)}
+        y2={24 - rimR * Math.sin(a2)}
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+    );
+  });
+  return (
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      stroke={strokeColor ?? "currentColor"}
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      style={style}
+      aria-hidden
+    >
+      {/* Deep-section rim (r=14 to match other icons) */}
+      <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+      <circle cx="24" cy="24" r="12" strokeWidth="2.25" />
+      {/* Small hub */}
+      <circle cx="24" cy="24" r={hubR} strokeWidth="2.25" opacity="0.9" />
+      {/* Crossed spokes (2-cross lacing, thin) */}
+      {spokes}
+    </svg>
+  );
+};
+
+// JARVIS-style bike gear / cassette icon (HUD: side view – vertical lines, short to long)
+const JarvisBikeGearIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    {/* Vertical lines (short left → long right) */}
+    <line x1="14" y1="20" x2="14" y2="28" strokeWidth="2.25" />
+    <line x1="18" y1="16" x2="18" y2="32" strokeWidth="2.25" />
+    <line x1="22" y1="14" x2="22" y2="34" strokeWidth="2.25" />
+    <line x1="26" y1="12" x2="26" y2="36" strokeWidth="2.25" />
+    <line x1="30" y1="10" x2="30" y2="38" strokeWidth="2.25" />
+    <line x1="34" y1="8" x2="34" y2="40" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style status icon (realistic gauge: dial arc, tick marks, center pivot, needle)
+const JarvisStatusIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    {/* Outer ring */}
+    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    {/* Dial arc (bottom half of circle, like a speedometer) */}
+    <path d="M10 24 A14 14 0 0 1 38 24" strokeWidth="2.25" />
+    {/* Tick marks at 0°, 45°, 90°, 135°, 180° (radial, on the arc) */}
+    <line x1="36" y1="24" x2="38" y2="24" strokeWidth="2.25" />
+    <line x1="32.3" y1="15.7" x2="34" y2="14" strokeWidth="2.25" />
+    <line x1="24" y1="12" x2="24" y2="10" strokeWidth="2.25" />
+    <line x1="15.7" y1="15.7" x2="14" y2="14" strokeWidth="2.25" />
+    <line x1="12" y1="24" x2="10" y2="24" strokeWidth="2.25" />
+    {/* Center pivot (small circle) */}
+    <circle cx="24" cy="24" r="2" strokeWidth="2.25" opacity="0.9" />
+    {/* Needle (pivots from center, pointing up) */}
+    <line x1="24" y1="24" x2="24" y2="11" strokeWidth="2.25" />
+  </svg>
+);
+
+// JARVIS-style alert/notification icon (exclamation in triangle – warning/alert)
+const JarvisAlertIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    {/* Triangle (warning shape) – fully inside circle */}
+    <path d="M24 12 L32 34 L16 34 Z" strokeWidth="2.25" fill="none" />
+    {/* Exclamation: dot + vertical line */}
+    <line x1="24" y1="19" x2="24" y2="27" strokeWidth="2.25" />
+    <circle cx="24" cy="30" r="1.25" strokeWidth="2.25" fill="none" />
+  </svg>
+);
+
+// JARVIS-style nutrition icon (HUD / Iron Man: macro wheel – carbs/protein/fat segments)
+const JarvisNutritionIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={style}
+    aria-hidden
+  >
+    {/* Outer ring */}
+    <circle cx="24" cy="24" r="14" strokeWidth="2.25" />
+    {/* Inner hub */}
+    <circle cx="24" cy="24" r="5" strokeWidth="2.25" opacity="0.9" />
+    {/* Three macro segments (120° each) – radial lines to rim */}
+    <line x1="24" y1="24" x2="24" y2="10" strokeWidth="2.25" />
+    <line x1="24" y1="24" x2="12" y2="17" strokeWidth="2.25" />
+    <line x1="24" y1="24" x2="36" y2="17" strokeWidth="2.25" />
+  </svg>
+);
 
 // J.A.R.V.I.S. frame wrapper component - using the uploaded image
 const JarvisFrame = ({ isLarge }: { isLarge: boolean }) => {
   return (
       <img
-        src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
+        src="/assets/jarvis-frame.png"
         alt="JARVIS Frame"
         className="jarvis-hud hud-element"
       />
@@ -85,7 +252,7 @@ const JarvisFrame = ({ isLarge }: { isLarge: boolean }) => {
 };
 
 // Helper component to render stylized icons
-const StylizedIcon = ({ moduleId, size = "text-4xl" }: { moduleId: string; size?: string }) => {
+const StylizedIcon = ({ moduleId, size = "text-4xl", iconColor }: { moduleId: string; size?: string; iconColor?: string }) => {
   const isLarge = size === "text-4xl";
   const isMedium = size === "text-2xl";
   const isSmall = size === "text-xl";
@@ -93,211 +260,42 @@ const StylizedIcon = ({ moduleId, size = "text-4xl" }: { moduleId: string; size?
   // Adjust frame size based on icon size - smaller for compact display
   const frameSize = isLarge ? "w-12 h-12" : isMedium ? "w-8 h-8" : isSmall ? "w-10 h-10" : "w-6 h-6";
   const iconSize = isLarge ? "w-12 h-12" : isMedium ? "w-8 h-8" : isSmall ? "w-10 h-10" : "w-6 h-6";
+  const nutritionIconSize = isLarge ? "w-32 h-32" : isMedium ? "w-20 h-20" : isSmall ? "w-24 h-24" : "w-16 h-16";
   const borderWidth = isLarge ? "border-[3px]" : "border-2";
-  
+
   const iconStyles: { [key: string]: React.ReactElement } = {
-    nutrition: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
-    tasks: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
-    email: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
-    calendar: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
-    fitness: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
-    weather: (
-      <div className={frameSize} style={{ position: "relative", background: "transparent", border: "none", boxShadow: "none" }}>
-        <img
-          src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
-          alt="JARVIS Frame"
-          className="jarvis-hud hud-element"
-          style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
-        />
-      </div>
-    ),
+    nutrition: <JarvisNutritionIcon className={nutritionIconSize} stroke={iconColor} />,
+    bike: <JarvisBikeGearIcon className={nutritionIconSize} stroke={iconColor} />,
+    strava: <JarvisBikeWheelIcon className={nutritionIconSize} stroke={iconColor} />,
   };
 
-  return iconStyles[moduleId] || <div className={`${iconSize} ${borderWidth} border-[#FBCA03]`}></div>;
+  const icon = iconStyles[moduleId] || <div className={`${iconSize} ${borderWidth} border-[#FBCA03]`}></div>;
+  return iconColor ? <span style={{ color: iconColor, display: "inline-flex" }}>{icon}</span> : icon;
 };
 
-// Helper function to get color classes
-const getColorClasses = (color: string, available: boolean) => {
-  if (!available) {
-    return {
-      border: "border-slate-700",
-      bg: "bg-[#6A0C0B]/40",
-      hoverBorder: "",
-      button: "bg-[#6A0C0B]",
-      borderLeft: "border-slate-700",
-    };
-  }
-
-  const colorMap: { [key: string]: { border: string; bg: string; hoverBorder: string; button: string; borderLeft: string } } = {
-    green: {
-      border: "border-[#AA0505]/40",
-      bg: "bg-[#AA0505]/20",
-      hoverBorder: "hover:border-[#AA0505]/60",
-      button: "bg-[#AA0505] hover:bg-[#6A0C0B]",
-      borderLeft: "border-[#AA0505]",
-    },
-    red: {
-      border: "border-[#AA0505]/40",
-      bg: "bg-[#AA0505]/20",
-      hoverBorder: "hover:border-[#AA0505]/60",
-      button: "bg-[#AA0505] hover:bg-[#6A0C0B]",
-      borderLeft: "border-[#AA0505]",
-    },
-    purple: {
-      border: "border-[#AA0505]/40",
-      bg: "bg-[#AA0505]/20",
-      hoverBorder: "hover:border-[#AA0505]/60",
-      button: "bg-[#AA0505] hover:bg-[#6A0C0B]",
-      borderLeft: "border-[#AA0505]",
-    },
-    indigo: {
-      border: "border-[#AA0505]/40",
-      bg: "bg-[#AA0505]/20",
-      hoverBorder: "hover:border-[#AA0505]/60",
-      button: "bg-[#AA0505] hover:bg-[#6A0C0B]",
-      borderLeft: "border-[#AA0505]",
-    },
-    orange: {
-      border: "border-[#B97D10]/40",
-      bg: "bg-[#B97D10]/20",
-      hoverBorder: "hover:border-[#FBCA03]/60",
-      button: "bg-[#B97D10] hover:bg-[#FBCA03]",
-      borderLeft: "border-[#B97D10]",
-    },
-    sky: {
-      border: "border-[#AA0505]/40",
-      bg: "bg-[#AA0505]/20",
-      hoverBorder: "hover:border-[#AA0505]/60",
-      button: "bg-[#AA0505] hover:bg-[#6A0C0B]",
-      borderLeft: "border-[#AA0505]",
-    },
-  };
-
-  return colorMap[color] || colorMap.red;
+// JARVIS 4.0 theme (only theme)
+const currentTheme = {
+  name: "JARVIS 4.0",
+  primary: "#00D9FF",
+  secondary: "#67C7EB",
+  accent: "#00FF88",
+  background: "#000000",
+  cardBg: "rgba(0, 217, 255, 0.05)",
+  text: "#00D9FF",
+  textSecondary: "#67C7EB",
+  style: "classic" as const,
+  glow: "#00D9FF",
+  circuit: "#00D9FF"
 };
 
-// Theme configurations
-const themes = {
-  jarvis: {
-    name: "JARVIS",
-    primary: "#00D9FF", // Electric blue/cyan (main glow)
-    secondary: "#67C7EB", // Lighter blue
-    accent: "#00FF88", // Green highlights
-    background: "#000000", // Pure black
-    cardBg: "rgba(0, 217, 255, 0.05)", // Very subtle blue tint
-    text: "#00D9FF", // Electric blue text
-    textSecondary: "#67C7EB", // Lighter blue for secondary text
-    style: "classic", // Classic HUD style
-    glow: "#00D9FF", // Glow color
-    circuit: "#00D9FF" // Circuit pattern color
-  },
-  friday: {
-    name: "F.R.I.D.A.Y.",
-    primary: "#FF6B35", // Orange (main)
-    secondary: "#00D9FF", // Electric blue (highlights)
-    accent: "#00FF88", // Green highlights
-    background: "#0A0500", // Very dark brown-black
-    cardBg: "rgba(255, 107, 53, 0.05)", // Very subtle orange tint
-    text: "#FF6B35", // Orange text
-    textSecondary: "#FFB88C", // Lighter orange
-    style: "modern", // Modern/minimal
-    glow: "#FF6B35", // Glow color
-    circuit: "#00D9FF" // Circuit pattern uses blue/green
-  },
-  jarvis2: {
-    name: "JARVIS 2.0",
-    primary: "#FBCA03", // Bright gold (main glow)
-    secondary: "#FFD700", // Pure gold
-    accent: "#FFA500", // Amber highlights
-    background: "#000000", // Pure black
-    cardBg: "rgba(251, 202, 3, 0.05)", // Very subtle gold tint
-    text: "#FBCA03", // Gold text
-    textSecondary: "#FFD700", // Lighter gold
-    style: "classic", // Classic HUD style
-    glow: "#FBCA03", // Glow color
-    circuit: "#FBCA03" // Circuit pattern color
-  },
-  jarvis3: {
-    name: "JARVIS 3.0",
-    primary: "#00D9FF", // Electric blue/cyan (main glow)
-    secondary: "#67C7EB", // Lighter blue
-    accent: "#00FF88", // Green highlights
-    background: "#000000", // Pure black
-    cardBg: "rgba(0, 217, 255, 0.05)", // Very subtle blue tint
-    text: "#00D9FF", // Electric blue text
-    textSecondary: "#67C7EB", // Lighter blue for secondary text
-    style: "classic", // Classic HUD style
-    glow: "#00D9FF", // Glow color
-    circuit: "#00D9FF" // Circuit pattern color
-  },
-  jarvis4: {
-    name: "JARVIS 4.0",
-    primary: "#00D9FF", // Electric blue/cyan (main glow)
-    secondary: "#67C7EB", // Lighter blue
-    accent: "#00FF88", // Green highlights
-    background: "#000000", // Pure black
-    cardBg: "rgba(0, 217, 255, 0.05)", // Very subtle blue tint
-    text: "#00D9FF", // Electric blue text
-    textSecondary: "#67C7EB", // Lighter blue for secondary text
-    style: "classic", // Classic HUD style
-    glow: "#00D9FF", // Glow color
-    circuit: "#00D9FF" // Circuit pattern color
-  }
-};
+const ALERT_ICON_ORANGE = "#FF6600";
 
 export default function HubPage() {
-  const [view, setView] = useState<HubView>("menu");
-  const [theme, setTheme] = useState<Theme>("jarvis");
-  const [selectedModule, setSelectedModule] = useState<string | null>(null); // No module selected by default
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [nutritionStats, setNutritionStats] = useState({ recipes: 0, ingredients: 0 });
-  
-  const currentTheme = themes[theme];
-  
+  const [hasAlerts, setHasAlerts] = useState(false);
+  const hudClass = currentTheme.style === "classic" ? "hud-card" : "hud-modern";
+
   // Mock data for command center
   const mockAppointments = [
     { time: "09:00", title: "Team Meeting", location: "Conference Room A" },
@@ -338,896 +336,31 @@ export default function HubPage() {
     }
   }, []);
 
-  const hudClass = currentTheme.style === "classic" ? "hud-card" : "hud-modern";
-  
+  // Check for unread alerts (from localStorage; set by alerts page when alerts exist)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const unread = localStorage.getItem("jarvis-unread-alerts");
+      setHasAlerts(!!unread && unread !== "0" && unread !== "[]");
+    }
+  }, []);
+
   return (
     <div className="min-h-screen hud-circuit-bg" style={{ 
       backgroundColor: currentTheme.background,
       color: currentTheme.primary
     }}>
       <main className="container mx-auto px-4 py-8 max-w-6xl relative z-10" style={{ position: "relative", zIndex: 1 }}>
-        {/* Header */}
-        <div className="mb-8 relative">
-          <h1 className="text-5xl font-bold mb-2 hud-text" style={{
-            color: currentTheme.primary,
-            textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-          }}>
-            {currentTheme.name}
-          </h1>
-          <p className="text-lg hud-text" style={{ 
-            color: currentTheme.textSecondary,
-            textShadow: `0 0 10px ${currentTheme.textSecondary}40`
-          }}>
-            Personal AI Operations Assistant
-          </p>
-        </div>
-
-        {/* Theme Selector */}
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={() => setTheme("jarvis")}
-            className={`px-4 py-2 rounded-lg transition-all text-sm font-mono ${
-              theme === "jarvis"
-                ? "hud-glow"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={{
-              backgroundColor: theme === "jarvis" ? `${themes.jarvis.primary}20` : "transparent",
-              border: `2px solid ${themes.jarvis.primary}`,
-              color: themes.jarvis.primary,
-              boxShadow: theme === "jarvis" ? `0 0 20px ${themes.jarvis.primary}50` : "none"
-            }}
-          >
-            JARVIS
-          </button>
-          <button
-            onClick={() => setTheme("friday")}
-            className={`px-4 py-2 rounded-lg transition-all text-sm font-mono ${
-              theme === "friday"
-                ? "hud-glow"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={{
-              backgroundColor: theme === "friday" ? `${themes.friday.primary}20` : "transparent",
-              border: `2px solid ${themes.friday.primary}`,
-              color: themes.friday.primary,
-              boxShadow: theme === "friday" ? `0 0 20px ${themes.friday.primary}50` : "none"
-            }}
-          >
-            F.R.I.D.A.Y.
-          </button>
-          <button
-            onClick={() => setTheme("jarvis2")}
-            className={`px-4 py-2 rounded-lg transition-all text-sm font-mono ${
-              theme === "jarvis2"
-                ? "hud-glow"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={{
-              backgroundColor: theme === "jarvis2" ? `${themes.jarvis2.primary}20` : "transparent",
-              border: `2px solid ${themes.jarvis2.primary}`,
-              color: themes.jarvis2.primary,
-              boxShadow: theme === "jarvis2" ? `0 0 20px ${themes.jarvis2.primary}50` : "none"
-            }}
-          >
-            JARVIS 2.0
-          </button>
-          <button
-            onClick={() => setTheme("jarvis3")}
-            className={`px-4 py-2 rounded-lg transition-all text-sm font-mono ${
-              theme === "jarvis3"
-                ? "hud-glow"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={{
-              backgroundColor: theme === "jarvis3" ? `${themes.jarvis3.primary}20` : "transparent",
-              border: `2px solid ${themes.jarvis3.primary}`,
-              color: themes.jarvis3.primary,
-              boxShadow: theme === "jarvis3" ? `0 0 20px ${themes.jarvis3.primary}50` : "none"
-            }}
-          >
-            JARVIS 3.0
-          </button>
-          <button
-            onClick={() => setTheme("jarvis4")}
-            className={`px-4 py-2 rounded-lg transition-all text-sm font-mono ${
-              theme === "jarvis4"
-                ? "hud-glow"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={{
-              backgroundColor: theme === "jarvis4" ? `${themes.jarvis4.primary}20` : "transparent",
-              border: `2px solid ${themes.jarvis4.primary}`,
-              color: themes.jarvis4.primary,
-              boxShadow: theme === "jarvis4" ? `0 0 20px ${themes.jarvis4.primary}50` : "none"
-            }}
-          >
-            JARVIS 4.0
-          </button>
-        </div>
-
-        {/* View Selector - Hide for JARVIS 3.0 and 4.0 */}
-        {theme !== "jarvis3" && theme !== "jarvis4" && (
-          <div className="mb-6 flex gap-2">
-            <button
-              onClick={() => setView("menu")}
-              className={`px-4 py-2 rounded-lg transition-all font-mono text-sm ${
-                view === "menu" ? "hud-glow" : ""
-              }`}
-              style={{
-                backgroundColor: view === "menu" ? `${currentTheme.primary}20` : "transparent",
-                border: `2px solid ${currentTheme.primary}`,
-                color: currentTheme.primary,
-                boxShadow: view === "menu" ? `0 0 20px ${currentTheme.primary}50` : "none"
-              }}
-            >
-              Simple Menu
-            </button>
-            <button
-              onClick={() => setView("dashboard")}
-              className={`px-4 py-2 rounded-lg transition-all font-mono text-sm ${
-                view === "dashboard" ? "hud-glow" : ""
-              }`}
-              style={{
-                backgroundColor: view === "dashboard" ? `${currentTheme.primary}20` : "transparent",
-                border: `2px solid ${currentTheme.primary}`,
-                color: currentTheme.primary,
-                boxShadow: view === "dashboard" ? `0 0 20px ${currentTheme.primary}50` : "none"
-              }}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setView("hybrid")}
-              className={`px-4 py-2 rounded-lg transition-all font-mono text-sm ${
-                view === "hybrid" ? "hud-glow" : ""
-              }`}
-              style={{
-                backgroundColor: view === "hybrid" ? `${currentTheme.primary}20` : "transparent",
-                border: `2px solid ${currentTheme.primary}`,
-                color: currentTheme.primary,
-                boxShadow: view === "hybrid" ? `0 0 20px ${currentTheme.primary}50` : "none"
-              }}
-            >
-              Hybrid
-            </button>
-          </div>
-        )}
-
-        {/* Simple Menu View */}
-        {view === "menu" && theme !== "jarvis4" && (
-          <div className={`${hudClass} rounded-xl p-6 relative`} style={{
-            backgroundColor: currentTheme.cardBg,
-            borderColor: currentTheme.primary,
-            color: currentTheme.primary
-          }}>
-            {currentTheme.style === "classic" && (
-              <>
-                <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-              </>
-            )}
-            <h2 className="text-2xl font-semibold mb-6 hud-text font-mono" style={{ 
-              color: currentTheme.primary,
-              textShadow: `0 0 15px ${currentTheme.primary}`
-            }}>
-              Modules
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {modules.map((module) => {
-                const colors = getColorClasses(module.color, module.available);
-                return (
-                  <Link
-                    key={module.id}
-                    href={module.available ? module.href : "#"}
-                    className={`${hudClass} p-6 rounded-lg transition-all relative ${
-                      module.available
-                        ? "cursor-pointer hover:scale-105 hud-pulse"
-                        : "opacity-40 cursor-not-allowed"
-                    }`}
-                    style={{
-                      borderColor: module.available ? currentTheme.primary : `${currentTheme.primary}30`,
-                      backgroundColor: module.available ? currentTheme.cardBg : `${currentTheme.primary}05`,
-                      color: currentTheme.primary,
-                      boxShadow: module.available && currentTheme.style === "classic" 
-                        ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                        : "none"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (module.available) {
-                        e.currentTarget.style.borderColor = currentTheme.primary;
-                        e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.primary}60, inset 0 0 30px ${currentTheme.primary}20`;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (module.available) {
-                        e.currentTarget.style.borderColor = currentTheme.primary;
-                        e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                          ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                          : "none";
-                      }
-                    }}
-                  >
-                    <div className="mb-3 flex items-center justify-center">
-                      <StylizedIcon moduleId={module.id} size="text-4xl" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2 hud-text font-mono" style={{ 
-                      color: currentTheme.primary,
-                      textShadow: `0 0 10px ${currentTheme.primary}`
-                    }}>
-                      {module.name}
-                    </h3>
-                    {!module.available && (
-                      <div className="mt-2 text-xs font-mono" style={{ 
-                        color: currentTheme.primary,
-                        opacity: 0.5
-                      }}>
-                        [COMING SOON]
-                      </div>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Dashboard View */}
-        {view === "dashboard" && theme !== "jarvis4" && (
-          <div className="space-y-8">
-            {/* Quick Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className={`${hudClass} rounded-xl p-6 transition-all hover:scale-105 relative`} style={{
-                backgroundColor: currentTheme.cardBg,
-                borderColor: currentTheme.primary,
-                color: currentTheme.primary,
-                boxShadow: currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                  : "none"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.primary}60, inset 0 0 30px ${currentTheme.primary}20`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                  : "none";
-              }}>
-                {currentTheme.style === "classic" && (
-                  <>
-                    <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  </>
-                )}
-                <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{ 
-                  color: currentTheme.textSecondary || currentTheme.primary,
-                  opacity: 0.7,
-                  textShadow: `0 0 5px ${currentTheme.textSecondary || currentTheme.primary}40`
-                }}>
-                  Total Modules
-                </div>
-                <div className="text-4xl font-bold mb-1 font-mono hud-text" style={{
-                  color: currentTheme.primary,
-                  textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                }}>
-                  {modules.length}
-                </div>
-                <div className="text-xs font-mono" style={{ 
-                  color: currentTheme.textSecondary || currentTheme.primary,
-                  opacity: 0.6
-                }}>
-                  Available across all features
-                </div>
-              </div>
-              <div className={`${hudClass} rounded-xl p-6 transition-all hover:scale-105 relative`} style={{
-                backgroundColor: currentTheme.cardBg,
-                borderColor: currentTheme.accent,
-                color: currentTheme.accent,
-                boxShadow: currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.accent}30, inset 0 0 20px ${currentTheme.accent}10` 
-                  : "none"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.accent}60, inset 0 0 30px ${currentTheme.accent}20`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.accent}30, inset 0 0 20px ${currentTheme.accent}10` 
-                  : "none";
-              }}>
-                {currentTheme.style === "classic" && (
-                  <>
-                    <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.accent }}></div>
-                    <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.accent }}></div>
-                  </>
-                )}
-                <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{ 
-                  color: currentTheme.accent,
-                  opacity: 0.7,
-                  textShadow: `0 0 5px ${currentTheme.accent}40`
-                }}>
-                  Available Now
-                </div>
-                <div className="text-4xl font-bold mb-1 font-mono hud-text" style={{
-                  color: currentTheme.accent,
-                  textShadow: `0 0 20px ${currentTheme.accent}, 0 0 40px ${currentTheme.accent}40`
-                }}>
-                  {modules.filter((m) => m.available).length}
-                </div>
-                <div className="text-xs font-mono" style={{ 
-                  color: currentTheme.accent,
-                  opacity: 0.6
-                }}>
-                  Ready to use
-                </div>
-              </div>
-              <div className={`${hudClass} rounded-xl p-6 transition-all hover:scale-105 relative`} style={{
-                backgroundColor: currentTheme.cardBg,
-                borderColor: currentTheme.primary,
-                color: currentTheme.primary,
-                boxShadow: currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                  : "none"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.primary}60, inset 0 0 30px ${currentTheme.primary}20`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                  ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                  : "none";
-              }}>
-                {currentTheme.style === "classic" && (
-                  <>
-                    <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                    <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  </>
-                )}
-                <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{ 
-                  color: currentTheme.textSecondary || currentTheme.primary,
-                  opacity: 0.7,
-                  textShadow: `0 0 5px ${currentTheme.textSecondary || currentTheme.primary}40`
-                }}>
-                  In Development
-                </div>
-                <div className="text-4xl font-bold mb-1 font-mono hud-text" style={{
-                  color: currentTheme.primary,
-                  textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                }}>
-                  {modules.filter((m) => !m.available).length}
-                </div>
-                <div className="text-xs font-mono" style={{ 
-                  color: currentTheme.textSecondary || currentTheme.primary,
-                  opacity: 0.6
-                }}>
-                  Coming soon
-                </div>
-              </div>
-            </div>
-
-            {/* Module Widgets */}
-            <div>
-              <h2 className="text-xl font-semibold mb-5 hud-text font-mono" style={{ 
-                color: currentTheme.primary,
-                textShadow: `0 0 15px ${currentTheme.primary}`
-              }}>
-                Modules
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {modules.map((module) => {
-                  const CardContent = (
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-5">
-                        <div className="flex items-start gap-4">
-                          <div className={`${hudClass} w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0`} style={{
-                            backgroundColor: currentTheme.cardBg,
-                            borderColor: currentTheme.primary,
-                            color: currentTheme.primary,
-                            boxShadow: currentTheme.style === "classic" 
-                              ? `0 0 15px ${currentTheme.primary}30, inset 0 0 15px ${currentTheme.primary}10` 
-                              : "none"
-                          }}>
-                            <StylizedIcon moduleId={module.id} size="text-2xl" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold mb-1 hud-text font-mono" style={{ 
-                              color: currentTheme.primary,
-                              textShadow: `0 0 10px ${currentTheme.primary}`
-                            }}>
-                              {module.name}
-                            </h3>
-                          </div>
-                        </div>
-                        {module.available ? (
-                          <span className="px-2.5 py-1 text-xs font-mono rounded-md border flex-shrink-0 hud-text" style={{
-                            backgroundColor: `${currentTheme.accent}20`,
-                            color: currentTheme.accent,
-                            borderColor: currentTheme.accent,
-                            textShadow: `0 0 8px ${currentTheme.accent}`,
-                            boxShadow: `0 0 10px ${currentTheme.accent}30`
-                          }}>
-                            ACTIVE
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 text-xs font-mono rounded-md border flex-shrink-0" style={{
-                            backgroundColor: `${currentTheme.primary}20`,
-                            color: currentTheme.primary,
-                            opacity: 0.5,
-                            borderColor: `${currentTheme.primary}50`
-                          }}>
-                            SOON
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Module-specific stats/widgets */}
-                      {module.id === "nutrition" && module.available && (
-                        <div className="mt-5 pt-5 border-t" style={{ borderColor: `${currentTheme.primary}30` }}>
-                          <div className="grid grid-cols-2 gap-5">
-                            <div>
-                              <div className="text-xs font-mono uppercase tracking-wider mb-1.5 hud-text" style={{ 
-                                color: currentTheme.textSecondary || currentTheme.primary,
-                                opacity: 0.7,
-                                textShadow: `0 0 5px ${currentTheme.textSecondary || currentTheme.primary}40`
-                              }}>
-                                Recipes
-                              </div>
-                              <div className="text-2xl font-bold font-mono hud-text" style={{
-                                color: currentTheme.primary,
-                                textShadow: `0 0 15px ${currentTheme.primary}, 0 0 30px ${currentTheme.primary}40`
-                              }}>
-                                {nutritionStats.recipes}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-xs font-mono uppercase tracking-wider mb-1.5 hud-text" style={{ 
-                                color: currentTheme.textSecondary || currentTheme.primary,
-                                opacity: 0.7,
-                                textShadow: `0 0 5px ${currentTheme.textSecondary || currentTheme.primary}40`
-                              }}>
-                                Ingredients
-                              </div>
-                              <div className="text-2xl font-bold font-mono hud-text" style={{
-                                color: currentTheme.primary,
-                                textShadow: `0 0 15px ${currentTheme.primary}, 0 0 30px ${currentTheme.primary}40`
-                              }}>
-                                {nutritionStats.ingredients}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  );
-
-                  if (module.available) {
-                    return (
-                      <Link
-                        key={module.id}
-                        href={module.href}
-                        className={`${hudClass} rounded-xl transition-all cursor-pointer block hover:scale-[1.02] relative`}
-                        style={{
-                          backgroundColor: currentTheme.cardBg,
-                          borderColor: currentTheme.primary,
-                          color: currentTheme.primary,
-                          boxShadow: currentTheme.style === "classic" 
-                            ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                            : "none"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.primary}60, inset 0 0 30px ${currentTheme.primary}20`;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                            ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                            : "none";
-                        }}
-                      >
-                        {currentTheme.style === "classic" && (
-                          <>
-                            <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                            <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                          </>
-                        )}
-                        {CardContent}
-                      </Link>
-                    );
-                  } else {
-                    return (
-                      <div
-                        key={module.id}
-                        className={`${hudClass} rounded-xl opacity-40 relative`}
-                        style={{
-                          backgroundColor: `${currentTheme.primary}10`,
-                          borderColor: `${currentTheme.primary}30`,
-                          color: currentTheme.primary
-                        }}
-                      >
-                        {CardContent}
-                      </div>
-                    );
-                  }
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Hybrid View */}
-        {view === "hybrid" && theme !== "jarvis4" && (
-          <div className="space-y-6">
-            {/* Quick Stats Bar */}
-            <div className={`${hudClass} rounded-xl p-6 relative`} style={{
-              backgroundColor: currentTheme.cardBg,
-              borderColor: currentTheme.primary,
-              color: currentTheme.primary
-            }}>
-              {currentTheme.style === "classic" && (
-                <>
-                  <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-                </>
-              )}
-              <h2 className="text-xl font-semibold mb-4 hud-text font-mono" style={{ 
-                color: currentTheme.primary,
-                textShadow: `0 0 15px ${currentTheme.primary}`
-              }}>
-                Quick Overview
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold font-mono hud-text" style={{
-                    color: currentTheme.primary,
-                    textShadow: `0 0 15px ${currentTheme.primary}, 0 0 30px ${currentTheme.primary}40`
-                  }}>
-                    {modules.filter((m) => m.available).length}
-                  </div>
-                  <div className="text-xs font-mono" style={{ 
-                    color: currentTheme.textSecondary || currentTheme.primary,
-                    opacity: 0.7
-                  }}>Active Modules</div>
-                </div>
-                {modules.find((m) => m.id === "nutrition" && m.available) && (
-                  <>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono hud-text" style={{
-                        color: currentTheme.accent,
-                        textShadow: `0 0 15px ${currentTheme.accent}, 0 0 30px ${currentTheme.accent}40`
-                      }}>
-                        {nutritionStats.recipes}
-                      </div>
-                      <div className="text-xs font-mono" style={{ 
-                        color: currentTheme.textSecondary || currentTheme.primary,
-                        opacity: 0.6
-                      }}>Recipes</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono hud-text" style={{
-                        color: currentTheme.accent,
-                        textShadow: `0 0 15px ${currentTheme.accent}, 0 0 30px ${currentTheme.accent}40`
-                      }}>
-                        {nutritionStats.ingredients}
-                      </div>
-                      <div className="text-xs font-mono" style={{ 
-                        color: currentTheme.textSecondary || currentTheme.primary,
-                        opacity: 0.6
-                      }}>Ingredients</div>
-                    </div>
-                  </>
-                )}
-                <div className="text-center">
-                  <div className="text-2xl font-bold font-mono hud-text" style={{
-                    color: currentTheme.primary,
-                    textShadow: `0 0 15px ${currentTheme.primary}, 0 0 30px ${currentTheme.primary}40`
-                  }}>
-                    {modules.filter((m) => !m.available).length}
-                  </div>
-                  <div className="text-xs font-mono" style={{ 
-                    color: currentTheme.textSecondary || currentTheme.primary,
-                    opacity: 0.6
-                  }}>Coming Soon</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Module Grid */}
-            <div className={`${hudClass} rounded-xl p-6 relative`} style={{
-              backgroundColor: currentTheme.cardBg,
-              borderColor: currentTheme.primary,
-              color: currentTheme.primary
-            }}>
-              {currentTheme.style === "classic" && (
-                <>
-                  <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                  <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-                </>
-              )}
-              <h2 className="text-2xl font-semibold mb-6 hud-text font-mono" style={{ 
-                color: currentTheme.primary,
-                textShadow: `0 0 15px ${currentTheme.primary}`
-              }}>
-                All Modules
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {modules.map((module) => {
-                  return (
-                    <Link
-                      key={module.id}
-                      href={module.available ? module.href : "#"}
-                      className={`${hudClass} p-5 rounded-lg transition-all relative ${
-                        module.available
-                          ? "cursor-pointer hover:scale-105 hud-pulse"
-                          : "opacity-40 cursor-not-allowed"
-                      }`}
-                      style={{
-                        borderColor: module.available ? currentTheme.primary : `${currentTheme.primary}30`,
-                        backgroundColor: module.available ? currentTheme.cardBg : `${currentTheme.primary}05`,
-                        color: currentTheme.primary,
-                        boxShadow: module.available && currentTheme.style === "classic" 
-                          ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                          : "none"
-                      }}
-                      onMouseEnter={(e) => {
-                        if (module.available) {
-                          e.currentTarget.style.borderColor = currentTheme.primary;
-                          e.currentTarget.style.boxShadow = `0 0 30px ${currentTheme.primary}60, inset 0 0 30px ${currentTheme.primary}20`;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (module.available) {
-                          e.currentTarget.style.borderColor = currentTheme.primary;
-                          e.currentTarget.style.boxShadow = currentTheme.style === "classic" 
-                            ? `0 0 20px ${currentTheme.primary}30, inset 0 0 20px ${currentTheme.primary}10` 
-                            : "none";
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="flex items-center justify-center">
-                          <StylizedIcon moduleId={module.id} size="text-3xl" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold hud-text font-mono" style={{ 
-                            color: currentTheme.primary,
-                            textShadow: `0 0 10px ${currentTheme.primary}`
-                          }}>
-                            {module.name}
-                          </h3>
-                          {module.available && (
-                            <span className="text-xs font-mono hud-text" style={{ 
-                              color: currentTheme.accent,
-                              textShadow: `0 0 8px ${currentTheme.accent}`
-                            }}>● ACTIVE</span>
-                          )}
-                        </div>
-                      </div>
-                      {module.id === "nutrition" && module.available && (
-                        <div className="mt-3 pt-3 border-t text-xs font-mono" style={{
-                          borderColor: `${currentTheme.primary}30`,
-                          color: currentTheme.textSecondary || currentTheme.primary,
-                          opacity: 0.7
-                        }}>
-                          {nutritionStats.recipes} recipes • {nutritionStats.ingredients} ingredients
-                        </div>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* JARVIS 3.0 Layout */}
-        {theme === "jarvis3" && (
-          <div className="flex flex-col md:flex-row h-[calc(100vh-200px)]">
-            {/* Module Navigation Bar - Top (Desktop) / Left (Mobile) */}
-            <div className="mb-6 md:mb-0 md:mr-4 flex-shrink-0">
-              <div className="flex md:flex-col items-center justify-center gap-1.5 md:gap-2">
-                {modules.map((module) => {
-                  const isSelected = selectedModule === module.id;
-                  const isAvailable = module.available;
-                  
-                  return (
-                    <button
-                      key={module.id}
-                      onClick={() => {
-                        if (isAvailable && module.href !== "#") {
-                          window.location.href = module.href;
-                        } else if (isAvailable) {
-                          setSelectedModule(module.id);
-                        }
-                      }}
-                      className={`relative transition-all bg-transparent border-none p-0 ${
-                        isAvailable ? "cursor-pointer hover:scale-110" : "cursor-not-allowed opacity-40"
-                      }`}
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        background: "transparent",
-                        border: "none",
-                        outline: "none",
-                        boxShadow: "none"
-                      }}
-                      title={module.name}
-                    >
-                      {/* Circular Frame Only - No Card Background */}
-                      <div
-                        className={`w-full h-full flex items-center justify-center transition-all ${
-                          isSelected ? "hud-pulse" : ""
-                        }`}
-                        style={{
-                          filter: isSelected ? `drop-shadow(0 0 12px ${currentTheme.primary})` : `drop-shadow(0 0 6px ${currentTheme.primary}40)`,
-                          background: "transparent",
-                          border: "none"
-                        }}
-                      >
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: "transparent" }}>
-                          <StylizedIcon moduleId={module.id} size="text-xl" />
-                        </div>
-                      </div>
-                      
-                      {/* Active Indicator */}
-                      {isSelected && (
-                        <div className="absolute -bottom-1 md:-right-1 md:bottom-auto md:top-1/2 md:transform md:-translate-y-1/2 left-1/2 md:left-auto transform -translate-x-1/2 md:translate-x-0 w-2 h-2 rounded-full" style={{
-                          backgroundColor: currentTheme.accent,
-                          boxShadow: `0 0 8px ${currentTheme.accent}`
-                        }}></div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Dashboard Content Area - Center */}
-            <div className="flex-1 flex items-center justify-center min-w-0">
-              {selectedModule ? (
-                (() => {
-                  const module = modules.find(m => m.id === selectedModule);
-                  if (!module) return null;
-                  
-                  return (
-                    <div className={`${hudClass} rounded-xl p-8 w-full max-w-4xl relative`} style={{
-                      backgroundColor: currentTheme.cardBg,
-                      borderColor: currentTheme.primary,
-                      color: currentTheme.primary
-                    }}>
-                      {/* Corner Decorations */}
-                      <div className={`hud-corner hud-corner-top-left`} style={{ borderColor: currentTheme.primary }}></div>
-                      <div className={`hud-corner hud-corner-top-right`} style={{ borderColor: currentTheme.primary }}></div>
-                      <div className={`hud-corner hud-corner-bottom-left`} style={{ borderColor: currentTheme.primary }}></div>
-                      <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
-
-                      {/* Module Header */}
-                      <div className="mb-6 text-center">
-                        <h2 className="text-3xl font-bold hud-text font-mono" style={{
-                          color: currentTheme.primary,
-                          textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                        }}>
-                          {module.name}
-                        </h2>
-                      </div>
-
-                      {/* Module-Specific Dashboard Content */}
-                      {module.id === "nutrition" && module.available ? (
-                        <div className="space-y-6">
-                          {/* Quick Stats */}
-                          <div className="grid grid-cols-2 gap-6">
-                            <div className={`${hudClass} p-6 rounded-lg relative`} style={{
-                              backgroundColor: `${currentTheme.primary}10`,
-                              borderColor: currentTheme.primary
-                            }}>
-                              <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
-                                color: currentTheme.textSecondary,
-                                opacity: 0.7
-                              }}>
-                                Recipes
-                              </div>
-                              <div className="text-4xl font-bold font-mono hud-text" style={{
-                                color: currentTheme.primary,
-                                textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                              }}>
-                                {nutritionStats.recipes}
-                              </div>
-                            </div>
-                            <div className={`${hudClass} p-6 rounded-lg relative`} style={{
-                              backgroundColor: `${currentTheme.primary}10`,
-                              borderColor: currentTheme.primary
-                            }}>
-                              <div className="text-xs font-mono uppercase tracking-wider mb-2 hud-text" style={{
-                                color: currentTheme.textSecondary,
-                                opacity: 0.7
-                              }}>
-                                Ingredients
-                              </div>
-                              <div className="text-4xl font-bold font-mono hud-text" style={{
-                                color: currentTheme.primary,
-                                textShadow: `0 0 20px ${currentTheme.primary}, 0 0 40px ${currentTheme.primary}40`
-                              }}>
-                                {nutritionStats.ingredients}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Quick Actions */}
-                          <div className="flex justify-center gap-4">
-                            <Link
-                              href={module.href}
-                              className={`${hudClass} px-6 py-3 rounded-lg font-mono transition-all hover:scale-105`}
-                              style={{
-                                backgroundColor: `${currentTheme.primary}20`,
-                                borderColor: currentTheme.primary,
-                                color: currentTheme.primary,
-                                boxShadow: `0 0 20px ${currentTheme.primary}30`
-                              }}
-                            >
-                              Open Module
-                            </Link>
-                          </div>
-                        </div>
-                      ) : !module.available ? (
-                        <div className="text-center py-12">
-                          <div className="text-lg font-mono hud-text mb-4" style={{
-                            color: currentTheme.primary,
-                            opacity: 0.5
-                          }}>
-                            [COMING SOON]
-                          </div>
-                          <p className="text-sm font-mono" style={{
-                            color: currentTheme.textSecondary,
-                            opacity: 0.6
-                          }}>
-                            This module is currently in development
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })()
-              ) : (
-                <div className={`${hudClass} rounded-xl p-8 max-w-2xl relative`} style={{
-                  backgroundColor: currentTheme.cardBg,
-                  borderColor: currentTheme.primary,
-                  color: currentTheme.primary
-                }}>
-                  <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-4 hud-text font-mono" style={{
-                      color: currentTheme.primary,
-                      textShadow: `0 0 15px ${currentTheme.primary}`
-                    }}>
-                      Select a Module
-                    </h2>
-                    <p className="text-sm font-mono" style={{
-                      color: currentTheme.textSecondary,
-                      opacity: 0.7
-                    }}>
-                      Choose a module from the navigation bar above to view its dashboard
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* JARVIS 4.0 Layout - Command Center Design */}
-        {theme === "jarvis4" && (
-          <div className="h-[calc(100vh-200px)] flex flex-col">
+        <div className="h-[calc(100vh-200px)] flex flex-col">
             {/* Top Module Frames */}
             <div className="flex-shrink-0 mb-4">
               <div className="flex items-center justify-center gap-2">
                 {modules.map((module) => {
                   const isSelected = selectedModule === module.id;
                   const isAvailable = module.available;
-                  
+                  const isNutrition = module.id === "nutrition";
+                  const isBikeGear = module.id === "bike";
+                  const isStrava = module.id === "strava";
+                  const frameSize = (isNutrition || isBikeGear || isStrava) ? 96 : 50;
                   return (
                     <button
                       key={module.id}
@@ -1241,8 +374,8 @@ export default function HubPage() {
                         isAvailable ? "cursor-pointer hover:scale-110" : "cursor-not-allowed opacity-40"
                       }`}
                       style={{
-                        width: "50px",
-                        height: "50px",
+                        width: `${frameSize}px`,
+                        height: `${frameSize}px`,
                         background: "transparent",
                         border: "none",
                         outline: "none",
@@ -1255,11 +388,11 @@ export default function HubPage() {
                           isSelected ? "hud-pulse" : ""
                         }`}
                         style={{
-                          filter: isSelected ? `drop-shadow(0 0 15px ${currentTheme.primary})` : `drop-shadow(0 0 8px ${currentTheme.primary}40)`
+                          filter: isSelected ? `drop-shadow(0 0 15px ${currentTheme.primary})` : `drop-shadow(0 0 10px ${currentTheme.primary})`
                         }}
                       >
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: "transparent" }}>
-                          <StylizedIcon moduleId={module.id} size="text-xl" />
+                        <div className="w-full h-full flex items-center justify-center" style={{ background: "transparent", color: currentTheme.primary }}>
+                          <StylizedIcon moduleId={module.id} size="text-xl" iconColor={currentTheme.primary} />
                         </div>
                       </div>
                       {isSelected && (
@@ -1462,7 +595,7 @@ export default function HubPage() {
                     <div className={`hud-corner hud-corner-bottom-right`} style={{ borderColor: currentTheme.primary }}></div>
                     <div className="w-96 h-96 flex items-center justify-center">
                       <img
-                        src="/assets/Gemini_Generated_Image_574i41574i41574i-85020c02-51b2-4208-8468-3735b6a7f65e.png"
+                        src="/assets/jarvis-frame.png"
                         alt="JARVIS Frame"
                         className="jarvis-hud hud-element"
                         style={{ width: "100%", height: "100%", objectFit: "contain", background: "transparent", border: "none", boxShadow: "none" }}
@@ -1476,69 +609,59 @@ export default function HubPage() {
             {/* Bottom Frames - Settings, Profile, Status, Notifications */}
             <div className="flex-shrink-0 mt-4">
               <div className="flex items-center justify-center gap-4">
-                {/* Settings */}
-                <button
-                  className={`${hudClass} rounded-lg p-4 w-24 h-24 flex flex-col items-center justify-center transition-all hover:scale-105`}
-                  style={{
-                    backgroundColor: currentTheme.cardBg,
-                    borderColor: currentTheme.primary,
-                    color: currentTheme.primary
-                  }}
+                {/* Bottom row icons: fixed 96×96px for consistent size */}
+                <Link
+                  href="/settings"
+                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
+                  style={{ color: currentTheme.primary }}
                   title="Settings"
                 >
-                  <div className="text-2xl mb-1">⚙</div>
-                  <div className="text-xs font-mono hud-text">Settings</div>
-                </button>
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
+                    <JarvisSettingsIcon className="w-24 h-24" />
+                  </div>
+                </Link>
 
-                {/* User Profile */}
-                <button
-                  className={`${hudClass} rounded-lg p-4 w-24 h-24 flex flex-col items-center justify-center transition-all hover:scale-105`}
-                  style={{
-                    backgroundColor: currentTheme.cardBg,
-                    borderColor: currentTheme.primary,
-                    color: currentTheme.primary
-                  }}
+                <Link
+                  href="/profile"
+                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
+                  style={{ color: currentTheme.primary }}
                   title="Profile"
                 >
-                  <div className="text-2xl mb-1">👤</div>
-                  <div className="text-xs font-mono hud-text">Profile</div>
-                </button>
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
+                    <JarvisProfileIcon className="w-24 h-24" stroke={currentTheme.primary} />
+                  </div>
+                </Link>
 
-                {/* System Status */}
-                <button
-                  className={`${hudClass} rounded-lg p-4 w-24 h-24 flex flex-col items-center justify-center transition-all hover:scale-105`}
-                  style={{
-                    backgroundColor: currentTheme.cardBg,
-                    borderColor: currentTheme.primary,
-                    color: currentTheme.primary
-                  }}
+                <Link
+                  href="/status"
+                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
+                  style={{ color: currentTheme.primary }}
                   title="System Status"
                 >
-                  <div className="text-2xl mb-1">📊</div>
-                  <div className="text-xs font-mono hud-text">Status</div>
-                </button>
+                  <div className="w-full h-full flex items-center justify-center" style={{ filter: `drop-shadow(0 0 10px ${currentTheme.primary})` }}>
+                    <JarvisStatusIcon className="w-24 h-24" stroke={currentTheme.primary} />
+                  </div>
+                </Link>
 
-                {/* Notifications */}
-                <button
-                  className={`${hudClass} rounded-lg p-4 w-24 h-24 flex flex-col items-center justify-center transition-all hover:scale-105 relative`}
-                  style={{
-                    backgroundColor: currentTheme.cardBg,
-                    borderColor: currentTheme.primary,
-                    color: currentTheme.primary
-                  }}
-                  title="Notifications"
+                <Link
+                  href="/alerts"
+                  className="flex items-center justify-center w-24 h-24 flex-shrink-0 p-2 transition-all hover:scale-105 focus:outline-none focus:ring-0 border-0 bg-transparent"
+                  style={{ color: hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary }}
+                  title="Alerts"
                 >
-                  <div className="text-2xl mb-1">🔔</div>
-                  <div className="text-xs font-mono hud-text">Alerts</div>
-                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{
-                    backgroundColor: currentTheme.accent,
-                    boxShadow: `0 0 8px ${currentTheme.accent}`
-                  }}></div>
-                </button>
+                  <div
+                    className="w-full h-full flex items-center justify-center"
+                    style={{
+                      filter: `drop-shadow(0 0 10px ${hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary})`,
+                      color: hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary,
+                    }}
+                  >
+                    <JarvisAlertIcon className="w-24 h-24" stroke={hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary} />
+                  </div>
+                </Link>
               </div>
             </div>
           </div>
-        )}
       </main>
     </div>
   );

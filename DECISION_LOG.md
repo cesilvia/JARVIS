@@ -112,3 +112,45 @@
   - Bottom: Settings, Profile, System Status, and Notifications frames
   - Clicking selected module frame again closes dashboard
 - **Status:** Implemented
+
+## 2026-03-05
+
+### Hub & Icon Decisions
+
+**Decision:** Replace Iron Man profile icon with custom SVG (bald head + rectangular glasses)
+- **Rationale:** User wanted a simpler, more personal profile icon. Same stroke style and theme color as other icons.
+- **Implementation:** Oval head shape (round top, rounded chin), rectangular glasses as only facial detail. Backup saved in `JarvisProfileIcon.ironman.backup.tsx`.
+- **Status:** Implemented
+
+**Decision:** Simplify top row to three modules only (Nutrition, Bike, Strava)
+- **Rationale:** User requested removal of triangle (tasks/food pyramid) and four frame icons (email, calendar, fitness, weather).
+- **Status:** Implemented
+
+**Decision:** Create status icon and status page
+- **Rationale:** User wanted status icon matching other icons' style, linked to a dedicated page.
+- **Implementation:** Gauge/dial icon (outer ring, arc, tick marks, needle). Status page at `/status` with Navigation.
+- **Status:** Implemented
+
+**Decision:** Create alerts page and alert icon
+- **Rationale:** User wanted alerts/notifications with dedicated page and icon.
+- **Implementation:** Triangle + exclamation icon (within circle). Alerts page at `/alerts`. Electric orange icon when `localStorage.jarvis-unread-alerts` is set.
+- **Status:** Implemented
+
+**Decision:** Connect recipes page to nutrition page
+- **Rationale:** Recipes and nutrition are related; user wanted clear navigation between them.
+- **Implementation:** Nutrition page already linked to `/recipes`. Added "Nutrition Tracker" link in recipes page subtitle.
+- **Status:** Implemented
+
+**Decision:** Use new frame image (jarvis-frame.png) for hub center and module frames
+- **Rationale:** User provided new cyan circular HUD design with circuitry, text rings, and symbols.
+- **Implementation:** Image copied to `public/assets/jarvis-frame.png`, all frame references updated.
+- **Status:** Implemented
+
+**Decision:** Standardize icon sizes across hub
+- **Rationale:** Some icons appeared larger than others due to content extent (e.g., settings gear teeth extended beyond circle).
+- **Implementation:** Settings gear teeth shortened to fit within r=14; bike wheel rim set to r=14; bottom row icons in fixed w-24 h-24 flex-shrink-0 containers.
+- **Status:** Implemented
+
+**Decision:** Remove circle from bike gear icon
+- **Rationale:** User preferred bike gear without outer circle (vertical lines only).
+- **Status:** Implemented

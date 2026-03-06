@@ -104,12 +104,12 @@
     - User Profile management
     - System Status monitoring
     - Notifications/alerts system
-    - **Status:** Frames created, functionality pending
+    - **Status:** Settings, Profile, Status, Alerts all link to dedicated pages. Alerts icon turns electric orange when `localStorage.jarvis-unread-alerts` is set. Alerts/Status pages are placeholders (coming soon). Real alert data integration pending.
 
 19. **Custom Module Frames**
     - Design unique frame images for each module
     - Replace placeholder frames with custom designs
-    - **Status:** Using placeholder frame image, custom designs pending
+    - **Status:** Using jarvis-frame.png (cyan circular HUD with circuitry) for center frame. Custom per-module frames pending
 
 ## Technical Improvements
 

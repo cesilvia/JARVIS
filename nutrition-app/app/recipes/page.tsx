@@ -628,7 +628,10 @@ export default function RecipesPage() {
                 Recipe Builder
               </h1>
               <p className="text-lg text-slate-600 dark:text-slate-400">
-                Create custom recipes and calculate macros
+                Create custom recipes and calculate macros ·{" "}
+                <Link href="/nutrition" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                  Nutrition Tracker
+                </Link>
               </p>
             </div>
             <div className="flex gap-4">
