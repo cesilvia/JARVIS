@@ -149,6 +149,7 @@
 
 ## Future Enhancements (from recent work)
 
+- **Recipe Builder (completed):** Added units (bunch, can, clove, clove(s)); optional amount (blank = 1); mixed-fraction display (e.g. 2 1/2 instead of 5/2) in list and edit form; parseFraction supports mixed input.
 - **Automatic weekly backup:** Option to auto-export nutrition backup weekly (e.g. trigger download or save to cloud) instead of only reminding in Alerts.
 - **Nutrition page:** Recipe cards only when searching; Compare Recipes shows last 2 viewed for macro comparison; settings icon links to Settings#nutrition.
 - **Bike Gear module content:** Section icons and labels in place (Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist). Implement actual content/functionality for each section (e.g. component list CRUD, gear inventory, service log entries, tire pressure presets, fit notes, checklists).

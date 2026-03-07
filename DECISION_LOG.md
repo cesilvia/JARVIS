@@ -282,3 +282,20 @@
 - **Rationale:** User wanted section icons similar to the hub for: Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist. No boxes around icons.
 - **Implementation:** Bike page uses HUD theme and CircuitBackground. Seven section buttons with icon + label + description; no card/border (transparent, hover opacity only). Icons: (1) Component list = drivetrain (chainring, chain, cassette), (2) Gear inventory = bike jersey + helmet, (3) Service log = crescent wrench head, (4) Tire pressure = gauge with needle, (5) Sizing & fit = tape measure with tick marks, (6) Ride checklist = road bike side view, (7) Packing checklist = suitcase with handle. All icons stroke-only, fit in circle r=18, hub-style.
 - **Status:** Implemented
+
+### Recipe Builder (Units, Amount, Display)
+
+**Decision:** Add bunch, can, clove(s) as units in Recipe Builder
+- **Rationale:** User requested these units when creating recipes (e.g. "1 bunch parsley", "1 can tomatoes", "3 cloves garlic").
+- **Implementation:** Added to unit dropdown and quick-unit buttons. `convertToGrams` uses nominal values for nutrition totals: bunch=50g, can=400g, clove/cloves=5g.
+- **Status:** Implemented
+
+**Decision:** Allow blank amount when adding ingredients (treat as 1)
+- **Rationale:** User wanted to add items like "1 bell pepper" without typing "1"; leaving amount blank should default to 1.
+- **Implementation:** In Recipe Builder add-ingredient flow, amount is optional; blank amount uses 1. Placeholder set to "Amount (optional)".
+- **Status:** Implemented
+
+**Decision:** Display ingredient amounts as mixed fractions (e.g. 2 1/2, not 5/2)
+- **Rationale:** User preferred readable mixed numbers for cooking (e.g. "2 1/2 cups") instead of improper fractions.
+- **Implementation:** Added `decimalToMixedFraction` and `formatAmount`; ingredient list and edit form show mixed fractions. Amount input accepts mixed input ("2 1/2", "2 and 1/2") and formats on blur. `parseFraction` extended to parse mixed numbers.
+- **Status:** Implemented

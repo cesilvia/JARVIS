@@ -18,6 +18,37 @@ interface ParsedIngredients {
   groups: IngredientGroup[];
 }
 
+// Parse amount string that may be a mixed number like "3 and 1/4" or "1 and 1/2"
+function parseAmountString(amountStr: string): number {
+  const str = amountStr.trim();
+  if (!str) return 1;
+
+  const fractionMap: { [key: string]: number } = {
+    "¼": 0.25, "½": 0.5, "¾": 0.75,
+    "⅓": 1 / 3, "⅔": 2 / 3,
+    "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+  };
+  if (fractionMap[str]) return fractionMap[str];
+
+  // Mixed number: "3 and 1/4" or "1 and 1/2"
+  const mixedMatch = str.match(/^(\d+)\s+and\s+(\d+)\/(\d+)$/);
+  if (mixedMatch) {
+    const whole = parseInt(mixedMatch[1], 10);
+    const num = parseInt(mixedMatch[2], 10);
+    const den = parseInt(mixedMatch[3], 10);
+    return whole + (den ? num / den : 0);
+  }
+
+  // Simple fraction "1/4" or "3/4"
+  if (str.includes("/")) {
+    const parts = str.split("/").map(Number);
+    if (parts.length === 2 && parts[1] > 0) return parts[0] / parts[1];
+  }
+
+  const num = parseFloat(str);
+  return isNaN(num) ? 1 : num;
+}
+
 // Helper: Check if text looks like an ingredient (has quantity/unit/food)
 function looksLikeIngredient(text: string): boolean {
   const trimmed = text.trim();
@@ -395,36 +426,20 @@ export async function GET(request: NextRequest) {
       const ingredientText = String(rawIngredient).trim();
       if (!ingredientText || ingredientText.length < 2) continue;
       
-      // Try to parse amount and ingredient name
-      const amountMatch = ingredientText.match(/^([\d\/\.\s¼½¾⅓⅔⅛⅜⅝⅞]+)\s*([a-zA-Z]+)?\s*(.+)$/);
-      
+      // Try to parse amount and ingredient name. Allow "and" in amount for mixed numbers like "3 and 1/4 cups"
+      const amountMatch = ingredientText.match(/^([\d\/\.\s¼½¾⅓⅔⅛⅜⅝⅞and]+)\s*([a-zA-Z]+)?\s*(.*)$/);
       let amount = 1;
       let unit = "g";
       let ingredientName = ingredientText;
-      
+
       if (amountMatch) {
-        const amountStr = amountMatch[1].trim();
+        const amountStr = amountMatch[1].trim().replace(/\s+/g, " ");
         const possibleUnit = amountMatch[2]?.trim().toLowerCase();
-        ingredientName = amountMatch[3]?.trim() || ingredientText;
-        
-        // Parse fraction or decimal
-        const fractionMap: { [key: string]: number } = {
-          '¼': 0.25, '½': 0.5, '¾': 0.75,
-          '⅓': 1/3, '⅔': 2/3,
-          '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875
-        };
-        
-        if (fractionMap[amountStr]) {
-          amount = fractionMap[amountStr];
-        } else if (amountStr.includes("/")) {
-          const [num, den] = amountStr.split("/").map(Number);
-          if (den && den > 0) {
-            amount = num / den;
-          }
-        } else {
-          amount = parseFloat(amountStr) || 1;
-        }
-        
+        const namePart = amountMatch[3]?.trim();
+        if (namePart) ingredientName = namePart;
+
+        amount = parseAmountString(amountStr);
+
         // Map common units
         const unitMap: { [key: string]: string } = {
           cup: "cup", cups: "cup", c: "cup",
