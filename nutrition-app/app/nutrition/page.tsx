@@ -66,6 +66,8 @@ export default function Home() {
   const [recipeSearch, setRecipeSearch] = useState("");
   const [savedIngredients, setSavedIngredients] = useState<NutritionData[]>([]);
   const [manualAddSuccess, setManualAddSuccess] = useState(false);
+  const [recentRecipesForCompare, setRecentRecipesForCompare] = useState<Recipe[]>([]);
+  const [showCompareRecipes, setShowCompareRecipes] = useState(false);
 
   // Hide results when landing on this page (e.g. after navigating back from another page)
   useEffect(() => {
@@ -182,7 +184,11 @@ export default function Home() {
       setNutritionData(recipeNutrition);
       setCustomAmount(null);
       setError(null);
-      
+      setRecentRecipesForCompare((prev) => [
+        recipe,
+        ...prev.filter((r) => (r.id || r.name) !== (recipe.id || recipe.name)),
+      ].slice(0, 2));
+
       // Scroll to nutrition results section
       setTimeout(() => {
         const nutritionSection = document.querySelector('[data-nutrition-results]');
@@ -462,14 +468,14 @@ export default function Home() {
         <div className="mb-8 flex items-center justify-between">
           <Navigation />
           <h2 className="text-2xl font-semibold hud-text">
-            Nutrition
+            Foods & Ingredients
           </h2>
         </div>
 
         <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold hud-text">
-              Nutrition
+              Foods & Ingredients
             </h2>
             <button
               onClick={() => {
@@ -862,12 +868,25 @@ export default function Home() {
             <h2 className="text-2xl font-semibold hud-text">
               Recipes
             </h2>
-            <Link
-              href="/recipes"
-              className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
-            >
-              Recipe Builder
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href="/recipes"
+                className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
+              >
+                Recipe Builder
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowCompareRecipes((prev) => !prev)}
+                className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
+                  showCompareRecipes
+                    ? "border-[#00D9FF] bg-[rgba(0,217,255,0.25)] text-[#00D9FF]"
+                    : "border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                }`}
+              >
+                Compare Recipes
+              </button>
+            </div>
           </div>
 
           {/* Recipe Search */}
@@ -881,14 +900,14 @@ export default function Home() {
             />
           </div>
 
-          {/* Recipe List */}
+          {/* Recipe List - only show when user has typed a search */}
           {recipes.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-[#67C7EB]/90">
                 No recipes saved yet. Create your first recipe to see it here!
               </p>
             </div>
-          ) : filteredRecipes.length > 0 ? (
+          ) : !recipeSearch.trim() ? null : filteredRecipes.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredRecipes.slice(0, 6).map((recipe) => {
                   const totals = calculateRecipeTotals(recipe.ingredients);
@@ -966,7 +985,7 @@ export default function Home() {
               </div>
             )}
 
-          {filteredRecipes.length > 6 && (
+          {filteredRecipes.length > 6 && recipeSearch.trim() && (
             <div className="mt-4 text-center">
               <Link
                 href="/recipes"
@@ -974,6 +993,58 @@ export default function Home() {
               >
                 View all {recipes.length} recipes →
               </Link>
+            </div>
+          )}
+
+          {/* Compare Recipes panel - shows last 2 viewed recipes side by side */}
+          {showCompareRecipes && (
+            <div className="mt-6 pt-6 border-t border-[#00D9FF]/20">
+              <h3 className="text-lg font-semibold text-[#00D9FF] mb-4">Compare macros</h3>
+              {recentRecipesForCompare.length >= 2 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recentRecipesForCompare.map((recipe) => {
+                    const totals = calculateRecipeTotals(recipe.ingredients);
+                    const servings = recipe.servings || 1;
+                    const perServing = {
+                      calories: Math.round(totals.calories / servings),
+                      carbohydrates: Math.round((totals.carbohydrates / servings) * 10) / 10,
+                      protein: Math.round((totals.protein / servings) * 10) / 10,
+                      fat: Math.round((totals.fat / servings) * 10) / 10,
+                    };
+                    return (
+                      <div
+                        key={recipe.id || recipe.name}
+                        className="p-4 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]"
+                      >
+                        <h4 className="font-semibold text-[#00D9FF] mb-3">{recipe.name}</h4>
+                        <p className="text-xs text-[#67C7EB]/90 mb-3">{recipe.servings} servings</p>
+                        <div className="grid grid-cols-4 gap-2 text-sm">
+                          <div>
+                            <div className="text-[#67C7EB]/80 text-xs">Cal</div>
+                            <div className="font-bold text-[#00D9FF]">{perServing.calories}</div>
+                          </div>
+                          <div>
+                            <div className="text-[#67C7EB]/80 text-xs">Carbs</div>
+                            <div className="font-bold text-[#00D9FF]">{perServing.carbohydrates}g</div>
+                          </div>
+                          <div>
+                            <div className="text-[#67C7EB]/80 text-xs">Prot</div>
+                            <div className="font-bold text-[#00D9FF]">{perServing.protein}g</div>
+                          </div>
+                          <div>
+                            <div className="text-[#67C7EB]/80 text-xs">Fat</div>
+                            <div className="font-bold text-[#00D9FF]">{perServing.fat}g</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[#67C7EB]/90 text-sm">
+                  Click on at least 2 recipes (search above, then click each) to compare their macros here.
+                </p>
+              )}
             </div>
           )}
         </div>

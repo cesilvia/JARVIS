@@ -260,3 +260,25 @@
 - **Rationale:** User wanted manually added foods to appear when searching by ingredient.
 - **Implementation:** Manual entries already saved to savedIngredients and localStorage; autocomplete filters savedIngredients first then USDA. Added confirmation message "Saved. You can find it by searching above." after manual add.
 - **Status:** Implemented
+
+**Decision:** Rename "Nutrition" to "Foods & Ingredients"
+- **Rationale:** User wanted the top box and header to say "Foods & Ingredients" instead of "Nutrition."
+- **Implementation:** Page header and first card heading both use "Foods & Ingredients" with same hud-text styling.
+- **Status:** Implemented
+
+**Decision:** Recipe cards only when user has searched
+- **Rationale:** User did not want recipe cards (e.g. Curried Couscous, Date Salad) to always show; only when a search is entered.
+- **Implementation:** Recipe list grid renders only when recipeSearch.trim() is non-empty. When recipes exist but search is empty, nothing is shown (no "Search recipes above to see results" message). "View all" link only when searching and &gt;6 results.
+- **Status:** Implemented
+
+**Decision:** Compare Recipes – last two viewed recipes for macro comparison
+- **Rationale:** User wanted to compare macros between the most recently viewed recipe and the immediate past one.
+- **Implementation:** "Compare Recipes" button next to Recipe Builder toggles a panel. When a recipe card is clicked, that recipe is pushed to recentRecipesForCompare (max 2, most recent first). Panel shows side-by-side per-serving macros (Cal, Carbs, Prot, Fat) for those two recipes; if &lt;2 viewed, shows message to click at least 2 recipes.
+- **Status:** Implemented
+
+### Bike Gear Page
+
+**Decision:** Bike gear page sections with custom icons (no boxes)
+- **Rationale:** User wanted section icons similar to the hub for: Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist. No boxes around icons.
+- **Implementation:** Bike page uses HUD theme and CircuitBackground. Seven section buttons with icon + label + description; no card/border (transparent, hover opacity only). Icons: (1) Component list = drivetrain (chainring, chain, cassette), (2) Gear inventory = bike jersey + helmet, (3) Service log = crescent wrench head, (4) Tire pressure = gauge with needle, (5) Sizing & fit = tape measure with tick marks, (6) Ride checklist = road bike side view, (7) Packing checklist = suitcase with handle. All icons stroke-only, fit in circle r=18, hub-style.
+- **Status:** Implemented

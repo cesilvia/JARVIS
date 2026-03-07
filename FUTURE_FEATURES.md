@@ -143,10 +143,15 @@
     - Real weather data for Weather module
     - **Status:** Placeholder page at /weather, API integration pending
 
+25. **Bike Gear Module Content**
+    - Component list, gear inventory, service log, tire pressure, sizing/fit, ride checklist, packing checklist
+    - **Status:** Bike page has HUD theme and 7 section icons (drivetrain, jersey+helmet, crescent wrench, gauge, tape measure, road bike, suitcase). Section content/functionality pending.
+
 ## Future Enhancements (from recent work)
 
 - **Automatic weekly backup:** Option to auto-export nutrition backup weekly (e.g. trigger download or save to cloud) instead of only reminding in Alerts.
-- **Nutrition page:** Recipe cards now open same results panel as ingredient/barcode products; settings icon links to Settings#nutrition.
+- **Nutrition page:** Recipe cards only when searching; Compare Recipes shows last 2 viewed for macro comparison; settings icon links to Settings#nutrition.
+- **Bike Gear module content:** Section icons and labels in place (Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist). Implement actual content/functionality for each section (e.g. component list CRUD, gear inventory, service log entries, tire pressure presets, fit notes, checklists).
 
 ## Technical Improvements
 
