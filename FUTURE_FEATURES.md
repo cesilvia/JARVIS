@@ -53,7 +53,7 @@
 8. **Export/Import Data**
    - Export recipes and ingredients to JSON/CSV
    - Import from other apps
-   - **Status:** ✅ Completed - JSON export/import implemented for recipes and saved ingredients
+   - **Status:** ✅ Completed - JSON export/import in Settings page (Backup section, id=nutrition). Alerts page shows weekly backup reminder when last backup &gt; 7 days. Nutrition page no longer has export/import buttons.
 
 9. **Recipe Scaling**
    - Scale recipes up/down (e.g., double recipe, half recipe)
@@ -142,6 +142,11 @@
 24. **Weather API Integration**
     - Real weather data for Weather module
     - **Status:** Placeholder page at /weather, API integration pending
+
+## Future Enhancements (from recent work)
+
+- **Automatic weekly backup:** Option to auto-export nutrition backup weekly (e.g. trigger download or save to cloud) instead of only reminding in Alerts.
+- **Nutrition page:** Recipe cards now open same results panel as ingredient/barcode products; settings icon links to Settings#nutrition.
 
 ## Technical Improvements
 

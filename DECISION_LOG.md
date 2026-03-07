@@ -213,3 +213,50 @@
 - **Rationale:** User wanted same wedge behavior for bottom row as top row.
 - **Implementation:** Single click opens wedge; double-click or click wedge navigates. Same color inversion when selected. Alerts icon keeps orange when unread. Wedges point from center toward each bottom icon.
 - **Status:** Implemented
+
+### Nutrition Page & Navigation
+
+**Decision:** Redesign nutrition tracker page to match hub (JARVIS 4.0 HUD)
+- **Rationale:** User wanted consistent look across app. Hub uses cyan primary (#00D9FF), circuit background, hud-card, hud-text.
+- **Implementation:** Nutrition page uses same theme, CircuitBackground, hud-scifi-bg; all cards/buttons/inputs use theme colors; Navigation accepts optional linkClassName for theme styling.
+- **Status:** Implemented
+
+**Decision:** Replace "Return to JARVIS" button with small JARVIS frame image
+- **Rationale:** User wanted frame icon in upper left instead of text button.
+- **Implementation:** Navigation component shows jarvis-frame.png (same as hub) with jarvis-hud/hud-element; fixed size via inline style (80px) to override .jarvis-hud 100% sizing. Links to /hub.
+- **Status:** Implemented
+
+**Decision:** Nutrition page header – frame and title on same row; title "Nutrition"
+- **Rationale:** User wanted title on same level as frame; later simplified label to "Nutrition" to match card heading.
+- **Implementation:** Single flex row with Navigation (frame) left, h2 "Nutrition" right. Same hud-text styling as card heading.
+- **Status:** Implemented
+
+**Decision:** Nutrition results card only when data loaded; hide when leaving page
+- **Rationale:** User did not want results card always visible; only after search/recipe selection, and hidden when navigating away.
+- **Implementation:** Card renders only when nutritionData is set. usePathname effect clears nutritionData/customAmount/error when pathname is /nutrition so returning to page starts fresh.
+- **Status:** Implemented
+
+**Decision:** Clear button on nutrition results card
+- **Rationale:** User wanted to dismiss the results panel. Placed in upper right of the card.
+- **Implementation:** Absolute-positioned Clear button clears nutritionData, customAmount, error.
+- **Status:** Implemented
+
+**Decision:** Move backup (export/import) to Settings; weekly reminder in Alerts
+- **Rationale:** User wanted backup in main settings; reminder to back up weekly (or do it weekly) in Alerts.
+- **Implementation:** Settings page has "Backup" section (id=nutrition) with Export/Import for recipes and saved ingredients; last backup timestamp in localStorage. Alerts page shows weekly reminder card when last backup &gt; 7 days or never; link to Settings#nutrition. Removed Export/Import from nutrition page.
+- **Status:** Implemented
+
+**Decision:** Settings icon below recipes card on nutrition page
+- **Rationale:** User wanted quick access to nutrition-related settings (backup) from nutrition page.
+- **Implementation:** Hub-style sliders icon (same SVG as hub) below recipes card, links to /settings#nutrition. Icon size 80px (w-16 h-16), click area 96px; theme glow and hover scale.
+- **Status:** Implemented
+
+**Decision:** Recipe cards operate like ingredient/barcode products
+- **Rationale:** User wanted recipe cards (e.g. Curried Couscous, Date Salad) to behave like selecting a product from search or barcode – same nutrition results panel.
+- **Implementation:** Whole recipe card is clickable (role=button, keyboard support); click calls loadRecipeNutrition(recipe) and scrolls to same nutrition results card. "Recipe" badge added; "View Details" removed. Edit link uses stopPropagation so Edit does not open panel.
+- **Status:** Implemented
+
+**Decision:** Manual entries searchable in "Search by ingredient name"
+- **Rationale:** User wanted manually added foods to appear when searching by ingredient.
+- **Implementation:** Manual entries already saved to savedIngredients and localStorage; autocomplete filters savedIngredients first then USDA. Added confirmation message "Saved. You can find it by searching above." after manual add.
+- **Status:** Implemented

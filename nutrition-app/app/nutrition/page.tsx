@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Navigation from "../components/Navigation";
+import CircuitBackground from "../hub/CircuitBackground";
+
+const hubTheme = {
+  primary: "#00D9FF",
+  secondary: "#67C7EB",
+  accent: "#00FF88",
+  background: "#000000",
+  cardBg: "rgba(0, 217, 255, 0.05)",
+  text: "#00D9FF",
+  textSecondary: "#67C7EB",
+};
 
 interface NutritionData {
   name: string;
@@ -33,6 +45,7 @@ interface Recipe {
 }
 
 export default function Home() {
+  const pathname = usePathname();
   const [ingredient, setIngredient] = useState("");
   const [barcode, setBarcode] = useState("");
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
@@ -52,8 +65,18 @@ export default function Home() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recipeSearch, setRecipeSearch] = useState("");
   const [savedIngredients, setSavedIngredients] = useState<NutritionData[]>([]);
+  const [manualAddSuccess, setManualAddSuccess] = useState(false);
 
-  // Load recipes and saved ingredients from localStorage
+  // Hide results when landing on this page (e.g. after navigating back from another page)
+  useEffect(() => {
+    if (pathname === "/nutrition") {
+      setNutritionData(null);
+      setCustomAmount(null);
+      setError(null);
+    }
+  }, [pathname]);
+
+  // Load recipes and saved ingredients from localStorage (same list used by "Search by ingredient name")
   useEffect(() => {
     const savedRecipes = localStorage.getItem("jarvis-recipes");
     if (savedRecipes) {
@@ -407,7 +430,7 @@ export default function Home() {
       source: "Manual Entry",
     };
 
-    // Save to localStorage
+    // Add to searchable "database" (savedIngredients + localStorage) — used by "Search by ingredient name" autocomplete
     const existingIngredients = savedIngredients.filter((ing) => ing.name.toLowerCase() !== data.name.toLowerCase());
     const updatedIngredients = [...existingIngredients, data];
     setSavedIngredients(updatedIngredients);
@@ -417,7 +440,9 @@ export default function Home() {
     setCustomAmount(null);
     setShowManualEntry(false);
     setError(null);
-    
+    setManualAddSuccess(true);
+    setTimeout(() => setManualAddSuccess(false), 4000);
+
     // Reset form
     setManualEntry({
       name: "",
@@ -431,110 +456,27 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Navigation />
+    <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.text }}>
+      <CircuitBackground />
+      <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-              J.A.R.V.I.S.
-            </h1>
-            <p className="text-lg text-slate-600 dark:text-slate-400">
-              Nutrition & Macro Tracker
-            </p>
-          </div>
-          {(recipes.length > 0 || savedIngredients.length > 0) && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  const data = {
-                    recipes: recipes,
-                    ingredients: savedIngredients,
-                    exportedAt: new Date().toISOString(),
-                  };
-                  const dataStr = JSON.stringify(data, null, 2);
-                  const dataBlob = new Blob([dataStr], { type: "application/json" });
-                  const url = URL.createObjectURL(dataBlob);
-                  const link = document.createElement("a");
-                  link.href = url;
-                  link.download = `jarvis-backup-${new Date().toISOString().split("T")[0]}.json`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                  alert("Backup exported successfully!");
-                }}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-              >
-                Export Backup
-              </button>
-              <label className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm cursor-pointer">
-                Import Backup
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      try {
-                        const imported = JSON.parse(event.target?.result as string);
-                        let importedCount = 0;
-                        
-                        if (imported.recipes && Array.isArray(imported.recipes)) {
-                          const existingIds = new Set(recipes.map(r => r.id));
-                          const newRecipes = imported.recipes.filter((r: any) => !r.id || !existingIds.has(r.id));
-                          if (newRecipes.length > 0 && confirm(`Import ${newRecipes.length} recipe(s)?`)) {
-                            const mergedRecipes = [...recipes, ...newRecipes];
-                            setRecipes(mergedRecipes);
-                            localStorage.setItem("jarvis-recipes", JSON.stringify(mergedRecipes));
-                            importedCount += newRecipes.length;
-                          }
-                        }
-                        if (imported.ingredients && Array.isArray(imported.ingredients)) {
-                          const existingNames = new Set(savedIngredients.map(i => i.name.toLowerCase()));
-                          const newIngredients = imported.ingredients.filter((i: any) => 
-                            !existingNames.has(i.name?.toLowerCase())
-                          );
-                          if (newIngredients.length > 0 && confirm(`Import ${newIngredients.length} ingredient(s)?`)) {
-                            const mergedIngredients = [...savedIngredients, ...newIngredients];
-                            setSavedIngredients(mergedIngredients);
-                            localStorage.setItem("jarvis-saved-ingredients", JSON.stringify(mergedIngredients));
-                            importedCount += newIngredients.length;
-                          }
-                        }
-                        
-                        if (importedCount > 0) {
-                          alert(`Successfully imported ${importedCount} item(s)!`);
-                        } else {
-                          alert("No new items to import.");
-                        }
-                      } catch (err) {
-                        alert("Failed to import backup file. Invalid format.");
-                      }
-                    };
-                    reader.readAsText(file);
-                    e.target.value = "";
-                  }}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          )}
+          <Navigation />
+          <h2 className="text-2xl font-semibold hud-text">
+            Nutrition
+          </h2>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 mb-6">
+        <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
-              Find Nutrition Information
+            <h2 className="text-2xl font-semibold hud-text">
+              Nutrition
             </h2>
             <button
               onClick={() => {
                 setShowManualEntry(!showManualEntry);
                 setError(null);
               }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+              className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
             >
               {showManualEntry ? "Cancel" : "Add Manually"}
             </button>
@@ -542,13 +484,13 @@ export default function Home() {
 
           {/* Manual Entry Form */}
           {showManualEntry && (
-            <div className="mb-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-              <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-200 mb-4">
+            <div className="mb-6 p-4 rounded-lg border border-[#00D9FF]/30 bg-[rgba(0,217,255,0.05)]">
+              <h3 className="text-lg font-semibold text-[#00D9FF] mb-4">
                 Enter Nutrition Information Manually
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Product Name *
                   </label>
                   <input
@@ -556,11 +498,11 @@ export default function Home() {
                     value={manualEntry.name}
                     onChange={(e) => setManualEntry({ ...manualEntry, name: e.target.value })}
                     placeholder="e.g., My Custom Protein Bar"
-                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Serving Size *
                   </label>
                   <div className="flex gap-2">
@@ -569,12 +511,12 @@ export default function Home() {
                       value={manualEntry.servingSize}
                       onChange={(e) => setManualEntry({ ...manualEntry, servingSize: e.target.value })}
                       placeholder="100"
-                      className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                      className="flex-1 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                     />
                     <select
                       value={manualEntry.servingUnit}
                       onChange={(e) => setManualEntry({ ...manualEntry, servingUnit: e.target.value })}
-                      className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                      className="px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
                     >
                       <option value="g">g</option>
                       <option value="oz">oz</option>
@@ -586,7 +528,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Calories *
                   </label>
                   <input
@@ -594,11 +536,11 @@ export default function Home() {
                     value={manualEntry.calories}
                     onChange={(e) => setManualEntry({ ...manualEntry, calories: e.target.value })}
                     placeholder="250"
-                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Carbohydrates (g) *
                   </label>
                   <input
@@ -607,11 +549,11 @@ export default function Home() {
                     value={manualEntry.carbohydrates}
                     onChange={(e) => setManualEntry({ ...manualEntry, carbohydrates: e.target.value })}
                     placeholder="30"
-                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Protein (g) *
                   </label>
                   <input
@@ -620,11 +562,11 @@ export default function Home() {
                     value={manualEntry.protein}
                     onChange={(e) => setManualEntry({ ...manualEntry, protein: e.target.value })}
                     placeholder="20"
-                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                     Fat (g) *
                   </label>
                   <input
@@ -633,22 +575,28 @@ export default function Home() {
                     value={manualEntry.fat}
                     onChange={(e) => setManualEntry({ ...manualEntry, fat: e.target.value })}
                     placeholder="10"
-                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   />
                 </div>
               </div>
               <button
                 onClick={handleManualEntry}
-                className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="mt-4 px-6 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] transition-colors"
               >
                 Add Nutrition Data
               </button>
             </div>
           )}
 
+          {manualAddSuccess && (
+            <div className="mb-4 rounded-lg border border-[#00FF88]/40 bg-[rgba(0,255,136,0.08)] px-4 py-2 text-sm text-[#00FF88]">
+              Saved. You can find it by searching above.
+            </div>
+          )}
+
           {/* Manual Ingredient Input */}
           <div className="mb-6 relative">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-[#67C7EB] mb-2">
               Search by Ingredient Name
             </label>
             <div className="flex gap-2 relative">
@@ -668,7 +616,7 @@ export default function Home() {
                     }
                   }}
                   placeholder="e.g., campbells, chicken breast, apple"
-                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-50"
+                  className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       handleManualSearch();
@@ -681,10 +629,10 @@ export default function Home() {
                 {(showSuggestions || searchingSuggestions) && (
                   <div
                     ref={suggestionsRef}
-                    className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    className="absolute z-10 w-full mt-1 border border-[#00D9FF]/50 rounded-lg shadow-lg max-h-60 overflow-y-auto bg-black/90"
                   >
                     {searchingSuggestions ? (
-                      <div className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">
+                      <div className="px-4 py-2 text-sm text-[#67C7EB]/80">
                         Searching...
                       </div>
                     ) : suggestions.length > 0 ? (
@@ -692,16 +640,16 @@ export default function Home() {
                         <button
                           key={suggestion.fdcId || suggestion.name || index}
                           onClick={() => handleSelectSuggestion(suggestion)}
-                          className="w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-50 border-b border-slate-200 dark:border-slate-700 last:border-b-0 flex items-center justify-between"
+                          className="w-full text-left px-4 py-2 hover:bg-[rgba(0,217,255,0.15)] text-[#00D9FF] border-b border-[#00D9FF]/20 last:border-b-0 flex items-center justify-between"
                         >
                           <span>{suggestion.name}</span>
                           {suggestion.isSaved && (
-                            <span className="text-xs text-green-600 dark:text-green-400 ml-2">Saved</span>
+                            <span className="text-xs text-[#00FF88] ml-2">Saved</span>
                           )}
                         </button>
                       ))
                     ) : ingredient.length >= 2 ? (
-                      <div className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">
+                      <div className="px-4 py-2 text-sm text-[#67C7EB]/80">
                         No results found. Try a different search term.
                       </div>
                     ) : null}
@@ -711,7 +659,7 @@ export default function Home() {
               <button
                 onClick={handleManualSearch}
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Search
               </button>
@@ -720,7 +668,7 @@ export default function Home() {
 
           {/* Barcode Input */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-[#67C7EB] mb-2">
               Search by Barcode (UPC)
             </label>
             <div className="flex gap-2">
@@ -729,13 +677,13 @@ export default function Home() {
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 placeholder="Enter barcode number"
-                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-50"
+                className="flex-1 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                 onKeyDown={(e) => e.key === "Enter" && handleBarcodeScan()}
               />
               <button
                 onClick={handleBarcodeScan}
                 disabled={loading}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Scan
               </button>
@@ -744,20 +692,34 @@ export default function Home() {
 
           {loading && (
             <div className="text-center py-4">
-              <p className="text-slate-600 dark:text-slate-400">Searching...</p>
+              <p className="text-[#67C7EB]/90">Searching...</p>
             </div>
           )}
 
           {error && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
-              <p className="text-yellow-800 dark:text-yellow-200 whitespace-pre-line">{error}</p>
+            <div className="border border-[#00D9FF]/40 bg-[rgba(0,217,255,0.08)] rounded-lg p-4 mb-4">
+              <p className="text-[#00D9FF] whitespace-pre-line">{error}</p>
             </div>
           )}
         </div>
 
         {/* Nutrition Results */}
         {nutritionData && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6" data-nutrition-results>
+          <div className="hud-card rounded-lg p-6 border border-[#00D9FF]/20 relative" data-nutrition-results>
+            <div className="absolute top-4 right-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setNutritionData(null);
+                  setCustomAmount(null);
+                  setError(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
+                aria-label="Clear results"
+              >
+                Clear
+              </button>
+            </div>
             <div className="flex items-start gap-4 mb-4">
               {nutritionData.imageUrl && (
                 <img
@@ -767,11 +729,11 @@ export default function Home() {
                 />
               )}
               <div className="flex-1">
-                <h3 className="text-2xl font-semibold text-slate-900 dark:text-slate-50 mb-1">
+                <h3 className="text-2xl font-semibold text-[#00D9FF] mb-1">
                   {nutritionData.name}
                 </h3>
                 {nutritionData.source && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm text-[#67C7EB]/80">
                     Source: {nutritionData.source}
                   </p>
                 )}
@@ -781,7 +743,7 @@ export default function Home() {
             {/* Custom Amount Input - At the top */}
             {nutritionData.servingSize && (
               <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-[#67C7EB] mb-2">
                   Enter Custom Amount (grams)
                 </label>
                 <input
@@ -792,10 +754,10 @@ export default function Home() {
                     setCustomAmount(amount > 0 ? amount : null);
                   }}
                   placeholder={`Default: ${nutritionData.servingSize} ${nutritionData.servingUnit || "g"}`}
-                  className="w-full md:w-64 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:text-slate-50"
+                  className="w-full md:w-64 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                 />
                 {customAmount && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-sm text-[#67C7EB]/80 mt-1">
                     Showing nutrition for {customAmount}g
                   </p>
                 )}
@@ -818,30 +780,30 @@ export default function Home() {
 
               return (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Calories</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+                  <div className="rounded-lg p-4 border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
+                    <div className="text-sm text-[#67C7EB]/90">Calories</div>
+                    <div className="text-2xl font-bold text-[#00D9FF]">
                       {displayMacros.calories}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="text-xs text-[#67C7EB]/80 mt-1">
                       per {displayAmount} {nutritionData.servingUnit || "g"}
                     </div>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Carbs</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+                  <div className="rounded-lg p-4 border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
+                    <div className="text-sm text-[#67C7EB]/90">Carbs</div>
+                    <div className="text-2xl font-bold text-[#00D9FF]">
                       {displayMacros.carbohydrates}g
                     </div>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Protein</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+                  <div className="rounded-lg p-4 border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
+                    <div className="text-sm text-[#67C7EB]/90">Protein</div>
+                    <div className="text-2xl font-bold text-[#00D9FF]">
                       {displayMacros.protein}g
                     </div>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-400">Fat</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+                  <div className="rounded-lg p-4 border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
+                    <div className="text-sm text-[#67C7EB]/90">Fat</div>
+                    <div className="text-2xl font-bold text-[#00D9FF]">
                       {displayMacros.fat}g
                     </div>
                   </div>
@@ -851,19 +813,19 @@ export default function Home() {
 
             {/* Quick Reference - Per 1g and Per 100g */}
             {nutritionData.servingSize && (
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">
+              <div className="border-t border-[#00D9FF]/20 pt-4">
+                <h4 className="text-lg font-semibold text-[#00D9FF] mb-3">
                   Quick Reference
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                    <div className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
+                  <div className="rounded-lg p-4 border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
+                    <div className="text-sm font-medium text-[#00D9FF] mb-2">
                       Per 1 gram
                     </div>
                     {(() => {
                       const macros = calculateMacros(nutritionData, 1);
                       return macros ? (
-                        <div className="text-sm text-blue-800 dark:text-blue-300">
+                        <div className="text-sm text-[#67C7EB]">
                           <div>{macros.calories > 0 ? `${macros.calories} cal` : "<1 cal"}</div>
                           <div>{macros.carbohydrates > 0 ? `${macros.carbohydrates}g carbs` : "<0.1g carbs"}</div>
                           <div>{macros.protein > 0 ? `${macros.protein}g protein` : "<0.1g protein"}</div>
@@ -872,14 +834,14 @@ export default function Home() {
                       ) : null;
                     })()}
                   </div>
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                    <div className="text-sm font-medium text-green-900 dark:text-green-200 mb-2">
+                  <div className="rounded-lg p-4 border border-[#00FF88]/30 bg-[rgba(0,255,136,0.05)]">
+                    <div className="text-sm font-medium text-[#00FF88] mb-2">
                       Per 100 grams
                     </div>
                     {(() => {
                       const macros = calculateMacros(nutritionData, 100);
                       return macros ? (
-                        <div className="text-sm text-green-800 dark:text-green-300">
+                        <div className="text-sm text-[#00FF88]/90">
                           <div>{macros.calories} cal</div>
                           <div>{macros.carbohydrates}g carbs</div>
                           <div>{macros.protein}g protein</div>
@@ -895,14 +857,14 @@ export default function Home() {
         )}
 
         {/* Recipes Section */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 mb-6">
+        <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
+            <h2 className="text-2xl font-semibold hud-text">
               Recipes
             </h2>
             <Link
               href="/recipes"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
             >
               Recipe Builder
             </Link>
@@ -915,14 +877,14 @@ export default function Home() {
               value={recipeSearch}
               onChange={(e) => setRecipeSearch(e.target.value)}
               placeholder="Search recipes..."
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-slate-50"
+              className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
             />
           </div>
 
           {/* Recipe List */}
           {recipes.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-slate-600 dark:text-slate-400">
+              <p className="text-[#67C7EB]/90">
                 No recipes saved yet. Create your first recipe to see it here!
               </p>
             </div>
@@ -940,50 +902,56 @@ export default function Home() {
                   return (
                     <div
                       key={recipe.id || recipe.name}
-                      className="p-4 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => loadRecipeNutrition(recipe)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          loadRecipeNutrition(recipe);
+                        }
+                      }}
+                      className="p-4 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)] cursor-pointer hover:bg-[rgba(0,217,255,0.1)] transition-colors"
                     >
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-50 mb-2">
-                        {recipe.name}
-                      </h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-[#00D9FF]">
+                          {recipe.name}
+                        </h3>
+                        <span className="text-xs text-[#00FF88]">Recipe</span>
+                      </div>
+                      <p className="text-xs text-[#67C7EB]/90 mb-3">
                         {recipe.servings} servings • {recipe.ingredients.length} ingredients
                       </p>
                       <div className="grid grid-cols-4 gap-2 text-xs mb-3">
                         <div>
-                          <div className="text-slate-500 dark:text-slate-400">Cal</div>
-                          <div className="font-bold text-slate-900 dark:text-slate-50">
+                          <div className="text-[#67C7EB]/80">Cal</div>
+                          <div className="font-bold text-[#00D9FF]">
                             {perServing.calories}
                           </div>
                         </div>
                         <div>
-                          <div className="text-slate-500 dark:text-slate-400">Carbs</div>
-                          <div className="font-bold text-slate-900 dark:text-slate-50">
+                          <div className="text-[#67C7EB]/80">Carbs</div>
+                          <div className="font-bold text-[#00D9FF]">
                             {perServing.carbohydrates}g
                           </div>
                         </div>
                         <div>
-                          <div className="text-slate-500 dark:text-slate-400">Prot</div>
-                          <div className="font-bold text-slate-900 dark:text-slate-50">
+                          <div className="text-[#67C7EB]/80">Prot</div>
+                          <div className="font-bold text-[#00D9FF]">
                             {perServing.protein}g
                           </div>
                         </div>
                         <div>
-                          <div className="text-slate-500 dark:text-slate-400">Fat</div>
-                          <div className="font-bold text-slate-900 dark:text-slate-50">
+                          <div className="text-[#67C7EB]/80">Fat</div>
+                          <div className="font-bold text-[#00D9FF]">
                             {perServing.fat}g
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 pt-3 border-t border-slate-200 dark:border-slate-600">
-                        <button
-                          onClick={() => loadRecipeNutrition(recipe)}
-                          className="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        >
-                          View Details
-                        </button>
+                      <div className="flex gap-2 pt-3 border-t border-[#00D9FF]/20" onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/recipes?edit=${recipe.id || recipe.name}`}
-                          className="flex-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-center"
+                          className="flex-1 px-3 py-1.5 text-sm rounded border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] transition-colors text-center"
                         >
                           Edit
                         </Link>
@@ -993,7 +961,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-600 dark:text-slate-400">
+              <div className="text-center py-8 text-[#67C7EB]/90">
                 No recipes found matching "{recipeSearch}"
               </div>
             )}
@@ -1002,12 +970,44 @@ export default function Home() {
             <div className="mt-4 text-center">
               <Link
                 href="/recipes"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-[#00D9FF] hover:text-[#67C7EB] hover:underline"
               >
                 View all {recipes.length} recipes →
               </Link>
             </div>
           )}
+        </div>
+
+        {/* Settings icon (same style as hub) - links to nutrition section in Settings */}
+        <div className="flex justify-center mt-6">
+          <Link
+            href="/settings#nutrition"
+            className="flex items-center justify-center w-24 h-24 rounded-full transition-all border-none bg-transparent text-[#00D9FF] hover:scale-110"
+            style={{
+              filter: "drop-shadow(0 0 3px #00D9FF) drop-shadow(0 0 6px rgba(0,217,255,0.4))",
+            }}
+            title="Nutrition settings (backup)"
+            aria-label="Nutrition settings"
+          >
+            <svg
+              viewBox="0 0 48 48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-16 h-16"
+              aria-hidden
+            >
+              <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+              <line x1="16" y1="18" x2="32" y2="18" strokeWidth="2.25" />
+              <circle cx="22" cy="18" r="2.5" strokeWidth="2.25" fill="none" />
+              <line x1="16" y1="24" x2="32" y2="24" strokeWidth="2.25" />
+              <circle cx="28" cy="24" r="2.5" strokeWidth="2.25" fill="none" />
+              <line x1="16" y1="30" x2="32" y2="30" strokeWidth="2.25" />
+              <circle cx="24" cy="30" r="2.5" strokeWidth="2.25" fill="none" />
+            </svg>
+          </Link>
         </div>
       </main>
     </div>
