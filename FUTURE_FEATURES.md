@@ -145,7 +145,7 @@
 
 25. **Bike Gear Module Content**
     - Component list, gear inventory, service log, tire pressure, sizing/fit, ride checklist, packing checklist
-    - **Status:** Bike page has HUD theme and 7 section icons (drivetrain, jersey+helmet, crescent wrench, gauge, tape measure, road bike, suitcase). Section content/functionality pending.
+    - **Status:** Bike page has HUD theme and 7 section icons at 250% size, names only (no subtitles). Icons: drivetrain, t-shirt/jersey with sleeves and zipper, service log wrench, tire gauge, tape measure (from above with tick marks), bicycle (side view with bars), suitcase. Section content/functionality pending.
 
 ## Future Enhancements (from recent work)
 

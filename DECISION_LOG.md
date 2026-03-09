@@ -283,6 +283,26 @@
 - **Implementation:** Bike page uses HUD theme and CircuitBackground. Seven section buttons with icon + label + description; no card/border (transparent, hover opacity only). Icons: (1) Component list = drivetrain (chainring, chain, cassette), (2) Gear inventory = bike jersey + helmet, (3) Service log = crescent wrench head, (4) Tire pressure = gauge with needle, (5) Sizing & fit = tape measure with tick marks, (6) Ride checklist = road bike side view, (7) Packing checklist = suitcase with handle. All icons stroke-only, fit in circle r=18, hub-style.
 - **Status:** Implemented
 
+**Decision:** Bike gear section icons enlarged 250%, subtitles removed
+- **Rationale:** User wanted larger, clearer section icons and no description line under each (e.g. "Bikes and parts").
+- **Implementation:** Icon size changed from 48px to 120px (250%). Section buttons show only icon + name; description prop no longer rendered.
+- **Status:** Implemented
+
+**Decision:** Ride checklist icon – bicycle side view with correct geometry
+- **Rationale:** User wanted a recognizable bicycle icon fitting inside the circle, with proper frame and bars.
+- **Implementation:** Bicycle drawn with wheels (r=5.5, centers 13 & 35 inside circle), seat tube angled back, top tube horizontal, down tube/head tube meeting above front tire (y=23), saddle above top tube, stem and drop bars extending from headset. Whole bicycle scaled in a &lt;g&gt; to 82% so it fits inside the circle.
+- **Status:** Implemented
+
+**Decision:** Sizing & fit icon – tape measure only, from above, with tick marks
+- **Rationale:** User wanted a tape measure icon showing only the tape (no case), view from above so tick marks are visible.
+- **Implementation:** Single tape blade (rounded rect) with ruler-style tick marks originating at top of tape, not touching bottom; even spacing with long/medium/short ticks (like real tape). Horizontal sleeve-hem line removed from t-shirt outline to avoid "dots" at sleeve ends.
+- **Status:** Implemented
+
+**Decision:** Gear inventory icon – t-shirt with sleeve definition and zipper
+- **Rationale:** User wanted a clear t-shirt/jersey icon with sleeves distinct from body, and a zipper.
+- **Implementation:** Simple t-shirt outline (crew neck, sleeves, body, hem). Shoulder-to-armpit shortened; sleeve length increased by moving outer sleeve edge away from midline (x=12 left, x=36 right). Sleeve defined as shoulder → outer edge → underarm only (not the lowest horizontal hem line nor the body vertical); sleeve drawn in electric blue (#00BFFF). Zipper line from neck opening curve (y=16) to bottom hem (y=37), not to top horizontal.
+- **Status:** Implemented
+
 ### Recipe Builder (Units, Amount, Display)
 
 **Decision:** Add bunch, can, clove(s) as units in Recipe Builder
