@@ -3,13 +3,32 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../components/Navigation";
+import { GEAR_STORAGE_KEY } from "../bike/inventory/page";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 const BACKUP_REMINDER_DAYS = 7;
+const HELMET_REMINDER_DAYS = 30;
+
+interface GearItem {
+  id: string;
+  name: string;
+  category: string;
+  purchaseDate?: string;
+  replaceReminderYears?: number;
+}
+
+function getReplaceDate(item: GearItem): Date | null {
+  if (!item.purchaseDate || !item.replaceReminderYears) return null;
+  const d = new Date(item.purchaseDate);
+  if (isNaN(d.getTime())) return null;
+  d.setFullYear(d.getFullYear() + item.replaceReminderYears);
+  return d;
+}
 
 export default function AlertsPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [backupOverdue, setBackupOverdue] = useState(false);
+  const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -23,6 +42,33 @@ export default function AlertsPage() {
     const now = Date.now();
     const daysSince = (now - then) / (1000 * 60 * 60 * 24);
     setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem(GEAR_STORAGE_KEY);
+    if (!raw) {
+      setHelmetReminders([]);
+      return;
+    }
+    try {
+      const items: GearItem[] = JSON.parse(raw);
+      const now = Date.now();
+      const cutoff = now + HELMET_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+      const reminders: { item: GearItem; replaceDate: Date }[] = [];
+      for (const item of items) {
+        if (item.category !== "Helmets") continue;
+        const replaceDate = getReplaceDate(item);
+        if (!replaceDate) continue;
+        if (replaceDate.getTime() <= cutoff) {
+          reminders.push({ item, replaceDate });
+        }
+      }
+      reminders.sort((a, b) => a.replaceDate.getTime() - b.replaceDate.getTime());
+      setHelmetReminders(reminders);
+    } catch {
+      setHelmetReminders([]);
+    }
   }, []);
 
   return (
@@ -58,6 +104,36 @@ export default function AlertsPage() {
             <p className="text-slate-400 font-mono text-sm">
               Nutrition backup is up to date. Last backup: {new Date(lastBackup).toLocaleDateString()}. You can export or import in <Link href="/settings" className="text-slate-300 underline hover:text-white">Settings</Link>.
             </p>
+          </section>
+        )}
+
+        {helmetReminders.length > 0 && (
+          <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
+            <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
+              Helmet replacement reminder
+            </h2>
+            <p className="text-slate-400 font-mono text-sm mb-4">
+              The following helmets are due for replacement soon (or are overdue):
+            </p>
+            <ul className="space-y-2 mb-4">
+              {helmetReminders.map(({ item, replaceDate }) => (
+                <li key={item.id} className="font-mono text-sm">
+                  <span className="text-slate-200">{item.name}</span>
+                  <span className="text-slate-500 ml-2">
+                    — replace by {replaceDate.toLocaleDateString()}
+                    {replaceDate.getTime() < Date.now() && (
+                      <span className="text-amber-400 ml-1">(overdue)</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/bike/inventory"
+              className="inline-block px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Open Gear Inventory →
+            </Link>
           </section>
         )}
       </div>

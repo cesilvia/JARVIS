@@ -69,6 +69,18 @@ The USDA API demo key has rate limits. For better performance, get a free API ke
 
 The app will use `DEMO_KEY` if no environment variable is set, but it may hit rate limits.
 
+**Strava (for bike mileage)**
+
+To sync bike mileage from Strava (total, indoor, road miles):
+
+1. Create an app at [Strava API Settings](https://www.strava.com/settings/api)
+2. Set Authorization Callback Domain to `localhost` (for local dev) or your production domain
+3. Add to `.env.local`:
+   ```
+   STRAVA_CLIENT_ID=your_client_id
+   STRAVA_CLIENT_SECRET=your_client_secret
+   ```
+
 ## Project Structure
 
 ```

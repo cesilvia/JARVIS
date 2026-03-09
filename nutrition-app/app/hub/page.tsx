@@ -36,20 +36,11 @@ const modules: Module[] = [
     available: true,
   },
   {
-    id: "bike",
-    name: "Bike Gear",
+    id: "strava",
+    name: "Strava",
     description: "Cycling and bike gear",
     icon: "◇",
     href: "/bike",
-    color: "red",
-    available: true,
-  },
-  {
-    id: "strava",
-    name: "Strava",
-    description: "Strava",
-    icon: "◇",
-    href: "/strava",
     color: "red",
     available: true,
   },
@@ -189,30 +180,6 @@ const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeCol
     </svg>
   );
 };
-
-// JARVIS-style bike gear / cassette icon: thin circle, vertical lines inside (all fit within r=18)
-const JarvisBikeGearIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
-  <svg
-    viewBox="0 0 48 48"
-    fill="none"
-    stroke={strokeColor ?? "currentColor"}
-    strokeWidth="2.25"
-    strokeLinecap="butt"
-    strokeLinejoin="miter"
-    className={className}
-    style={style}
-    aria-hidden
-  >
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    {/* Vertical lines (short left → long right), scaled to fit inside circle r=17 */}
-    <line x1="15" y1="20" x2="15" y2="28" strokeWidth="2.25" />
-    <line x1="18.5" y1="17" x2="18.5" y2="31" strokeWidth="2.25" />
-    <line x1="22" y1="15" x2="22" y2="33" strokeWidth="2.25" />
-    <line x1="25.5" y1="13" x2="25.5" y2="35" strokeWidth="2.25" />
-    <line x1="29" y1="11" x2="29" y2="37" strokeWidth="2.25" />
-    <line x1="32.5" y1="10" x2="32.5" y2="38" strokeWidth="2.25" />
-  </svg>
-);
 
 // JARVIS-style status icon: thin circle, gauge inside
 const JarvisStatusIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
@@ -435,7 +402,6 @@ const StylizedIcon = ({ moduleId, size = "text-4xl", iconColor }: { moduleId: st
   const iconStyles: { [key: string]: React.ReactElement } = {
     calendar: <JarvisCalendarIcon className={nutritionIconSize} stroke={iconColor} />,
     nutrition: <JarvisNutritionIcon className={nutritionIconSize} stroke={iconColor} />,
-    bike: <JarvisBikeGearIcon className={nutritionIconSize} stroke={iconColor} />,
     strava: <JarvisBikeWheelIcon className={nutritionIconSize} stroke={iconColor} />,
     tasks: <JarvisTaskManagerIcon className={nutritionIconSize} stroke={iconColor} />,
     weather: <JarvisWeatherIcon className={nutritionIconSize} stroke={iconColor} />,
@@ -464,11 +430,51 @@ const currentTheme = {
 
 const ALERT_ICON_ORANGE = "#FF6600";
 
+// Same logic as alerts page: backup overdue + helmet reminders
+const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
+const BACKUP_REMINDER_DAYS = 7;
+const GEAR_STORAGE_KEY = "jarvis-gear-inventory";
+const HELMET_REMINDER_DAYS = 30;
+
+function hubGetAlertSummaries(): string[] {
+  const lines: string[] = [];
+  if (typeof window === "undefined") return lines;
+  const lastBackup = localStorage.getItem(JARVIS_LAST_BACKUP_KEY);
+  if (!lastBackup) {
+    lines.push("Back up nutrition data");
+    return lines;
+  }
+  const daysSince = (Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24);
+  if (daysSince >= BACKUP_REMINDER_DAYS) {
+    lines.push("Back up nutrition data");
+  }
+  const raw = localStorage.getItem(GEAR_STORAGE_KEY);
+  if (raw) {
+    try {
+      const items: { name: string; category: string; purchaseDate?: string; replaceReminderYears?: number }[] = JSON.parse(raw);
+      const cutoff = Date.now() + HELMET_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+      for (const item of items) {
+        if (item.category !== "Helmets" || !item.purchaseDate || !item.replaceReminderYears) continue;
+        const d = new Date(item.purchaseDate);
+        if (isNaN(d.getTime())) continue;
+        d.setFullYear(d.getFullYear() + item.replaceReminderYears);
+        if (d.getTime() <= cutoff) {
+          lines.push(`Helmet: ${item.name} — replace by ${d.toLocaleDateString()}`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return lines;
+}
+
 export default function HubPage() {
   const router = useRouter();
   const [wedgeModule, setWedgeModule] = useState<string | null>(null);
   const [nutritionStats, setNutritionStats] = useState({ recipes: 0, ingredients: 0 });
   const [hasAlerts, setHasAlerts] = useState(false);
+  const [alertSummaries, setAlertSummaries] = useState<string[]>([]);
   const centerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -490,12 +496,17 @@ export default function HubPage() {
     }
   }, []);
 
-  // Check for unread alerts (from localStorage; set by alerts page when alerts exist)
+  // Check for alerts (same conditions as alerts page: backup overdue, helmet reminders)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const unread = localStorage.getItem("jarvis-unread-alerts");
-      setHasAlerts(!!unread && unread !== "0" && unread !== "[]");
-    }
+    const summaries = hubGetAlertSummaries();
+    setAlertSummaries(summaries);
+    setHasAlerts(summaries.length > 0);
+    const interval = setInterval(() => {
+      const s = hubGetAlertSummaries();
+      setAlertSummaries(s);
+      setHasAlerts(s.length > 0);
+    }, 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Wedge geometry: compute from center and icon positions
@@ -612,14 +623,13 @@ export default function HubPage() {
                   const isSelected = wedgeModule === module.id;
                   const isAvailable = module.available;
                   const isNutrition = module.id === "nutrition";
-                  const isBikeGear = module.id === "bike";
                   const isStrava = module.id === "strava";
                   const isCalendar = module.id === "calendar";
                   const isTasks = module.id === "tasks";
                   const isWeather = module.id === "weather";
                   const isNotes = module.id === "notes";
                   const isHealth = module.id === "health";
-                  const frameSize = (isNutrition || isBikeGear || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth) ? 90 : 50;
+                  const frameSize = (isNutrition || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth) ? 90 : 50;
                   return (
                     <button
                       key={module.id}
@@ -695,6 +705,7 @@ export default function HubPage() {
                       moduleHref={href}
                       themeColor={themeColor}
                       onNavigate={() => handleWedgeNavigate(wedgeModule)}
+                      summaryLines={wedgeModule === "alerts" ? (alertSummaries.length > 0 ? alertSummaries : ["No Current Alerts"]) : undefined}
                     />
                   </div>
                 </div>

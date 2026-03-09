@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
 
@@ -177,21 +178,59 @@ function RideChecklistIcon({ className = "w-12 h-12", style, stroke: strokeColor
   );
 }
 
+// Two gears with chain: small gear left, large gear right, chain loops from top of large around small and back
+function ChainGearsIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
+  const stroke = strokeColor ?? "currentColor";
+  const smallCx = 15;
+  const smallCy = 24;
+  const smallR = 3;
+  const largeCx = 32;
+  const largeCy = 24;
+  const largeR = 6;
+  const smallTeeth = 6;
+  const largeTeeth = 10;
+  return (
+    <svg viewBox="0 0 48 48" fill="none" stroke={stroke} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
+      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      {/* Chain: top of large → top run → wrap small gear → bottom run → wrap large gear */}
+      <path d={`M ${largeCx} ${largeCy - largeR} L ${smallCx} ${smallCy - smallR} A ${smallR} ${smallR} 0 0 1 ${smallCx} ${smallCy + smallR} L ${largeCx} ${largeCy + largeR} A ${largeR} ${largeR} 0 0 1 ${largeCx} ${largeCy - largeR}`} strokeWidth="2.25" fill="none" />
+      {/* Small gear (left) */}
+      <circle cx={smallCx} cy={smallCy} r={smallR} strokeWidth="2.25" fill="none" />
+      {Array.from({ length: smallTeeth }).map((_, i) => {
+        const a = (i / smallTeeth) * 2 * Math.PI - Math.PI / 2;
+        const x1 = smallCx + (smallR - 0.35) * Math.cos(a);
+        const y1 = smallCy - (smallR - 0.35) * Math.sin(a);
+        const x2 = smallCx + (smallR + 0.35) * Math.cos(a);
+        const y2 = smallCy - (smallR + 0.35) * Math.sin(a);
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="2.25" />;
+      })}
+      {/* Large gear (right) */}
+      <circle cx={largeCx} cy={largeCy} r={largeR} strokeWidth="2.25" fill="none" />
+      {Array.from({ length: largeTeeth }).map((_, i) => {
+        const a = (i / largeTeeth) * 2 * Math.PI - Math.PI / 2;
+        const x1 = largeCx + (largeR - 0.5) * Math.cos(a);
+        const y1 = largeCy - (largeR - 0.5) * Math.sin(a);
+        const x2 = largeCx + (largeR + 0.5) * Math.cos(a);
+        const y2 = largeCy - (largeR + 0.5) * Math.sin(a);
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="2.25" />;
+      })}
+    </svg>
+  );
+}
+
 // Packing checklist: suitcase
 function PackingChecklistIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
   return (
     <svg viewBox="0 0 48 48" fill="none" stroke={strokeColor ?? "currentColor"} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
       <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      <rect x="14" y="16" width="20" height="16" rx="1" strokeWidth="2.25" fill="none" />
-      <rect x="21" y="13" width="6" height="4" rx="0.5" strokeWidth="2.25" fill="none" />
-      <line x1="24" y1="13" x2="24" y2="16" strokeWidth="2.25" />
-      <line x1="18" y1="22" x2="30" y2="22" strokeWidth="2.25" />
+      <rect x="12" y="16" width="24" height="16" rx="1" strokeWidth="2.25" fill="none" />
+      <rect x="20" y="12" width="8" height="4" rx="0.5" strokeWidth="2.25" fill="none" />
     </svg>
   );
 }
 
 const sections = [
-  { id: "components", name: "Component list", icon: BikeComponentListIcon, description: "Bikes and parts" },
+  { id: "components", name: "Component list", icon: ChainGearsIcon, description: "Bikes and parts" },
   { id: "inventory", name: "Gear inventory", icon: GearInventoryIcon, description: "Helmets, kit, tools" },
   { id: "service", name: "Service log", icon: ServiceLogIcon, description: "Maintenance history" },
   { id: "tire-pressure", name: "Tire pressure", icon: TirePressureIcon, description: "PSI by bike or tire" },
@@ -205,22 +244,54 @@ export default function BikeGearPage() {
     <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.primary }}>
       <CircuitBackground />
       <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
-        <div className="mb-8 flex items-center justify-between">
-          <Navigation />
-          <h2 className="text-2xl font-semibold hud-text">Bike Gear</h2>
+        <div className="grid grid-cols-3 items-center gap-4 mb-8">
+          <div className="flex justify-start">
+            <Navigation />
+          </div>
+          <h2 className="text-2xl font-semibold hud-text text-center">Cycling</h2>
+          <div />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {sections.map(({ id, name, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 bg-transparent border-none p-4"
-            >
-              <Icon className="w-[120px] h-[120px] min-w-[120px] min-h-[120px]" stroke={hubTheme.primary} />
-              <div className="font-semibold text-[#00D9FF] text-sm">{name}</div>
-            </button>
-          ))}
+          {sections.map(({ id, name, icon: Icon }) => {
+            const content = (
+              <>
+                <Icon className="w-[120px] h-[120px] min-w-[120px] min-h-[120px]" stroke={hubTheme.primary} />
+                <div className="font-semibold text-[#00D9FF] text-sm">{name}</div>
+              </>
+            );
+            if (id === "components") {
+              return (
+                <Link
+                  key={id}
+                  href="/bike/components"
+                  className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 p-4"
+                >
+                  {content}
+                </Link>
+              );
+            }
+            if (id === "inventory") {
+              return (
+                <Link
+                  key={id}
+                  href="/bike/inventory"
+                  className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 p-4"
+                >
+                  {content}
+                </Link>
+              );
+            }
+            return (
+              <button
+                key={id}
+                type="button"
+                className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 bg-transparent border-none p-4 cursor-default"
+              >
+                {content}
+              </button>
+            );
+          })}
         </div>
 
         <p className="mt-8 text-center text-sm" style={{ color: hubTheme.secondary }}>

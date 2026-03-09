@@ -112,7 +112,7 @@
     - User Profile management
     - System Status monitoring
     - Notifications/alerts system
-    - **Status:** Settings, Profile, Status, Alerts all link to dedicated pages. Alerts icon turns electric orange when `localStorage.jarvis-unread-alerts` is set. Alerts/Status pages are placeholders (coming soon). Real alert data integration pending.
+    - **Status:** Settings, Profile, Status, Alerts all link to dedicated pages. Alerts icon turns electric orange when backup is overdue or helmets are due for replacement (computed live from localStorage, no manual flag needed). Alerts page shows backup reminder and helmet replacement reminders. Hub wedge shows alert summary text. Status page is placeholder.
 
 19. **Custom Module Frames**
     - Design unique frame images for each module
@@ -145,14 +145,17 @@
 
 25. **Bike Gear Module Content**
     - Component list, gear inventory, service log, tire pressure, sizing/fit, ride checklist, packing checklist
-    - **Status:** Bike page has HUD theme and 7 section icons at 250% size, names only (no subtitles). Icons: drivetrain, t-shirt/jersey with sleeves and zipper, service log wrench, tire gauge, tape measure (from above with tick marks), bicycle (side view with bars), suitcase. Section content/functionality pending.
+    - **Status:** Component list implemented (bikes with components, Strava sync, edit, notes, attachments). Gear inventory implemented (helmets with 3–5 year replacement reminders, jerseys with sleeve/color/weather fields, bibs, shoes; purchase date, photos, search/filter). Service log, tire pressure, sizing/fit, ride checklist, packing checklist sections pending.
 
 ## Future Enhancements (from recent work)
 
 - **Recipe Builder (completed):** Added units (bunch, can, clove, clove(s)); optional amount (blank = 1); mixed-fraction display (e.g. 2 1/2 instead of 5/2) in list and edit form; parseFraction supports mixed input.
 - **Automatic weekly backup:** Option to auto-export nutrition backup weekly (e.g. trigger download or save to cloud) instead of only reminding in Alerts.
 - **Nutrition page:** Recipe cards only when searching; Compare Recipes shows last 2 viewed for macro comparison; settings icon links to Settings#nutrition.
-- **Bike Gear module content:** Section icons and labels in place (Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist). Implement actual content/functionality for each section (e.g. component list CRUD, gear inventory, service log entries, tire pressure presets, fit notes, checklists).
+- **Bike Gear module content:** Section icons and labels in place (Component list, Gear inventory, Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist). Component list and Gear inventory implemented. Remaining sections (Service log, Tire pressure, Sizing & fit, Ride checklist, Packing checklist) need content/functionality.
+- **Gear inventory enhancements:** Bibs-specific fields (pad type, length); shoes-specific fields (cleat type, wear indicator); photo gallery view for gear items.
+- **Alert wedge summaries for other modules:** Currently only Alerts wedge shows summary text. Add summaries to other module wedges (e.g. Nutrition: recipe count; Bike: last sync date; Calendar: next event).
+- **Strava gear sync to inventory:** Automatically pull gear (bikes, shoes) from Strava into gear inventory; link Strava gear IDs to inventory items for mileage tracking.
 
 ## Technical Improvements
 
@@ -168,5 +171,6 @@
 - Voice commands/notifications
 - AnyList deep sync
 - Advanced fitness features (Strava integration, Maps route suggestions)
+  - **Strava setup & API reference:** See [nutrition-app/docs/STRAVA_INTEGRATION.md](nutrition-app/docs/STRAVA_INTEGRATION.md)
 - Document smarts (Craft doc summarization)
 - Weekly review insights

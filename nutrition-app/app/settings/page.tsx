@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Navigation from "../components/Navigation";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
@@ -92,6 +93,19 @@ export default function SettingsPage() {
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Configuration and preferences.
         </p>
+
+        <section className="border border-slate-700 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Extras</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            Experiments, backups, or features you&apos;ve created but don&apos;t need right now.
+          </p>
+          <Link
+            href="/settings/extras"
+            className="inline-block px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors"
+          >
+            Open Extras
+          </Link>
+        </section>
 
         <section id="nutrition" className="border border-slate-700 rounded-lg p-6 scroll-mt-8">
           <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Backup</h2>

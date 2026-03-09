@@ -133,8 +133,9 @@ function extractFromJsonLd(html: string): ParsedIngredients | null {
       }
 
       for (const item of items) {
-        if (item && (item["@type"] === "Recipe" || (Array.isArray(item["@type"]) && item["@type"].includes("Recipe")))) {
-          const raw = item.recipeIngredient;
+        const obj = item as Record<string, unknown>;
+        if (obj && (obj["@type"] === "Recipe" || (Array.isArray(obj["@type"]) && obj["@type"].includes("Recipe")))) {
+          const raw = obj.recipeIngredient;
           if (raw && Array.isArray(raw)) {
             const ingredients: string[] = [];
 

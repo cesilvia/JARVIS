@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
+import NutritionBackIcon from "../components/NutritionBackIcon";
 import CircuitBackground from "../hub/CircuitBackground";
 
 const hubTheme = {
@@ -79,6 +79,19 @@ export default function RecipesPage() {
   const [editingIngredientName, setEditingIngredientName] = useState("");
   const [editingIngredientAmount, setEditingIngredientAmount] = useState("");
   const [editingIngredientUnit, setEditingIngredientUnit] = useState("");
+
+  // Helper: safely evaluate math expressions (e.g. "100+50", "200*2", "300-50", "400/2")
+  const parseMathExpression = (str: string): number => {
+    const trimmed = String(str).trim().replace(/\s/g, "");
+    if (!trimmed) return 0;
+    if (!/^[\d+\-*/().]+$/.test(trimmed)) return parseFloat(trimmed) || 0;
+    try {
+      const result = Function('"use strict"; return (' + trimmed + ")")();
+      return typeof result === "number" && !Number.isNaN(result) ? result : parseFloat(trimmed) || 0;
+    } catch {
+      return parseFloat(trimmed) || 0;
+    }
+  };
 
   // Helper: convert decimal to mixed fraction string (e.g. 2.5 → "2 1/2", 0.25 → "1/4")
   const decimalToMixedFraction = (decimal: number): string => {
@@ -425,14 +438,13 @@ export default function RecipesPage() {
   };
 
   const deleteRecipe = (recipeId: string) => {
-    if (confirm("Are you sure you want to delete this recipe?")) {
-      const updatedRecipes = recipes.filter((r) => r.id !== recipeId);
-      setRecipes(updatedRecipes);
-      try {
-        localStorage.setItem("jarvis-recipes", JSON.stringify(updatedRecipes));
-      } catch (error) {
-        console.error("Failed to save after delete:", error);
-      }
+    const updatedRecipes = recipes.filter((r) => r.id !== recipeId);
+    setRecipes(updatedRecipes);
+    setFilteredRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+    try {
+      localStorage.setItem("jarvis-recipes", JSON.stringify(updatedRecipes));
+    } catch (error) {
+      console.error("Failed to save after delete:", error);
     }
   };
 
@@ -622,10 +634,10 @@ export default function RecipesPage() {
       name: editingIngredientName.trim() || updatedIngredients[index].name,
       amount,
       unit: editingIngredientUnit.trim() || "g",
-      calories: parseFloat(editingNutrition.calories) || 0,
-      carbohydrates: parseFloat(editingNutrition.carbohydrates) || 0,
-      protein: parseFloat(editingNutrition.protein) || 0,
-      fat: parseFloat(editingNutrition.fat) || 0,
+      calories: parseMathExpression(editingNutrition.calories) || 0,
+      carbohydrates: parseMathExpression(editingNutrition.carbohydrates) || 0,
+      protein: parseMathExpression(editingNutrition.protein) || 0,
+      fat: parseMathExpression(editingNutrition.fat) || 0,
     };
 
     setCurrentRecipe({
@@ -648,21 +660,22 @@ export default function RecipesPage() {
     <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.primary }}>
       <CircuitBackground />
       <main className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
-        <Navigation />
+        {/* Top bar: left = JARVIS nav, center = title, right = Food & nutrition icon → /nutrition */}
+        <div className="grid grid-cols-3 items-start gap-4 mb-6">
+          <div className="flex justify-start">
+            <Navigation />
+          </div>
+          <h1 className="text-4xl font-bold hud-text text-center" style={{ color: hubTheme.primary }}>
+            Recipe Builder
+          </h1>
+          <div className="flex justify-end">
+            <NutritionBackIcon />
+          </div>
+        </div>
+
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold hud-text mb-2" style={{ color: hubTheme.primary }}>
-                Recipe Builder
-              </h1>
-              <p className="text-lg" style={{ color: hubTheme.secondary }}>
-                Create custom recipes and calculate macros ·{" "}
-                <Link href="/nutrition" className="text-[#00D9FF] hover:text-[#67C7EB] hover:underline">
-                  Nutrition Tracker
-                </Link>
-              </p>
-            </div>
-            <div className="flex gap-4">
+          <div className="flex items-center justify-center mb-4 flex-wrap gap-2">
+            <div className="flex gap-4 flex-wrap justify-center">
               {recipes.length > 0 && (
                 <>
                   <button
@@ -703,175 +716,6 @@ export default function RecipesPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
-          {recipes.length > 0 && (
-            <div className="mb-6">
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search recipes by name or ingredient..."
-                  className="flex-1 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
-                />
-                <button
-                  onClick={() => setShowMacroFilters(!showMacroFilters)}
-                  className={`px-4 py-2 rounded-lg transition-colors border ${
-                    showMacroFilters || Object.values(macroFilters).some((v) => v !== "")
-                      ? "border-[#00D9FF] bg-[rgba(0,217,255,0.25)] text-[#00D9FF]"
-                      : "border-[#00D9FF]/50 bg-[rgba(0,217,255,0.08)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.15)]"
-                  }`}
-                >
-                  Filter by Macros
-                </button>
-              </div>
-              
-              {/* Macro Filters */}
-              {showMacroFilters && (
-                <div className="mt-4 p-4 rounded-lg border border-[#00D9FF]/30 bg-[rgba(0,217,255,0.05)]">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold mb-3" style={{ color: hubTheme.primary }}>
-                      Filter by Macros (per serving)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Calories */}
-                      <div>
-                        <label className="block text-xs font-medium text-[#67C7EB] mb-1">
-                          Calories
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            value={macroFilters.caloriesMin}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, caloriesMin: e.target.value })
-                            }
-                            placeholder="Min"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                          <input
-                            type="number"
-                            value={macroFilters.caloriesMax}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, caloriesMax: e.target.value })
-                            }
-                            placeholder="Max"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Carbs */}
-                      <div>
-                        <label className="block text-xs font-medium text-[#67C7EB] mb-1">
-                          Carbs (g)
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.carbsMin}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, carbsMin: e.target.value })
-                            }
-                            placeholder="Min"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.carbsMax}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, carbsMax: e.target.value })
-                            }
-                            placeholder="Max"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Protein */}
-                      <div>
-                        <label className="block text-xs font-medium text-[#67C7EB] mb-1">
-                          Protein (g)
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.proteinMin}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, proteinMin: e.target.value })
-                            }
-                            placeholder="Min"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.proteinMax}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, proteinMax: e.target.value })
-                            }
-                            placeholder="Max"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Fat */}
-                      <div>
-                        <label className="block text-xs font-medium text-[#67C7EB] mb-1">
-                          Fat (g)
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.fatMin}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, fatMin: e.target.value })
-                            }
-                            placeholder="Min"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={macroFilters.fatMax}
-                            onChange={(e) =>
-                              setMacroFilters({ ...macroFilters, fatMax: e.target.value })
-                            }
-                            placeholder="Max"
-                            className="w-full px-2 py-1 text-sm border border-[#00D9FF]/40 rounded bg-black/30 text-[#00D9FF]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() => {
-                          setMacroFilters({
-                            caloriesMin: "",
-                            caloriesMax: "",
-                            carbsMin: "",
-                            carbsMax: "",
-                            proteinMin: "",
-                            proteinMax: "",
-                            fatMin: "",
-                            fatMax: "",
-                          });
-                        }}
-                        className="px-3 py-1 text-sm rounded border border-[#00D9FF]/40 bg-[rgba(0,217,255,0.08)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.15)]"
-                      >
-                        Clear Filters
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Import Recipe Form */}
@@ -1108,52 +952,53 @@ export default function RecipesPage() {
                             <div>
                               <label className="block text-xs mb-1" style={{ color: hubTheme.secondary }}>Calories</label>
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={editingNutrition.calories}
                                 onChange={(e) =>
                                   setEditingNutrition({ ...editingNutrition, calories: e.target.value })
                                 }
                                 className="w-full px-2 py-1 border border-[#00D9FF]/50 rounded text-sm bg-black/30 text-[#00D9FF]"
-                                placeholder="0"
+                                placeholder="0 or e.g. 100+50"
                               />
                             </div>
                             <div>
                               <label className="block text-xs mb-1" style={{ color: hubTheme.secondary }}>Carbs (g)</label>
                               <input
-                                type="number"
-                                step="0.1"
+                                type="text"
+                                inputMode="decimal"
                                 value={editingNutrition.carbohydrates}
                                 onChange={(e) =>
                                   setEditingNutrition({ ...editingNutrition, carbohydrates: e.target.value })
                                 }
                                 className="w-full px-2 py-1 border border-[#00D9FF]/50 rounded text-sm bg-black/30 text-[#00D9FF]"
-                                placeholder="0"
+                                placeholder="0 or e.g. 20*2"
                               />
                             </div>
                             <div>
                               <label className="block text-xs mb-1" style={{ color: hubTheme.secondary }}>Protein (g)</label>
                               <input
-                                type="number"
-                                step="0.1"
+                                type="text"
+                                inputMode="decimal"
                                 value={editingNutrition.protein}
                                 onChange={(e) =>
                                   setEditingNutrition({ ...editingNutrition, protein: e.target.value })
                                 }
                                 className="w-full px-2 py-1 border border-[#00D9FF]/50 rounded text-sm bg-black/30 text-[#00D9FF]"
-                                placeholder="0"
+                                placeholder="0 or e.g. 15-5"
                               />
                             </div>
                             <div>
                               <label className="block text-xs mb-1" style={{ color: hubTheme.secondary }}>Fat (g)</label>
                               <input
-                                type="number"
-                                step="0.1"
+                                type="text"
+                                inputMode="decimal"
                                 value={editingNutrition.fat}
                                 onChange={(e) =>
                                   setEditingNutrition({ ...editingNutrition, fat: e.target.value })
                                 }
                                 className="w-full px-2 py-1 border border-[#00D9FF]/50 rounded text-sm bg-black/30 text-[#00D9FF]"
-                                placeholder="0"
+                                placeholder="0 or e.g. 30/2"
                               />
                             </div>
                           </div>
@@ -1298,7 +1143,7 @@ export default function RecipesPage() {
               </div>
             )}
 
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               <button
                 onClick={saveRecipe}
                 disabled={!currentRecipe.name || !currentRecipe.ingredients || currentRecipe.ingredients.length === 0}
@@ -1315,135 +1160,24 @@ export default function RecipesPage() {
               >
                 Cancel
               </button>
+              {currentRecipe.id && (
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(`Are you sure you want to delete "${currentRecipe.name}"?`) &&
+                      confirm("This cannot be undone. Click OK to permanently delete this recipe.")
+                    ) {
+                      deleteRecipe(currentRecipe.id!);
+                      setCurrentRecipe({ name: "", servings: 1, ingredients: [] });
+                      setShowRecipeForm(false);
+                    }
+                  }}
+                  className="px-6 py-2 rounded-lg border border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                >
+                  Delete Recipe
+                </button>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Saved Recipes */}
-        {recipes.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-semibold text-[#00D9FF] mb-4">
-              {searchQuery || Object.values(macroFilters).some((v) => v !== "")
-                ? `Search Results (${filteredRecipes.length} of ${recipes.length})`
-                : `Saved Recipes (${recipes.length})`}
-            </h2>
-            {filteredRecipes.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredRecipes.map((recipe) => {
-                const totals = calculateRecipeTotals(recipe.ingredients);
-                const perServing = {
-                  calories: Math.round(totals.calories / recipe.servings),
-                  carbohydrates: Math.round((totals.carbohydrates / recipe.servings) * 10) / 10,
-                  protein: Math.round((totals.protein / recipe.servings) * 10) / 10,
-                  fat: Math.round((totals.fat / recipe.servings) * 10) / 10,
-                };
-                const per100g = {
-                  calories: totals.weight > 0 ? Math.round((totals.calories / totals.weight) * 100) : 0,
-                  carbohydrates: totals.weight > 0 ? Math.round((totals.carbohydrates / totals.weight) * 100 * 10) / 10 : 0,
-                  protein: totals.weight > 0 ? Math.round((totals.protein / totals.weight) * 100 * 10) / 10 : 0,
-                  fat: totals.weight > 0 ? Math.round((totals.fat / totals.weight) * 100 * 10) / 10 : 0,
-                };
-
-                return (
-                  <div
-                    key={recipe.id || recipe.name}
-                    className="hud-card rounded-lg p-6 border border-[#00D9FF]/20"
-                  >
-                    <h3 className="text-xl font-semibold text-[#00D9FF] mb-2">
-                      {recipe.name}
-                    </h3>
-                    <p className="text-sm text-[#67C7EB] mb-4">
-                      {recipe.servings} servings • {Math.round(totals.weight)}g total
-                    </p>
-
-                    <div className="grid grid-cols-4 gap-2 mb-4">
-                      <div className="rounded border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)] p-2">
-                        <div className="text-xs text-[#67C7EB]">Cal</div>
-                        <div className="text-lg font-bold text-[#00D9FF]">
-                          {totals.calories}
-                        </div>
-                      </div>
-                      <div className="rounded border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)] p-2">
-                        <div className="text-xs text-[#67C7EB]">Carbs</div>
-                        <div className="text-lg font-bold text-[#00D9FF]">
-                          {totals.carbohydrates}g
-                        </div>
-                      </div>
-                      <div className="rounded border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)] p-2">
-                        <div className="text-xs text-[#67C7EB]">Protein</div>
-                        <div className="text-lg font-bold text-[#00D9FF]">
-                          {totals.protein}g
-                        </div>
-                      </div>
-                      <div className="rounded border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)] p-2">
-                        <div className="text-xs text-[#67C7EB]">Fat</div>
-                        <div className="text-lg font-bold text-[#00D9FF]">
-                          {totals.fat}g
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-sm text-[#67C7EB] space-y-1">
-                      <div>
-                        <strong>Per serving:</strong> {perServing.calories} cal, {perServing.carbohydrates}g carbs, {perServing.protein}g protein, {perServing.fat}g fat
-                      </div>
-                      <div>
-                        <strong>Per 100g:</strong> {per100g.calories} cal, {per100g.carbohydrates}g carbs, {per100g.protein}g protein, {per100g.fat}g fat
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      <div className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Ingredients:
-                      </div>
-                      <div className="text-xs text-[#67C7EB] space-y-1">
-                        {recipe.ingredients.map((ing, i) => (
-                          <div key={i}>
-                            • {ing.name} ({ing.amount} {ing.unit})
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {recipe.sourceUrl && (
-                      <div className="mt-2">
-                        <a
-                          href={recipe.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          View original recipe →
-                        </a>
-                      </div>
-                    )}
-                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex gap-2">
-                      <button
-                        onClick={() => {
-                          setCurrentRecipe(recipe);
-                          setShowRecipeForm(true);
-                        }}
-                        className="flex-1 px-3 py-1 text-sm rounded border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => recipe.id && deleteRecipe(recipe.id)}
-                        className="flex-1 px-3 py-1 text-sm rounded border border-red-400/50 bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-            ) : searchQuery ? (
-              <div className="text-center py-12">
-                <p className="text-[#67C7EB]">
-                  No recipes found matching "{searchQuery}"
-                </p>
-              </div>
-            ) : null}
           </div>
         )}
 

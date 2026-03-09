@@ -1,0 +1,25 @@
+---
+description: JARVIS hub icon designs and alternatives
+globs: nutrition-app/app/hub/page.tsx
+alwaysApply: false
+---
+
+# JARVIS Hub Icons
+
+## Nutrition Icon Options
+
+### Plate and Fork (backup available)
+- Plate (inner circle r=10) with fork diagonal on it
+- Fork: handle + 3 tines, tines centered at plate center
+- Fork angle: 2 o'clock to 7 o'clock (transform rotate -135°)
+- Backup: `app/hub/JarvisNutritionIcon.plate-fork.backup.tsx`
+
+### Macros (carbs, protein, fat)
+- Three radial segments at 120°
+- Radial lines from center to rim + arc dividers between segments
+
+## Task Manager Icon Options
+
+### task1 (backup available)
+- Clipboard with top bar, list lines, and checkmark
+- Backup: `app/hub/JarvisTaskManagerIcon.task1.backup.tsx`

@@ -1,0 +1,72 @@
+---
+description: JARVIS page layout and styling template for consistent new pages
+alwaysApply: true
+---
+
+# JARVIS Page Template
+
+When creating or modifying pages in the nutrition-app, use this standard layout so all pages look consistent.
+
+## Header Template (use on all pages)
+
+- **Left:** Frame (Navigation — JARVIS frame, 80×80). Same size for all headers.
+- **Center:** Page title text, centered.
+- **Right:** Icon for the **next hierarchical level** (parent section), same size as the left frame (80×80). Link wraps the icon; no "← Section" text link.
+
+Do not use an arrow or text link (e.g. "← Cycling") for back navigation. Use the right-corner icon only.
+
+## Required Structure
+
+```tsx
+"use client";
+
+import Link from "next/link";
+import Navigation from "../components/Navigation";  // or correct relative path
+import CircuitBackground from "../hub/CircuitBackground";
+import ParentSectionIcon from "../ParentSectionIcon";  // e.g. CyclingIcon for pages under /bike
+
+const hubTheme = {
+  primary: "#00D9FF",
+  secondary: "#67C7EB",
+  background: "#000000",
+  cardBg: "rgba(0, 217, 255, 0.05)",
+};
+
+export default function PageName() {
+  return (
+    <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.primary }}>
+      <CircuitBackground />
+      <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
+        <div className="grid grid-cols-3 items-center gap-4 mb-8">
+          <div className="flex justify-start w-20 h-20 min-w-20 min-h-20">
+            <Navigation />
+          </div>
+          <h2 className="text-2xl font-semibold hud-text text-center">Page Title</h2>
+          <div className="flex justify-end">
+            <Link href="/parent" title="Parent Section" aria-label="Parent Section" className="inline-flex items-center justify-center transition-transform hover:scale-110" style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }}>
+              <ParentSectionIcon className="shrink-0" style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }} stroke={hubTheme.primary} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Page content — no "← Section" link below header */}
+      </main>
+    </div>
+  );
+}
+```
+
+## Key Conventions
+
+- **Background:** `min-h-screen hud-scifi-bg`, `backgroundColor: hubTheme.background`
+- **Main:** `container mx-auto px-4 py-8 max-w-4xl relative z-10` (use `max-w-6xl` for wider content)
+- **Header columns:** Left holds the frame (80×80px). Right column uses `flex justify-end` (no fixed width) so the icon sits all the way to the right; icon and link use explicit `style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }}` to match the frame size.
+- **Title:** `text-2xl font-semibold hud-text text-center`
+- **Cards:** `hud-card rounded-lg p-6 border border-[#00D9FF]/20`
+- **Buttons:** `border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]`
+- **Secondary text:** `style={{ color: hubTheme.secondary }}` or `text-[#67C7EB]`
+
+## Child Pages (e.g. under Foods & Ingredients)
+
+- Use the header template with the parent-section icon in the right corner (same size as left frame).
+- For nutrition child pages, use `NutritionBackIcon` in the right column if that pattern exists; otherwise use the section icon that links to the parent.

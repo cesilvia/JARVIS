@@ -465,24 +465,26 @@ export default function Home() {
     <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.text }}>
       <CircuitBackground />
       <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
-        <div className="mb-8 flex items-center justify-between">
-          <Navigation />
+        <div className="mb-8 flex items-center justify-center relative">
+          <div className="absolute left-0">
+            <Navigation />
+          </div>
           <h2 className="text-2xl font-semibold hud-text">
-            Foods & Ingredients
+            Food and Nutrition
           </h2>
         </div>
 
         <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-center relative mb-4">
             <h2 className="text-2xl font-semibold hud-text">
-              Foods & Ingredients
+              Food and Nutrition
             </h2>
             <button
+              className="absolute right-0 px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
               onClick={() => {
                 setShowManualEntry(!showManualEntry);
                 setError(null);
               }}
-              className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
             >
               {showManualEntry ? "Cancel" : "Add Manually"}
             </button>
@@ -868,7 +870,13 @@ export default function Home() {
             <h2 className="text-2xl font-semibold hud-text">
               Recipes
             </h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/recipes/browse"
+                className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
+              >
+                Browse recipes
+              </Link>
               <Link
                 href="/recipes"
                 className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"

@@ -319,3 +319,44 @@
 - **Rationale:** User preferred readable mixed numbers for cooking (e.g. "2 1/2 cups") instead of improper fractions.
 - **Implementation:** Added `decimalToMixedFraction` and `formatAmount`; ingredient list and edit form show mixed fractions. Amount input accepts mixed input ("2 1/2", "2 and 1/2") and formats on blur. `parseFraction` extended to parse mixed numbers.
 - **Status:** Implemented
+
+### Gear Inventory
+
+**Decision:** Add purchase date and helmet replacement reminder to gear
+- **Rationale:** User wanted to track when gear was purchased and get reminders when helmets need replacing (3–5 year lifespan).
+- **Implementation:** GearItem has `purchaseDate` and `replaceReminderYears` fields. Helmets default to 3-year replacement. Min/max clamped to 3–5 years. Helper text on form: "Helmets should be replaced every 3–5 years." Replace-by date shown on helmet cards.
+- **Status:** Implemented
+
+**Decision:** Helmet replacement alerts on Alerts page and hub
+- **Rationale:** User wanted helmet reminders linked to the Alerts page, and the hub icon to turn orange when alerts exist.
+- **Implementation:** Alerts page reads `jarvis-gear-inventory` from localStorage, finds helmets with purchase date + replace years, computes replace-by date, shows alert when within 30 days or overdue. Hub computes same logic in `hubGetAlertSummaries()` — icon turns orange (#FF6600) when backup overdue or helmet due. Hub rechecks every 60s.
+- **Status:** Implemented
+
+**Decision:** Replace "Kit" category with separate "Jersey" and "Bibs" categories
+- **Rationale:** User wanted more specific categorization. Later removed Tools, Accessories, and Other as well.
+- **Implementation:** GEAR_CATEGORIES = ["Helmets", "Jersey", "Bibs", "Shoes"]. Legacy categories (e.g. "Kit") still display if present in saved data.
+- **Status:** Implemented
+
+**Decision:** Jersey-specific fields: sleeve length, colors (multi), weather
+- **Rationale:** User wanted jerseys to have sleeve length (short/long), multiple colors, and weather type (warm/cool/cold). Name is optional for jerseys.
+- **Implementation:** `sleeveLength`, `colors: string[]`, `weather` fields on GearItem. Add/edit forms show these fields conditionally when category is "Jersey." Colors use add/remove UI for multiple entries. Existing single `color` strings migrated to `colors[]` on load.
+- **Status:** Implemented
+
+**Decision:** Remove Condition field from all gear entries
+- **Rationale:** User did not want condition tracking on gear items.
+- **Implementation:** Removed `condition` from GearItem, add form, edit form, card display, and GearEditForm props. CONDITIONS array removed.
+- **Status:** Implemented
+
+### Page Header Template
+
+**Decision:** Standard header template: Frame left, title center, parent-section icon right
+- **Rationale:** User wanted consistent headers across all pages. No "← Section" text links for back navigation; instead use a parent-section icon in upper right corner, same size as the JARVIS frame (80×80px).
+- **Implementation:** Gear inventory and Component list pages use cycling wheel icon (CyclingIcon.tsx) in upper right linking to /bike. Right column uses `flex justify-end` with explicit 80×80 sizing. Updated `.cursor/rules/jarvis-page-template.mdc` to enforce this pattern for all future pages.
+- **Status:** Implemented
+
+### Alert Wedge Summary
+
+**Decision:** Show alert summary text inside the hub wedge for Alerts
+- **Rationale:** User wanted to see what alerts are active without leaving the hub.
+- **Implementation:** `hubGetAlertSummaries()` returns summary strings (backup reminder, helmet replacement). Passed as `summaryLines` to WedgeSummaryCard. Text rendered as SVG `<text>/<tspan>` inside the wedge, clipped to wedge path, counter-rotated so text stays horizontal on the page. Bullet points ("• ") for each alert with hanging indent on wrapped lines. "No Current Alerts" shown (centered) when no alerts exist. White text with dark drop shadow for readability. Left-aligned with increased line spacing (LINE_HEIGHT=20).
+- **Status:** Implemented
