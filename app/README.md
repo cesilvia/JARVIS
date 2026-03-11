@@ -84,7 +84,7 @@ To sync bike mileage from Strava (total, indoor, road miles):
 ## Project Structure
 
 ```
-nutrition-app/
+app/
 ├── app/
 │   ├── api/
 │   │   ├── usda/

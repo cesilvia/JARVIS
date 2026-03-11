@@ -173,7 +173,7 @@
 - Voice commands/notifications
 - AnyList deep sync
 - Advanced fitness features (Strava integration, Maps route suggestions)
-  - **Strava setup & API reference:** See [nutrition-app/docs/STRAVA_INTEGRATION.md](nutrition-app/docs/STRAVA_INTEGRATION.md)
+  - **Strava setup & API reference:** See [app/docs/STRAVA_INTEGRATION.md](app/docs/STRAVA_INTEGRATION.md)
   - **Status:** Strava connect/sync/disconnect implemented at `/bike/strava`. Mileage sync (total/indoor/road) working. Gear list shared with component list via localStorage.
 - Document smarts (Craft doc summarization)
 - Weekly review insights

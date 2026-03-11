@@ -43,7 +43,7 @@ next-env.d.ts
 
 # Backups
 *.tar.gz
-nutrition-app-backup-*
+app-backup-*
 
 # OS
 Thumbs.db

@@ -1,6 +1,6 @@
 ---
 description: JARVIS hub icon designs and alternatives
-globs: nutrition-app/app/hub/page.tsx
+globs: app/app/hub/page.tsx
 alwaysApply: false
 ---
 

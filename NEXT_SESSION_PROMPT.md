@@ -8,7 +8,7 @@ I'm working on J.A.R.V.I.S., a personal nutrition and macro tracking web applica
 
 ## Project Context
 
-- **Location:** `/Users/chrissilvia/Projects/JARVIS/nutrition-app`
+- **Location:** `/Users/chrissilvia/Projects/JARVIS/app`
 - **Tech Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS
 - **Current Status:** MVP nutrition tracker is functional with recipe management and backup features
 

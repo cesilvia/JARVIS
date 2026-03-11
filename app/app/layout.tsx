@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "J.A.R.V.I.S. - Nutrition Tracker",
-  description: "Personal AI Operations Assistant - Nutrition & Macro Tracking",
+  title: "J.A.R.V.I.S.",
+  description: "Personal AI Operations Assistant",
 };
 
 export default function RootLayout({
