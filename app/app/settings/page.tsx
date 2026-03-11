@@ -3,17 +3,67 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../components/Navigation";
+import { useRouter } from "next/navigation";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [biometricRegistered, setBiometricRegistered] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [registeringBiometric, setRegisteringBiometric] = useState(false);
+  const [biometricMessage, setBiometricMessage] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setLastBackup(localStorage.getItem(JARVIS_LAST_BACKUP_KEY));
+      if (window.PublicKeyCredential) {
+        setBiometricSupported(true);
+        fetch("/api/auth/webauthn/registered")
+          .then((r) => r.json())
+          .then((d) => setBiometricRegistered(d.registered))
+          .catch(() => {});
+      }
     }
   }, []);
+
+  const handleRegisterBiometric = async () => {
+    setRegisteringBiometric(true);
+    setBiometricMessage("");
+    try {
+      const { startRegistration } = await import("@simplewebauthn/browser");
+      const optionsRes = await fetch("/api/auth/webauthn/register");
+      if (!optionsRes.ok) throw new Error("Failed to get registration options");
+      const options = await optionsRes.json();
+      const credential = await startRegistration({ optionsJSON: options });
+      const verifyRes = await fetch("/api/auth/webauthn/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credential),
+      });
+      if (verifyRes.ok) {
+        setBiometricRegistered(true);
+        setBiometricMessage("Biometric registered successfully!");
+      } else {
+        const data = await verifyRes.json();
+        setBiometricMessage(data.error || "Registration failed");
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "NotAllowedError") {
+        setBiometricMessage("Registration was cancelled");
+      } else {
+        setBiometricMessage("Registration failed");
+      }
+    } finally {
+      setRegisteringBiometric(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
 
   const handleExport = () => {
     const recipes = localStorage.getItem("jarvis-recipes");
@@ -105,6 +155,46 @@ export default function SettingsPage() {
           >
             Open Extras
           </Link>
+        </section>
+
+        <section className="border border-slate-700 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Security</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            Authentication and biometric settings.
+          </p>
+          <div className="space-y-3">
+            {biometricSupported && (
+              <div>
+                <button
+                  onClick={handleRegisterBiometric}
+                  disabled={registeringBiometric}
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors disabled:opacity-50"
+                >
+                  {registeringBiometric
+                    ? "Registering..."
+                    : biometricRegistered
+                    ? "Re-register Biometric"
+                    : "Register Biometric (Touch ID / Face ID)"}
+                </button>
+                {biometricRegistered && (
+                  <p className="text-green-400 font-mono text-xs mt-1">Biometric is registered</p>
+                )}
+                {biometricMessage && (
+                  <p className={`font-mono text-xs mt-1 ${biometricMessage.includes("success") ? "text-green-400" : "text-red-400"}`}>
+                    {biometricMessage}
+                  </p>
+                )}
+              </div>
+            )}
+            <div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-lg bg-red-900/50 hover:bg-red-800/50 text-red-300 font-mono text-sm transition-colors"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
         </section>
 
         <section id="nutrition" className="border border-slate-700 rounded-lg p-6 scroll-mt-8">

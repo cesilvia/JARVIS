@@ -432,3 +432,32 @@
 - **Rationale:** Raycast text expansion was blocked by VS Code/Cursor's accessibility support intercepting keystrokes.
 - **Implementation:** Set `"editor.accessibilitySupport": "off"` in Cursor user settings (`~/Library/Application Support/Cursor/User/settings.json`).
 - **Status:** Implemented
+
+### Deployment & Naming
+
+**Decision:** Rename project from `nutrition-app` to `jarvis` / `app`
+- **Rationale:** JARVIS is a personal assistant, not a nutrition tracker. The directory name and Vercel project name should reflect that.
+- **Implementation:** Directory renamed from `nutrition-app` to `app`. Vercel project renamed to `jarvis`. Package name updated to `jarvis`. All internal references updated.
+- **Status:** Implemented
+
+**Decision:** Deploy to Vercel at `jarvis.chrissilvia.com`
+- **Rationale:** User owns `chrissilvia.com` (DNS on Cloudflare). Vercel provides free hosting with auto-deploy from GitHub.
+- **Implementation:** Vercel project `jarvis` connected to GitHub repo `cesilvia/JARVIS`. Root directory set to `app`. Custom domain `jarvis.chrissilvia.com` added. DNS A record points to `76.76.21.21`. Auto-deploys on push to `main`.
+- **Status:** Implemented
+
+**Decision:** Update app metadata to reflect JARVIS identity
+- **Rationale:** Page title and description still said "Nutrition Tracker."
+- **Implementation:** Title changed to "J.A.R.V.I.S.", description to "Personal AI Operations Assistant."
+- **Status:** Implemented
+
+### Authentication
+
+**Decision:** Add password + biometric (WebAuthn) authentication
+- **Rationale:** User wanted to restrict access to JARVIS with password, fingerprint, or facial recognition.
+- **Implementation:**
+  - Next.js middleware gates all routes; unauthenticated requests redirect to `/login`.
+  - Password auth: bcrypt-hashed password stored in `AUTH_PASSWORD_HASH` env var. Signed JWT session cookie (30-day expiry) using `jose` library.
+  - Biometric auth: WebAuthn (Touch ID on Mac, Face ID on iPhone) via `@simplewebauthn/server` and `@simplewebauthn/browser`. Credentials stored in `.data/webauthn.json` locally.
+  - First-time setup flow: if no password hash exists, login page shows "Create Password" form that writes hash to `.env.local`.
+  - Settings page has Security section for biometric registration and logout.
+- **Status:** Implemented

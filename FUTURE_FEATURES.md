@@ -159,6 +159,13 @@
 - **Strava gear sync to inventory:** Automatically pull gear (bikes, shoes) from Strava into gear inventory; link Strava gear IDs to inventory items for mileage tracking.
 - **Component list enhancements:** Bulk component operations; component wear tracking (miles since install from Strava data); service-due alerts when mileage exceeds service interval.
 
+## Authentication & Security
+
+- **Password + biometric auth:** ✅ Completed — Next.js middleware gates all routes. Password login with bcrypt hash. WebAuthn biometric login (Touch ID / Face ID). First-time setup flow creates password. Settings page for biometric registration and logout.
+- **Persistent database for auth:** Move WebAuthn credentials from file-based storage to Vercel KV or similar for production persistence.
+- **Password reset:** Allow changing password from Settings (requires current password).
+- **Session management:** View active sessions; ability to revoke all sessions.
+
 ## Technical Improvements
 
 - **Error Handling:** Better error messages and recovery
