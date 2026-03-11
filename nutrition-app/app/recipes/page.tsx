@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
 import NutritionBackIcon from "../components/NutritionBackIcon";
@@ -40,6 +40,14 @@ interface Recipe {
 }
 
 export default function RecipesPage() {
+  return (
+    <Suspense>
+      <RecipesPageInner />
+    </Suspense>
+  );
+}
+
+function RecipesPageInner() {
   const searchParams = useSearchParams();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
