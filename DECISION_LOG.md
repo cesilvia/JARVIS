@@ -420,3 +420,15 @@
 - **Rationale:** Minor capitalization cleanup.
 - **Implementation:** "Component list" → "Component List", "Bikes and parts" → "Bikes and Components".
 - **Status:** Implemented
+
+### Favicon & Editor Settings
+
+**Decision:** Use JARVIS frame as favicon
+- **Rationale:** Default Next.js favicon didn't match the app identity. The JARVIS frame (cyan circular HUD with circuitry) is the app's visual identity.
+- **Implementation:** Converted `public/assets/jarvis-frame.png` to a multi-size ICO (16×16, 32×32, 48×48, 64×64) at `app/favicon.ico` using Pillow.
+- **Status:** Implemented
+
+**Decision:** Enable Raycast snippet expansion in Cursor
+- **Rationale:** Raycast text expansion was blocked by VS Code/Cursor's accessibility support intercepting keystrokes.
+- **Implementation:** Set `"editor.accessibilitySupport": "off"` in Cursor user settings (`~/Library/Application Support/Cursor/User/settings.json`).
+- **Status:** Implemented

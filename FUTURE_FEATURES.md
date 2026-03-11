@@ -117,7 +117,7 @@
 19. **Custom Module Frames**
     - Design unique frame images for each module
     - Replace placeholder frames with custom designs
-    - **Status:** Using jarvis-frame.png (cyan circular HUD with circuitry) for center frame. Custom per-module frames pending
+    - **Status:** Using jarvis-frame.png (cyan circular HUD with circuitry) for center frame and favicon. Custom per-module frames pending
 
 ## New Module Integrations (Hub)
 
