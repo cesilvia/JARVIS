@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     if (!envContent.endsWith("\n") && envContent.length > 0) {
       envContent += "\n";
     }
-    envContent += `AUTH_PASSWORD_HASH=${hash}\n`;
+    envContent += `AUTH_PASSWORD_HASH=${hash.replace(/\$/g, "\\$")}\n`;
     if (!process.env.SESSION_SECRET) {
       envContent += `SESSION_SECRET=${sessionSecret}\n`;
     }
