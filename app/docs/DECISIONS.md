@@ -37,3 +37,18 @@ The in-process `process.env.AUTH_PASSWORD_HASH` is set to the raw (unescaped) ha
 **Context**: No way to change the password from within the app. Password could only be set during initial setup.
 
 **Decision**: Added `/api/auth/change-password` API route and a change password form in the Security settings sub-page. Requires current password verification before allowing change.
+
+---
+
+## 2026-03-11: Replace overview cards with Strava goal tracking
+
+**Context**: The Strava overview page had "This Week" and "This Month" comparison cards and a "Recent Rides" section. These didn't answer the key question: am I on track for my goals?
+
+**Decision**: Replaced comparison cards and recent rides with goal tracking cards. Each card shows progress toward a specific goal (weekly miles, yearly miles, yearly climbing, yearly rides) with:
+- Status badge showing Ahead/Behind/On Track with amount and percentage difference
+- Progress bar with an expected-pace marker
+- Expandable SVG line chart comparing actual vs goal pace over time
+
+Goals are stored in localStorage and configurable in Settings > Cycling. The Strava API doesn't expose athlete goals, so defaults are hardcoded (100 mi/week, 5000 mi/year, 130k ft/year, 183 rides/year). Proportional time-based pacing is used — e.g., by March 11, you should have ~19.2% of your yearly goal.
+
+**Trade-offs**: localStorage means goals don't sync across devices. A 2% threshold prevents the status badge from flickering between Ahead/On Track near the boundary.

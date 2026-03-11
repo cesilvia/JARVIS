@@ -66,6 +66,34 @@ export interface ZoneBand {
   color: string;
 }
 
+export interface StravaGoal {
+  key: string;
+  label: string;
+  target: number;
+  unit: string;
+  period: "weekly" | "yearly";
+}
+
+export const STRAVA_GOALS_KEY = "jarvis-strava-goals";
+
+export const DEFAULT_GOALS: StravaGoal[] = [
+  { key: "weekly-miles", label: "Weekly Miles", target: 100, unit: "mi", period: "weekly" },
+  { key: "yearly-miles", label: "Yearly Miles", target: 5000, unit: "mi", period: "yearly" },
+  { key: "yearly-elevation", label: "Yearly Climbing", target: 130000, unit: "ft", period: "yearly" },
+  { key: "yearly-rides", label: "Yearly Rides", target: 183, unit: "rides", period: "yearly" },
+];
+
+export function loadGoals(): StravaGoal[] {
+  if (typeof window === "undefined") return DEFAULT_GOALS;
+  const raw = localStorage.getItem(STRAVA_GOALS_KEY);
+  if (!raw) return DEFAULT_GOALS;
+  try {
+    return JSON.parse(raw) as StravaGoal[];
+  } catch {
+    return DEFAULT_GOALS;
+  }
+}
+
 export const STRAVA_ACTIVITIES_KEY = "jarvis-strava-activities";
 export const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
 export const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";

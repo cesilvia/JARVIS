@@ -6,6 +6,7 @@ import Navigation from "../../components/Navigation";
 import {
   STRAVA_ZONES_KEY, ZoneConfig, ZoneBand,
   buildDefaultPowerZones, buildDefaultHRZones, loadZones,
+  StravaGoal, STRAVA_GOALS_KEY, DEFAULT_GOALS, loadGoals,
 } from "../../bike/strava/types";
 
 const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
@@ -50,6 +51,8 @@ export default function CyclingSettingsPage() {
   const [powerZones, setPowerZones] = useState<ZoneBand[]>([]);
   const [hrZones, setHRZones] = useState<ZoneBand[]>([]);
   const [zonesSaved, setZonesSaved] = useState(false);
+  const [goals, setGoals] = useState<StravaGoal[]>(DEFAULT_GOALS);
+  const [goalsSaved, setGoalsSaved] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -63,6 +66,7 @@ export default function CyclingSettingsPage() {
         setPowerZones(existingZones.powerZones);
         setHRZones(existingZones.hrZones);
       }
+      setGoals(loadGoals());
     }
   }, []);
 
@@ -194,6 +198,23 @@ export default function CyclingSettingsPage() {
     setter((prev) => prev.map((z, i) => i === index ? { ...z, min: z.defaultMin, max: z.defaultMax } : z));
   };
 
+  const handleGoalChange = (index: number, value: string) => {
+    setGoals((prev) => prev.map((g, i) => i === index ? { ...g, target: parseInt(value, 10) || 0 } : g));
+  };
+
+  const handleSaveGoals = () => {
+    localStorage.setItem(STRAVA_GOALS_KEY, JSON.stringify(goals));
+    setGoalsSaved(true);
+    setTimeout(() => setGoalsSaved(false), 3000);
+  };
+
+  const handleResetGoals = () => {
+    setGoals(DEFAULT_GOALS);
+    localStorage.setItem(STRAVA_GOALS_KEY, JSON.stringify(DEFAULT_GOALS));
+    setGoalsSaved(true);
+    setTimeout(() => setGoalsSaved(false), 3000);
+  };
+
   const handleSaveZones = () => {
     const ftpNum = parseInt(ftp, 10);
     const maxHRNum = parseInt(maxHR, 10);
@@ -274,6 +295,37 @@ export default function CyclingSettingsPage() {
               Connect Strava
             </a>
           )}
+        </section>
+
+        {/* Goals Section */}
+        <section className="border border-slate-700 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Goals</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            Set your cycling goals. Progress is tracked on the Strava overview page.
+          </p>
+          <div className="space-y-3">
+            {goals.map((goal, i) => (
+              <div key={goal.key} className="flex items-center gap-3">
+                <span className="w-40 text-slate-400 font-mono text-sm truncate">{goal.label}</span>
+                <input
+                  type="number"
+                  value={goal.target}
+                  onChange={(e) => handleGoalChange(i, e.target.value)}
+                  className="w-24 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm text-right"
+                />
+                <span className="text-slate-500 font-mono text-sm">{goal.unit}/{goal.period === "weekly" ? "week" : "year"}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 mt-4">
+            <button onClick={handleSaveGoals} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors">
+              Save Goals
+            </button>
+            <button onClick={handleResetGoals} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 font-mono text-sm transition-colors">
+              Reset Defaults
+            </button>
+            {goalsSaved && <span className="text-green-400 font-mono text-xs">Saved!</span>}
+          </div>
         </section>
 
         {/* Training Zones Section */}

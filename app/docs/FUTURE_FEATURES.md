@@ -15,10 +15,13 @@ Ideas and planned features for JARVIS, organized by module.
 
 - [ ] Activity feed on hub or bike page
 - [ ] Route suggestions using Strava routes/segments
-- [ ] Weekly/monthly mileage goals and targets
+- [x] Weekly/monthly mileage goals and targets
 - [ ] Workout upload — push planned workouts to Strava
 - [ ] Segment efforts — track PRs on favorite segments
 - [ ] Power curve comparison across time periods
+- [ ] Sync goals to server/database for cross-device access
+- [ ] Goal history — track how goals change over time
+- [ ] Improve goal chart readability (larger axis labels, tooltips)
 
 ## Settings
 

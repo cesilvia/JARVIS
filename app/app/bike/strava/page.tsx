@@ -6,13 +6,13 @@ import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
 import {
-  StravaActivity, StreamData, Bike, ZoneConfig,
+  StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal,
   STRAVA_ACTIVITIES_KEY, STRAVA_TOKENS_KEY, STRAVA_LAST_SYNC_KEY,
   STRAVA_ZONES_KEY, STRAVA_POWER_CURVE_KEY, BIKES_STORAGE_KEY,
   METERS_TO_MILES, METERS_TO_FEET, MPS_TO_MPH, AUTO_SYNC_INTERVAL_MS,
   POWER_ZONE_COLORS, HR_ZONE_COLORS,
   formatTime, formatDate, getWeekStart, getMonthStart, getYearStart,
-  loadZones,
+  loadZones, loadGoals,
 } from "./types";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB", background: "#000000" };
@@ -389,21 +389,154 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function ComparisonCard({ title, current, previous, previousLabel }: { title: string; current: number; previous: number; previousLabel: string }) {
-  const max = Math.max(current, previous, 1);
-  const diff = current - previous;
+
+function GoalCard({ goal, actual, activities }: { goal: StravaGoal; actual: number; activities: StravaActivity[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const now = new Date();
+
+  // Calculate expected progress based on how far through the period we are
+  let expectedPct: number;
+  if (goal.period === "weekly") {
+    const weekStart = getWeekStart(now);
+    const dayOfWeek = (now.getTime() - weekStart.getTime()) / (7 * 86400000);
+    expectedPct = Math.min(dayOfWeek, 1);
+  } else {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const yearEnd = new Date(now.getFullYear() + 1, 0, 1);
+    expectedPct = (now.getTime() - yearStart.getTime()) / (yearEnd.getTime() - yearStart.getTime());
+  }
+
+  const expected = goal.target * expectedPct;
+  const pct = goal.target > 0 ? (actual / goal.target) * 100 : 0;
+  const diff = actual - expected;
+  const status: "ahead" | "on-track" | "behind" = diff > expected * 0.02 ? "ahead" : diff < -expected * 0.02 ? "behind" : "on-track";
+  const statusColor = status === "ahead" ? "#00FF88" : status === "behind" ? "#FF6644" : "#FFD700";
+  const statusLabel = status === "ahead" ? "Ahead" : status === "behind" ? "Behind" : "On Track";
+
+  // Build cumulative chart data: expected line vs actual line
+  const chartData = useMemo(() => {
+    if (!expanded) return { points: [] as { day: number; actual: number; expected: number }[], maxVal: 0, totalDays: 0 };
+
+    if (goal.period === "weekly") {
+      const weekStart = getWeekStart(now);
+      const totalDays = 7;
+      const dailyTarget = goal.target / 7;
+      // Accumulate daily
+      const dailyActual = new Array(7).fill(0);
+      activities.forEach((a) => {
+        const d = new Date(a.start_date);
+        if (d >= weekStart) {
+          const dayIdx = Math.min(Math.floor((d.getTime() - weekStart.getTime()) / 86400000), 6);
+          if (goal.key === "weekly-miles") dailyActual[dayIdx] += a.distance * METERS_TO_MILES;
+        }
+      });
+      let cumActual = 0;
+      const points = [];
+      for (let i = 0; i <= Math.min(Math.floor((now.getTime() - weekStart.getTime()) / 86400000), 6); i++) {
+        cumActual += dailyActual[i];
+        points.push({ day: i, actual: cumActual, expected: dailyTarget * (i + 1) });
+      }
+      const maxVal = Math.max(goal.target, cumActual, 1);
+      return { points, maxVal, totalDays };
+    } else {
+      // Yearly goal — aggregate by week
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      const totalWeeks = Math.ceil((now.getTime() - yearStart.getTime()) / (7 * 86400000));
+      const weeklyTarget = goal.target / 52;
+      const weeklyActual = new Array(Math.max(totalWeeks, 1)).fill(0);
+      activities.forEach((a) => {
+        const d = new Date(a.start_date);
+        if (d >= yearStart) {
+          const weekIdx = Math.min(Math.floor((d.getTime() - yearStart.getTime()) / (7 * 86400000)), weeklyActual.length - 1);
+          if (goal.key === "yearly-miles") weeklyActual[weekIdx] += a.distance * METERS_TO_MILES;
+          else if (goal.key === "yearly-elevation") weeklyActual[weekIdx] += a.total_elevation_gain * METERS_TO_FEET;
+          else if (goal.key === "yearly-rides") weeklyActual[weekIdx] += 1;
+        }
+      });
+      let cumActual = 0;
+      const points = [];
+      for (let i = 0; i < weeklyActual.length; i++) {
+        cumActual += weeklyActual[i];
+        points.push({ day: i, actual: cumActual, expected: weeklyTarget * (i + 1) });
+      }
+      const maxVal = Math.max(goal.target, cumActual, 1);
+      return { points, maxVal, totalDays: 52 };
+    }
+  }, [expanded, goal, activities, now]);
+
+  // SVG chart
+  const W = 700, H = 240, padL = 55, padR = 10, padT = 15, padB = 30;
+  const cW = W - padL - padR, cH = H - padT - padB;
+
   return (
-    <div className="hud-card rounded-lg p-4 border border-[#00D9FF]/20">
-      <div className="flex items-baseline justify-between mb-3">
-        <h4 className="text-sm font-semibold" style={{ color: "#00D9FF" }}>{title}</h4>
-        {previous > 0 && <span className="text-xs" style={{ color: diff >= 0 ? "#00FF88" : "#FF6644" }}>{diff > 0 ? "+" : ""}{diff.toFixed(1)} mi</span>}
-      </div>
-      {[{ label: "Current", val: current, color: "#00D9FF" }, { label: previousLabel, val: previous, color: "#67C7EB" }].map((r) => (
-        <div key={r.label} className="mb-2">
-          <div className="flex justify-between text-xs mb-1" style={{ color: r.color }}><span>{r.label}</span><span>{r.val.toFixed(1)} mi</span></div>
-          <div className="h-2 rounded-full bg-[rgba(0,217,255,0.1)]"><div className="h-2 rounded-full transition-all" style={{ width: `${(r.val / max) * 100}%`, backgroundColor: r.color }} /></div>
+    <div className="hud-card rounded-lg border border-[#00D9FF]/20 overflow-hidden">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left p-4 hover:bg-[rgba(0,217,255,0.05)] transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold" style={{ color: "#00D9FF" }}>{goal.label}</h4>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: statusColor, backgroundColor: `${statusColor}15`, border: `1px solid ${statusColor}40` }}>
+            {statusLabel}{expected > 0 ? ` ${diff > 0 ? "+" : ""}${goal.unit === "rides" ? Math.round(diff) : Math.abs(diff) < 100 ? diff.toFixed(1) : Math.round(diff).toLocaleString()} ${goal.unit} (${diff > 0 ? "+" : ""}${((diff / expected) * 100).toFixed(1)}%)` : ""}
+          </span>
         </div>
-      ))}
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-2xl font-bold" style={{ color: "#00D9FF" }}>
+            {goal.unit === "rides" ? Math.round(actual) : actual < 1000 ? actual.toFixed(1) : Math.round(actual).toLocaleString()}
+          </span>
+          <span className="text-xs" style={{ color: "#67C7EB" }}>/ {goal.target.toLocaleString()} {goal.unit}</span>
+        </div>
+        {/* Progress bar */}
+        <div className="h-2 rounded-full bg-[rgba(0,217,255,0.1)] relative">
+          {/* Expected marker */}
+          <div className="absolute top-0 h-2 w-0.5" style={{ left: `${Math.min(expectedPct * 100, 100)}%`, backgroundColor: "#67C7EB", opacity: 0.6 }} />
+          {/* Actual bar */}
+          <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: statusColor }} />
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px]" style={{ color: "#67C7EB" }}>
+            {diff > 0 ? "+" : ""}{goal.unit === "rides" ? Math.round(diff) : Math.abs(diff) < 100 ? diff.toFixed(1) : Math.round(diff).toLocaleString()} {goal.unit} vs expected
+          </span>
+          <span className="text-[10px]" style={{ color: "#67C7EB" }}>{pct.toFixed(1)}%</span>
+        </div>
+      </button>
+      {expanded && chartData.points.length > 1 && (
+        <div className="px-4 pb-4">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+            {/* Grid lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+              const y = padT + cH - f * cH;
+              const val = Math.round(f * chartData.maxVal);
+              return (
+                <g key={f}>
+                  <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#00D9FF" strokeOpacity="0.08" strokeWidth="0.5" />
+                  <text x={padL - 5} y={y + 5} textAnchor="end" fill="#67C7EB" fontSize="16" opacity="0.8">{val.toLocaleString()}</text>
+                </g>
+              );
+            })}
+            {/* Expected line (dashed) */}
+            <path
+              d={chartData.points.map((p, i) => {
+                const x = padL + (i / (chartData.totalDays - 1 || 1)) * cW;
+                const y = padT + cH - (p.expected / chartData.maxVal) * cH;
+                return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+              }).join(" ")}
+              fill="none" stroke="#67C7EB" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"
+            />
+            {/* Actual line */}
+            <path
+              d={chartData.points.map((p, i) => {
+                const x = padL + (i / (chartData.totalDays - 1 || 1)) * cW;
+                const y = padT + cH - (p.actual / chartData.maxVal) * cH;
+                return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+              }).join(" ")}
+              fill="none" stroke={statusColor} strokeWidth="2"
+            />
+            {/* Legend */}
+            <line x1={padL + 10} y1={H - 10} x2={padL + 40} y2={H - 10} stroke={statusColor} strokeWidth="2" />
+            <text x={padL + 44} y={H - 5} fill={statusColor} fontSize="14">Actual</text>
+            <line x1={padL + 105} y1={H - 10} x2={padL + 135} y2={H - 10} stroke="#67C7EB" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />
+            <text x={padL + 139} y={H - 5} fill="#67C7EB" fontSize="14" opacity="0.8">Goal Pace</text>
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -434,6 +567,7 @@ export default function StravaPage() {
   const [buildingCurve, setBuildingCurve] = useState(false);
   const [curveProgress, setCurveProgress] = useState("");
   const [fitnessRange, setFitnessRange] = useState(90);
+  const [goals, setGoals] = useState<StravaGoal[]>([]);
 
   // Load from localStorage
   useEffect(() => {
@@ -445,6 +579,7 @@ export default function StravaPage() {
     setZones(loadZones());
     const curveStored = localStorage.getItem(STRAVA_POWER_CURVE_KEY);
     if (curveStored) { try { setPowerCurve(JSON.parse(curveStored)); } catch { /* ignore */ } }
+    setGoals(loadGoals());
   }, []);
 
   // Auto-sync on page visit
@@ -514,13 +649,18 @@ export default function StravaPage() {
   const ytdAvgCadence = ytdCadenceRides.length > 0 ? Math.round(ytdCadenceRides.reduce((s, a) => s + (a.average_cadence || 0), 0) / ytdCadenceRides.length) : null;
 
   const thisWeekStart = useMemo(() => getWeekStart(now), [now]);
-  const lastWeekStart = useMemo(() => new Date(thisWeekStart.getTime() - 7 * 86400000), [thisWeekStart]);
-  const thisWeekMiles = activities.filter((a) => new Date(a.start_date) >= thisWeekStart).reduce((s, a) => s + a.distance * METERS_TO_MILES, 0);
-  const lastWeekMiles = activities.filter((a) => { const d = new Date(a.start_date); return d >= lastWeekStart && d < thisWeekStart; }).reduce((s, a) => s + a.distance * METERS_TO_MILES, 0);
-  const thisMonthStart = useMemo(() => getMonthStart(now), [now]);
-  const lastMonthStart = useMemo(() => new Date(now.getFullYear(), now.getMonth() - 1, 1), [now]);
-  const thisMonthMiles = activities.filter((a) => new Date(a.start_date) >= thisMonthStart).reduce((s, a) => s + a.distance * METERS_TO_MILES, 0);
-  const lastMonthMiles = activities.filter((a) => { const d = new Date(a.start_date); return d >= lastMonthStart && d < thisMonthStart; }).reduce((s, a) => s + a.distance * METERS_TO_MILES, 0);
+
+  // Goal actuals
+  const goalActuals = useMemo(() => {
+    const weekMiles = activities.filter((a) => new Date(a.start_date) >= thisWeekStart).reduce((s, a) => s + a.distance * METERS_TO_MILES, 0);
+    const map: Record<string, number> = {
+      "weekly-miles": weekMiles,
+      "yearly-miles": ytdDistance,
+      "yearly-elevation": ytdElevation,
+      "yearly-rides": ytd.length,
+    };
+    return map;
+  }, [activities, thisWeekStart, ytdDistance, ytdElevation, ytd]);
 
   const linkedBikes = bikes.filter((b) => b.stravaGearId);
 
@@ -528,7 +668,6 @@ export default function StravaPage() {
     () => [...activities].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()),
     [activities]
   );
-  const recentRides = useMemo(() => allRides.slice(0, 10), [allRides]);
 
   // Aggregated zone times from cached streams
   const aggregatedPowerZoneTimes = useMemo(() => {
@@ -621,9 +760,11 @@ export default function StravaPage() {
                   <StatCard label="Avg HR" value={ytdAvgHR ? `${ytdAvgHR} bpm` : "—"} />
                   <StatCard label="Avg Cadence" value={ytdAvgCadence ? `${ytdAvgCadence} rpm` : "—"} />
                 </div>
+                {/* Goals */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <ComparisonCard title="This Week" current={thisWeekMiles} previous={lastWeekMiles} previousLabel="Last week" />
-                  <ComparisonCard title="This Month" current={thisMonthMiles} previous={lastMonthMiles} previousLabel="Last month" />
+                  {goals.map((goal) => (
+                    <GoalCard key={goal.key} goal={goal} actual={goalActuals[goal.key] || 0} activities={activities} />
+                  ))}
                 </div>
                 {linkedBikes.length > 0 && (
                   <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
@@ -657,35 +798,6 @@ export default function StravaPage() {
                     </div>
                   </div>
                   <MileageChart activities={activities} mode={chartMode} />
-                </div>
-                {/* Recent rides preview */}
-                <div className="hud-card rounded-lg p-6 border border-[#00D9FF]/20">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold" style={{ color: hubTheme.primary }}>Recent Rides</h3>
-                    <button onClick={() => setTab("rides")} className="text-xs hover:underline" style={{ color: hubTheme.secondary }}>View all</button>
-                  </div>
-                  <div className="space-y-2">
-                    {recentRides.map((ride) => (
-                      <div key={ride.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)]">
-                        <div className="flex-1 min-w-[160px]">
-                          <div className="font-medium text-sm" style={{ color: hubTheme.primary }}>{ride.name}</div>
-                          <div className="text-xs" style={{ color: hubTheme.secondary }}>
-                            {formatDate(ride.start_date)}
-                            {ride.trainer && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-[rgba(0,217,255,0.15)] border border-[#00D9FF]/30">Indoor</span>}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-3 text-xs" style={{ color: hubTheme.secondary }}>
-                          <span>{(ride.distance * METERS_TO_MILES).toFixed(1)} mi</span>
-                          <span>{formatTime(ride.moving_time)}</span>
-                          {ride.average_speed > 0 && <span>{(ride.average_speed * MPS_TO_MPH).toFixed(1)} mph</span>}
-                          {ride.total_elevation_gain > 0 && <span>{Math.round(ride.total_elevation_gain * METERS_TO_FEET).toLocaleString()} ft</span>}
-                          {ride.average_watts && <span>{Math.round(ride.average_watts)}w</span>}
-                          {ride.calories && <span>{Math.round(ride.calories)} cal</span>}
-                          {ride.average_heartrate && <span>{Math.round(ride.average_heartrate)} bpm</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </>
             )}
