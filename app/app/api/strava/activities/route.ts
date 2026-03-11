@@ -7,11 +7,17 @@ export interface StravaActivity {
   name: string;
   distance: number;
   moving_time: number;
+  elapsed_time: number;
   type: string;
   sport_type: string;
   trainer: boolean;
   gear_id: string | null;
   start_date: string;
+  total_elevation_gain: number;
+  average_speed: number;
+  max_speed: number;
+  average_heartrate?: number;
+  kudos_count: number;
 }
 
 async function fetchAllActivities(accessToken: string): Promise<StravaActivity[]> {

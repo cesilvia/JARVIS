@@ -461,3 +461,15 @@
   - First-time setup flow: if no password hash exists, login page shows "Create Password" form that writes hash to `.env.local`.
   - Settings page has Security section for biometric registration and logout.
 - **Status:** Implemented
+
+### Strava Dashboard Rebuild
+
+**Decision:** Rebuild Strava page as a data dashboard; move connection controls to Settings
+- **Rationale:** The Strava page was primarily connection management. Separating connection controls into Settings and rebuilding the page as a ride dashboard provides a much better experience.
+- **Implementation:**
+  - Activities API expanded with `total_elevation_gain`, `average_speed`, `max_speed`, `elapsed_time`, `average_heartrate`, `kudos_count` fields.
+  - Raw activities cached in `localStorage` (`jarvis-strava-activities`) on sync so the dashboard loads instantly without re-fetching.
+  - Connection controls (connect, sync, disconnect, status, last sync) moved to Settings page under a new "Strava" section (`#strava`). OAuth callback redirects to `/settings` instead of `/bike/strava`.
+  - Dashboard sections: YTD stats (distance, time, elevation, rides), weekly/monthly mileage comparison bars, per-bike mileage breakdown, pure SVG mileage-over-time chart (12 weeks / 12 months toggle), recent rides list (last 10 with distance, time, speed, elevation, heartrate).
+  - All units displayed in miles/feet/mph. Time as `Xh Ym`.
+- **Status:** Implemented

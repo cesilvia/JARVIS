@@ -10,19 +10,19 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return NextResponse.redirect(
-        new URL(`/bike/strava?strava_error=${encodeURIComponent(error)}`, request.url)
+        new URL(`/settings?strava_error=${encodeURIComponent(error)}#strava`, request.url)
       );
     }
 
     if (!code) {
-      return NextResponse.redirect(new URL("/bike/strava?strava_error=no_code", request.url));
+      return NextResponse.redirect(new URL("/settings?strava_error=no_code#strava", request.url));
     }
 
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
       return NextResponse.redirect(
-        new URL("/bike/strava?strava_error=config", request.url)
+        new URL("/settings?strava_error=config#strava", request.url)
       );
     }
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       const err = await res.text();
       const msg = err.length > 80 ? err.slice(0, 80) + "…" : err;
       return NextResponse.redirect(
-        new URL(`/bike/strava?strava_error=${encodeURIComponent("Token exchange failed: " + msg)}`, request.url)
+        new URL(`/settings?strava_error=${encodeURIComponent("Token exchange failed: " + msg)}#strava`, request.url)
       );
     }
 
@@ -58,13 +58,13 @@ export async function GET(request: NextRequest) {
       athlete?: { id: number; username?: string };
     };
 
-    const redirectUrl = new URL("/bike/strava", request.url);
+    const redirectUrl = new URL("/settings", request.url);
     redirectUrl.hash = `strava_access_token=${data.access_token}&strava_refresh_token=${data.refresh_token}&strava_expires_at=${data.expires_at}`;
     return NextResponse.redirect(redirectUrl);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.redirect(
-      new URL(`/bike/strava?strava_error=${encodeURIComponent("Callback error: " + message)}`, request.url)
+      new URL(`/settings?strava_error=${encodeURIComponent("Callback error: " + message)}#strava`, request.url)
     );
   }
 }
