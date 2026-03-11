@@ -511,7 +511,6 @@ function GearEditForm({
   onAddAttachment,
   onRemoveAttachment,
   categories,
-  conditions,
 }: {
   item: GearItem;
   onSave: (updates: Partial<GearItem>) => void;
