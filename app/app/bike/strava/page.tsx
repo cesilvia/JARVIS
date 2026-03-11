@@ -465,7 +465,7 @@ function GoalCard({ goal, actual, activities }: { goal: StravaGoal; actual: numb
   }, [expanded, goal, activities, now]);
 
   // SVG chart
-  const W = 700, H = 240, padL = 55, padR = 10, padT = 15, padB = 30;
+  const W = 700, H = 290, padL = 60, padR = 15, padT = 15, padB = 65;
   const cW = W - padL - padR, cH = H - padT - padB;
 
   return (
@@ -500,17 +500,36 @@ function GoalCard({ goal, actual, activities }: { goal: StravaGoal; actual: numb
       {expanded && chartData.points.length > 1 && (
         <div className="px-4 pb-4">
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="xMidYMid meet">
-            {/* Grid lines */}
+            {/* Grid lines + Y-axis labels */}
             {[0, 0.25, 0.5, 0.75, 1].map((f) => {
               const y = padT + cH - f * cH;
               const val = Math.round(f * chartData.maxVal);
               return (
                 <g key={f}>
                   <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#00D9FF" strokeOpacity="0.08" strokeWidth="0.5" />
-                  <text x={padL - 5} y={y + 5} textAnchor="end" fill="#67C7EB" fontSize="16" opacity="0.8">{val.toLocaleString()}</text>
+                  <text x={padL - 6} y={y + 5} textAnchor="end" fill="#67C7EB" fontSize="16" opacity="0.8">{val.toLocaleString()}</text>
                 </g>
               );
             })}
+            {/* X-axis labels */}
+            {(() => {
+              if (goal.period === "weekly") {
+                const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                return days.map((d, i) => {
+                  const x = padL + (i / 6) * cW;
+                  return <text key={i} x={x} y={padT + cH + 22} textAnchor="middle" fill="#67C7EB" fontSize="16" opacity="0.8">{d}</text>;
+                });
+              } else {
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                return months.map((m, i) => {
+                  const weekOfMonth = (i * 52) / 12;
+                  const x = padL + (weekOfMonth / 51) * cW;
+                  return <text key={i} x={x} y={padT + cH + 22} textAnchor="middle" fill="#67C7EB" fontSize="15" opacity="0.8">{m}</text>;
+                });
+              }
+            })()}
+            {/* X-axis line */}
+            <line x1={padL} y1={padT + cH} x2={W - padR} y2={padT + cH} stroke="#00D9FF" strokeOpacity="0.15" strokeWidth="0.5" />
             {/* Expected line (dashed) */}
             <path
               d={chartData.points.map((p, i) => {
@@ -518,7 +537,7 @@ function GoalCard({ goal, actual, activities }: { goal: StravaGoal; actual: numb
                 const y = padT + cH - (p.expected / chartData.maxVal) * cH;
                 return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
               }).join(" ")}
-              fill="none" stroke="#67C7EB" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"
+              fill="none" stroke="#67C7EB" strokeWidth="2.5" strokeDasharray="6 4" opacity="0.85"
             />
             {/* Actual line */}
             <path
@@ -529,11 +548,30 @@ function GoalCard({ goal, actual, activities }: { goal: StravaGoal; actual: numb
               }).join(" ")}
               fill="none" stroke={statusColor} strokeWidth="2"
             />
+            {/* Data point dots with hover tooltips */}
+            {chartData.points.map((p, i) => {
+              const x = padL + (i / (chartData.totalDays - 1 || 1)) * cW;
+              const y = padT + cH - (p.actual / chartData.maxVal) * cH;
+              const label = goal.unit === "rides" ? Math.round(p.actual).toString() : p.actual < 1000 ? p.actual.toFixed(1) : Math.round(p.actual).toLocaleString();
+              const expLabel = goal.unit === "rides" ? Math.round(p.expected).toString() : p.expected < 1000 ? p.expected.toFixed(1) : Math.round(p.expected).toLocaleString();
+              const periodLabel = goal.period === "weekly" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][p.day] || `Day ${p.day + 1}` : `Wk ${p.day + 1}`;
+              return (
+                <g key={i}>
+                  <circle cx={x} cy={y} r="4" fill={statusColor} stroke="#000" strokeWidth="1" opacity="0.9" style={{ cursor: "pointer" }}>
+                    <title>{`${periodLabel}: ${label} ${goal.unit} (goal pace: ${expLabel})`}</title>
+                  </circle>
+                  {/* Invisible larger hit area for easier hover */}
+                  <circle cx={x} cy={y} r="12" fill="transparent" style={{ cursor: "pointer" }}>
+                    <title>{`${periodLabel}: ${label} ${goal.unit} (goal pace: ${expLabel})`}</title>
+                  </circle>
+                </g>
+              );
+            })}
             {/* Legend */}
-            <line x1={padL + 10} y1={H - 10} x2={padL + 40} y2={H - 10} stroke={statusColor} strokeWidth="2" />
-            <text x={padL + 44} y={H - 5} fill={statusColor} fontSize="14">Actual</text>
-            <line x1={padL + 105} y1={H - 10} x2={padL + 135} y2={H - 10} stroke="#67C7EB" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />
-            <text x={padL + 139} y={H - 5} fill="#67C7EB" fontSize="14" opacity="0.8">Goal Pace</text>
+            <line x1={padL + 10} y1={H - 14} x2={padL + 45} y2={H - 14} stroke={statusColor} strokeWidth="2.5" />
+            <text x={padL + 50} y={H - 8} fill={statusColor} fontSize="17" fontWeight="600">Actual</text>
+            <line x1={padL + 130} y1={H - 14} x2={padL + 170} y2={H - 14} stroke="#67C7EB" strokeWidth="2.5" strokeDasharray="6 4" opacity="0.9" />
+            <text x={padL + 175} y={H - 8} fill="#67C7EB" fontSize="17" fontWeight="600" opacity="0.95">Goal Pace</text>
           </svg>
         </div>
       )}
@@ -726,7 +764,7 @@ export default function StravaPage() {
             <span className="text-xs" style={{ color: hubTheme.secondary }}>{connected ? "Connected" : "Not connected"}</span>
             {syncMsg && <span className="text-xs ml-2" style={{ color: syncing ? "#FFD700" : "#00FF88" }}>{syncMsg}</span>}
           </div>
-          <Link href="/settings#strava" className="text-xs hover:underline" style={{ color: hubTheme.secondary }}>Settings</Link>
+          <span />  {/* Settings link moved to bottom of page */}
         </div>
 
         {noData ? (
@@ -972,6 +1010,21 @@ export default function StravaPage() {
             )}
           </>
         )}
+        {/* Settings link */}
+        <div className="flex justify-center mt-8 mb-4">
+          <Link href="/settings#strava" title="Strava Settings" className="group flex items-center gap-2 px-4 py-2 rounded-lg border border-[#00D9FF]/20 hover:border-[#00D9FF]/50 hover:bg-[rgba(0,217,255,0.08)] transition-colors">
+            <svg viewBox="0 0 48 48" fill="none" stroke="#67C7EB" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 group-hover:stroke-[#00D9FF] transition-colors" aria-hidden>
+              <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+              <line x1="16" y1="18" x2="32" y2="18" strokeWidth="2.25" />
+              <circle cx="22" cy="18" r="2.5" strokeWidth="2.25" fill="none" />
+              <line x1="16" y1="24" x2="32" y2="24" strokeWidth="2.25" />
+              <circle cx="28" cy="24" r="2.5" strokeWidth="2.25" fill="none" />
+              <line x1="16" y1="30" x2="32" y2="30" strokeWidth="2.25" />
+              <circle cx="24" cy="30" r="2.5" strokeWidth="2.25" fill="none" />
+            </svg>
+            <span className="text-xs group-hover:text-[#00D9FF] transition-colors" style={{ color: "#67C7EB" }}>Settings</span>
+          </Link>
+        </div>
       </main>
     </div>
   );
