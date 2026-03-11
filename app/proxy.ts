@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySessionEdge, SESSION_COOKIE } from "./app/lib/session-edge";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/"];
+const PUBLIC_PATHS = ["/login", "/api/auth/", "/api/strava/"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
@@ -21,7 +21,7 @@ function isStaticAsset(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname) || isStaticAsset(pathname)) {
