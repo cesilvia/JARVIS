@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
       new URL(
-        "/bike/components?strava_error=" + encodeURIComponent("Strava not configured. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to .env.local and restart the dev server."),
+        "/bike/strava?strava_error=" + encodeURIComponent("Strava not configured. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to .env.local and restart the dev server."),
         request.url
       )
     );
