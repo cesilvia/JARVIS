@@ -15,10 +15,6 @@ const hubTheme = {
 const BIKE_TYPES = ["Road", "Gravel", "MTB", "Hybrid", "TT/Tri", "Other"];
 const COMPONENT_CATEGORIES = ["Frame", "Wheels", "Drivetrain", "Brakes", "Cockpit", "Saddle", "Pedals", "Other"];
 
-const BIKE_COLORS = [
-  "#000000", "#ffffff", "#c0392b", "#27ae60", "#2980b9", "#8e44ad",
-  "#f39c12", "#1abc9c", "#e74c3c", "#3498db", "#9b59b6", "#2ecc71",
-];
 
 interface BikeComponent {
   id: string;
@@ -61,8 +57,7 @@ const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 const STORAGE_KEY = "jarvis-bikes";
 const OLD_STORAGE_KEY = "jarvis-bike-components";
-const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
-const METERS_TO_MILES = 1 / 1609.34;
+const STRAVA_GEAR_KEY = "jarvis-strava-gear";
 
 interface StravaGearOption {
   id: string;
@@ -74,19 +69,16 @@ function BikeEditForm({
   onSave,
   onCancel,
   bikeTypes,
-  bikeColors,
   stravaGearOptions,
 }: {
   bike: Bike;
-  onSave: (updates: Partial<Pick<Bike, "name" | "type" | "color" | "notes" | "stravaGearId">>) => void;
+  onSave: (updates: Partial<Pick<Bike, "name" | "type" | "notes" | "stravaGearId">>) => void;
   onCancel: () => void;
   bikeTypes: string[];
-  bikeColors: string[];
   stravaGearOptions: StravaGearOption[];
 }) {
   const [name, setName] = useState(bike.name);
   const [type, setType] = useState(bike.type);
-  const [color, setColor] = useState(bike.color ?? bikeColors[0]);
   const [notes, setNotes] = useState(bike.notes ?? "");
   const [stravaGearId, setStravaGearId] = useState(bike.stravaGearId ?? "");
 
@@ -112,23 +104,6 @@ function BikeEditForm({
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-[#67C7EB] mb-1">Color</label>
-        <div className="flex gap-2 flex-wrap">
-          {bikeColors.map((hex) => (
-            <button
-              key={hex}
-              type="button"
-              onClick={() => setColor(hex)}
-              className={`w-8 h-8 rounded-full border-2 transition-all ${
-                color === hex ? "border-[#00D9FF] scale-110" : "border-[#00D9FF]/30 hover:border-[#00D9FF]/60"
-              }`}
-              style={{ backgroundColor: hex }}
-              aria-label={`Color ${hex}`}
-            />
-          ))}
-        </div>
       </div>
       <div>
         <label className="block text-sm font-medium text-[#67C7EB] mb-1">Notes</label>
@@ -164,9 +139,120 @@ function BikeEditForm({
             onSave({
               name: trimmed,
               type,
-              color,
               notes: notes.trim() || undefined,
               stravaGearId: stravaGearId || undefined,
+            });
+          }}
+          className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.2)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.3)] text-sm"
+        >
+          Save
+        </button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-[#67C7EB] hover:text-[#00D9FF] text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ComponentEditForm({
+  component,
+  onSave,
+  onCancel,
+}: {
+  component: BikeComponent;
+  onSave: (updates: Partial<Omit<BikeComponent, "id">>) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(component.name);
+  const [category, setCategory] = useState(component.category);
+  const [brand, setBrand] = useState(component.brand ?? "");
+  const [model, setModel] = useState(component.model ?? "");
+  const [size, setSize] = useState(component.size ?? "");
+  const [weight, setWeight] = useState(component.weight != null ? String(component.weight) : "");
+  const [installDate, setInstallDate] = useState(component.installDate ?? "");
+  const [mileageAtInstall, setMileageAtInstall] = useState(component.mileageAtInstall != null ? String(component.mileageAtInstall) : "");
+  const [serviceIntervalMiles, setServiceIntervalMiles] = useState(component.serviceIntervalMiles != null ? String(component.serviceIntervalMiles) : "");
+  const [notes, setNotes] = useState(component.notes ?? "");
+
+  return (
+    <div className="p-4 rounded-lg border border-[#00D9FF]/30 bg-[rgba(0,217,255,0.05)] space-y-3">
+      <div>
+        <label className="block text-sm font-medium text-[#67C7EB] mb-1">Name *</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[#67C7EB] mb-1">Category</label>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
+        >
+          {COMPONENT_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Brand</label>
+          <input type="text" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g., Shimano" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Model</label>
+          <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g., Ultegra R8100" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Size</label>
+          <input type="text" value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g., 54cm, 120mm" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Weight (g)</label>
+          <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Optional" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Install date</label>
+          <input type="date" value={installDate} onChange={(e) => setInstallDate(e.target.value)} className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Mileage at install</label>
+          <input type="number" value={mileageAtInstall} onChange={(e) => setMileageAtInstall(e.target.value)} placeholder="mi" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[#67C7EB] mb-1">Service interval (mi)</label>
+          <input type="number" value={serviceIntervalMiles} onChange={(e) => setServiceIntervalMiles(e.target.value)} placeholder="e.g., 2000" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[#67C7EB] mb-1">Notes</label>
+        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50" />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            const trimmed = name.trim();
+            if (!trimmed) return;
+            onSave({
+              name: trimmed,
+              category,
+              brand: brand.trim() || undefined,
+              model: model.trim() || undefined,
+              size: size.trim() || undefined,
+              weight: weight ? parseFloat(weight) : undefined,
+              installDate: installDate || undefined,
+              mileageAtInstall: mileageAtInstall ? parseInt(mileageAtInstall, 10) : undefined,
+              serviceIntervalMiles: serviceIntervalMiles ? parseInt(serviceIntervalMiles, 10) : undefined,
+              notes: notes.trim() || undefined,
             });
           }}
           className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.2)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.3)] text-sm"
@@ -213,12 +299,15 @@ function migrateFromOldFormat(): Bike[] {
 
 export default function ComponentListPage() {
   const [bikes, setBikes] = useState<Bike[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [expandedBikeId, setExpandedBikeId] = useState<string | null>(null);
   const [showAddBike, setShowAddBike] = useState(false);
   const [showAddComponent, setShowAddComponent] = useState<string | null>(null);
   const [editingBikeId, setEditingBikeId] = useState<string | null>(null);
+  const [editingComponentId, setEditingComponentId] = useState<string | null>(null);
+  const [showDetailsId, setShowDetailsId] = useState<string | null>(null);
 
-  const [newBike, setNewBike] = useState({ name: "", type: BIKE_TYPES[0], color: BIKE_COLORS[0], notes: "" });
+  const [newBike, setNewBike] = useState({ name: "", type: BIKE_TYPES[0], notes: "" });
   const [newComponent, setNewComponent] = useState({
     name: "",
     category: COMPONENT_CATEGORIES[0],
@@ -246,11 +335,13 @@ export default function ComponentListPage() {
       const migrated = migrateFromOldFormat();
       if (migrated.length > 0) setBikes(migrated);
     }
+    setIsLoaded(true);
   }, []);
 
   useEffect(() => {
+    if (!isLoaded) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(bikes));
-  }, [bikes]);
+  }, [bikes, isLoaded]);
 
   const addBike = () => {
     const name = newBike.name.trim();
@@ -259,166 +350,33 @@ export default function ComponentListPage() {
       id: crypto.randomUUID(),
       name,
       type: newBike.type,
-      color: newBike.color,
       notes: newBike.notes.trim() || undefined,
       attachments: [],
       components: [],
     };
     setBikes((prev) => [...prev, bike]);
-    setNewBike({ name: "", type: BIKE_TYPES[0], color: BIKE_COLORS[0], notes: "" });
+    setNewBike({ name: "", type: BIKE_TYPES[0], notes: "" });
     setShowAddBike(false);
     setExpandedBikeId(bike.id);
   };
 
-  const updateBike = (id: string, updates: Partial<Pick<Bike, "name" | "type" | "color" | "notes" | "stravaGearId">>) => {
+  const updateBike = (id: string, updates: Partial<Pick<Bike, "name" | "type" | "notes" | "stravaGearId">>) => {
     setBikes((prev) =>
       prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
     );
     setEditingBikeId(null);
   };
 
-  const [stravaTokens, setStravaTokens] = useState<{ accessToken: string; refreshToken: string; expiresAt: number } | null>(null);
   const [stravaGearOptions, setStravaGearOptions] = useState<StravaGearOption[]>([]);
-  const [stravaSyncing, setStravaSyncing] = useState(false);
-  const [stravaError, setStravaError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STRAVA_TOKENS_KEY);
+    const stored = localStorage.getItem(STRAVA_GEAR_KEY);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        if (parsed.accessToken && parsed.refreshToken) {
-          setStravaTokens(parsed);
-        }
-      } catch {
-        localStorage.removeItem(STRAVA_TOKENS_KEY);
-      }
+        setStravaGearOptions(JSON.parse(stored));
+      } catch { /* ignore */ }
     }
   }, []);
-
-  useEffect(() => {
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
-    if (!hash) return;
-    const params = new URLSearchParams(hash.slice(1));
-    const accessToken = params.get("strava_access_token");
-    const refreshToken = params.get("strava_refresh_token");
-    const expiresAt = params.get("strava_expires_at");
-    if (accessToken && refreshToken && expiresAt) {
-      const tokens = { accessToken, refreshToken, expiresAt: parseInt(expiresAt, 10) };
-      setStravaTokens(tokens);
-      localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify(tokens));
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    }
-  }, []);
-
-  useEffect(() => {
-    const err = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("strava_error") : null;
-    if (err) {
-      const decoded = decodeURIComponent(err);
-      const friendly: Record<string, string> = {
-        config: "Strava not configured. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to .env.local and restart.",
-        no_code: "Strava authorization was cancelled or failed. Try connecting again.",
-        access_denied: "Strava authorization was denied.",
-      };
-      setStravaError(friendly[decoded] || decoded);
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-  }, []);
-
-  const disconnectStrava = () => {
-    if (confirm("Disconnect Strava? Mileage data will remain but you won't be able to sync.")) {
-      setStravaTokens(null);
-      setStravaGearOptions([]);
-      localStorage.removeItem(STRAVA_TOKENS_KEY);
-    }
-  };
-
-  const syncFromStrava = async () => {
-    if (!stravaTokens?.accessToken) return;
-    setStravaSyncing(true);
-    setStravaError(null);
-    try {
-      let accessToken = stravaTokens.accessToken;
-      const expiresIn = stravaTokens.expiresAt - Math.floor(Date.now() / 1000);
-      if (expiresIn < 3600) {
-        const refreshRes = await fetch("/api/strava/refresh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: stravaTokens.refreshToken }),
-        });
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          accessToken = data.accessToken;
-          const newTokens = {
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
-            expiresAt: data.expiresAt,
-          };
-          setStravaTokens(newTokens);
-          localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify(newTokens));
-        }
-      }
-      const [activitiesRes, gearRes] = await Promise.all([
-        fetch("/api/strava/activities", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken }),
-        }),
-        fetch("/api/strava/gear", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken }),
-        }),
-      ]);
-
-      if (!activitiesRes.ok) {
-        const err = await activitiesRes.json().catch(() => ({}));
-        throw new Error(err.error || `Activities: ${activitiesRes.status}`);
-      }
-      if (!gearRes.ok) {
-        const err = await gearRes.json().catch(() => ({}));
-        throw new Error(err.error || `Gear: ${gearRes.status}`);
-      }
-
-      const { activities } = await activitiesRes.json();
-      const { gear } = await gearRes.json();
-
-      setStravaGearOptions((gear || []).map((g: { id: string; name: string }) => ({ id: g.id, name: g.name })));
-
-      const byGear: Record<string, { total: number; indoor: number; road: number }> = {};
-      for (const a of activities) {
-        const gearId = a.gear_id || "unassigned";
-        if (!byGear[gearId]) byGear[gearId] = { total: 0, indoor: 0, road: 0 };
-        const miles = (a.distance || 0) * METERS_TO_MILES;
-        byGear[gearId].total += miles;
-        if (a.trainer) {
-          byGear[gearId].indoor += miles;
-        } else {
-          byGear[gearId].road += miles;
-        }
-      }
-
-      const now = new Date().toISOString();
-      setBikes((prev) =>
-        prev.map((b) => {
-          const gearId = b.stravaGearId;
-          if (!gearId || !byGear[gearId]) return b;
-          const { total, indoor, road } = byGear[gearId];
-          return {
-            ...b,
-            totalMiles: Math.round(total * 10) / 10,
-            indoorMiles: Math.round(indoor * 10) / 10,
-            roadMiles: Math.round(road * 10) / 10,
-            lastSyncAt: now,
-          };
-        })
-      );
-    } catch (err) {
-      setStravaError(err instanceof Error ? err.message : "Sync failed");
-    } finally {
-      setStravaSyncing(false);
-    }
-  };
 
   const addAttachment = (bikeId: string, file: File) => {
     if (file.size > MAX_FILE_BYTES) {
@@ -511,6 +469,17 @@ export default function ComponentListPage() {
     }
   };
 
+  const updateComponent = (bikeId: string, componentId: string, updates: Partial<Omit<BikeComponent, "id">>) => {
+    setBikes((prev) =>
+      prev.map((b) =>
+        b.id === bikeId
+          ? { ...b, components: b.components.map((c) => (c.id === componentId ? { ...c, ...updates } : c)) }
+          : b
+      )
+    );
+    setEditingComponentId(null);
+  };
+
   const getComponentByCategory = (components: BikeComponent[]) =>
     COMPONENT_CATEGORIES.reduce<Record<string, BikeComponent[]>>((acc, cat) => {
       const list = components.filter((c) => c.category === cat);
@@ -518,8 +487,6 @@ export default function ComponentListPage() {
       return acc;
     }, {});
 
-  const totalBikes = bikes.length;
-  const totalComponents = bikes.reduce((sum, b) => sum + b.components.length, 0);
 
   return (
     <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.primary }}>
@@ -529,7 +496,7 @@ export default function ComponentListPage() {
           <div className="flex justify-start w-20 h-20 min-w-20 min-h-20">
             <Navigation />
           </div>
-          <h2 className="text-2xl font-semibold hud-text text-center">Component list</h2>
+          <h2 className="text-2xl font-semibold hud-text text-center">Component List</h2>
           <div className="flex justify-end">
             <Link href="/bike" title="Cycling" aria-label="Cycling" className="inline-flex items-center justify-center transition-transform hover:scale-110" style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }}>
               <CyclingIcon className="shrink-0" style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }} stroke={hubTheme.primary} />
@@ -537,58 +504,10 @@ export default function ComponentListPage() {
           </div>
         </div>
 
-        {/* Strava */}
-        <div className="mb-6 p-4 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.05)]">
-          <h3 className="text-lg font-semibold text-[#00D9FF] mb-2">Mileage from Strava</h3>
-          {stravaError && (
-            <p className="text-red-400 text-sm mb-2">{stravaError}</p>
-          )}
-          {stravaTokens ? (
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-[#67C7EB] text-sm">Connected to Strava</span>
-              <button
-                type="button"
-                onClick={syncFromStrava}
-                disabled={stravaSyncing}
-                className="px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm disabled:opacity-50"
-              >
-                {stravaSyncing ? "Syncing…" : "Sync from Strava"}
-              </button>
-              <button
-                type="button"
-                onClick={disconnectStrava}
-                className="px-4 py-2 text-[#67C7EB] hover:text-[#00D9FF] text-sm"
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
-            <a
-              href="/api/strava/auth"
-              className="inline-block px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm"
-            >
-              Connect Strava
-            </a>
-          )}
-          <p className="text-[#67C7EB]/80 text-xs mt-2">
-            Link each bike to a Strava bike in Edit mode. Sync to pull total, indoor, and road miles.
-          </p>
-          <p className="text-[#67C7EB]/60 text-xs mt-1">
-            Setup: Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to .env.local. In Strava API settings, set Authorization Callback Domain to <code className="bg-black/30 px-1 rounded">localhost</code> for local dev.
-          </p>
-        </div>
-
-        {/* Quick stats */}
-        {(totalBikes > 0 || totalComponents > 0) && (
-          <div className="flex gap-4 mb-6 text-sm text-[#67C7EB]">
-            <span>{totalBikes} bike{totalBikes !== 1 ? "s" : ""}</span>
-            <span>{totalComponents} component{totalComponents !== 1 ? "s" : ""}</span>
-          </div>
-        )}
 
         <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
           <div className="flex items-center justify-center relative mb-4">
-            <h3 className="text-lg font-semibold text-[#00D9FF]">Bikes and parts</h3>
+            <h3 className="text-lg font-semibold text-[#00D9FF]">Bikes and Components</h3>
             <button
               type="button"
               onClick={() => setShowAddBike(!showAddBike)}
@@ -610,36 +529,17 @@ export default function ComponentListPage() {
                   className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-[#67C7EB] mb-1">Type</label>
-                  <select
-                    value={newBike.type}
-                    onChange={(e) => setNewBike({ ...newBike, type: e.target.value })}
-                    className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
-                  >
-                    {BIKE_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#67C7EB] mb-1">Color</label>
-                  <div className="flex gap-2 flex-wrap items-center">
-                    {BIKE_COLORS.map((hex) => (
-                      <button
-                        key={hex}
-                        type="button"
-                        onClick={() => setNewBike({ ...newBike, color: hex })}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          newBike.color === hex ? "border-[#00D9FF] scale-110" : "border-[#00D9FF]/30 hover:border-[#00D9FF]/60"
-                        }`}
-                        style={{ backgroundColor: hex }}
-                        aria-label={`Color ${hex}`}
-                      />
-                    ))}
-                  </div>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-[#67C7EB] mb-1">Type</label>
+                <select
+                  value={newBike.type}
+                  onChange={(e) => setNewBike({ ...newBike, type: e.target.value })}
+                  className="w-full px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
+                >
+                  {BIKE_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#67C7EB] mb-1">Notes</label>
@@ -681,12 +581,6 @@ export default function ComponentListPage() {
                       className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[rgba(0,217,255,0.08)] transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        {bike.color && (
-                          <div
-                            className="w-6 h-6 rounded-full border border-[#00D9FF]/30 flex-shrink-0"
-                            style={{ backgroundColor: bike.color }}
-                          />
-                        )}
                         <div>
                           <span className="font-semibold text-[#00D9FF]">{bike.name}</span>
                           <span className="text-[#67C7EB] text-sm ml-2">{bike.type}</span>
@@ -740,45 +634,56 @@ export default function ComponentListPage() {
                             onSave={(updates) => updateBike(bike.id, updates)}
                             onCancel={() => setEditingBikeId(null)}
                             bikeTypes={BIKE_TYPES}
-                            bikeColors={BIKE_COLORS}
                             stravaGearOptions={stravaGearOptions}
                           />
                         )}
 
                         {editingBikeId !== bike.id && (bike.notes || (bike.attachments?.length ?? 0) > 0) && (
-                          <div className="mb-4 space-y-3">
-                            {bike.notes && (
-                              <div className="p-3 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]">
-                                <div className="text-xs font-semibold text-[#67C7EB] mb-1">Notes</div>
-                                <p className="text-sm text-[#00D9FF]/90 whitespace-pre-wrap">{bike.notes}</p>
-                              </div>
-                            )}
-                            {(bike.attachments?.length ?? 0) > 0 && (
-                              <div className="p-3 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]">
-                                <div className="text-xs font-semibold text-[#67C7EB] mb-2">Attachments</div>
-                                <div className="flex flex-wrap gap-2">
-                                  {(bike.attachments || []).map((a) => (
-                                    <div key={a.id} className="flex items-center gap-2">
-                                      {a.type.startsWith("image/") ? (
-                                        <a href={a.dataUrl} target="_blank" rel="noopener noreferrer" className="block">
-                                          <img src={a.dataUrl} alt={a.name} className="h-16 w-auto rounded border border-[#00D9FF]/30 object-cover" />
-                                        </a>
-                                      ) : (
-                                        <a href={a.dataUrl} download={a.name} className="text-[#00D9FF] hover:underline text-sm truncate max-w-[120px]">
-                                          📎 {a.name}
-                                        </a>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => removeAttachment(bike.id, a.id)}
-                                        className="text-red-400 hover:text-red-300 text-xs"
-                                        aria-label="Remove attachment"
-                                      >
-                                        ×
-                                      </button>
+                          <div className="mb-4">
+                            <button
+                              type="button"
+                              onClick={() => setShowDetailsId(showDetailsId === bike.id ? null : bike.id)}
+                              className="flex items-center gap-1 text-xs text-[#67C7EB] hover:text-[#00D9FF] transition-colors mb-2"
+                            >
+                              <span>{showDetailsId === bike.id ? "▾" : "▸"}</span>
+                              <span>Notes &amp; Attachments</span>
+                            </button>
+                            {showDetailsId === bike.id && (
+                              <div className="space-y-3">
+                                {bike.notes && (
+                                  <div className="p-3 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]">
+                                    <div className="text-xs font-semibold text-[#67C7EB] mb-1">Notes</div>
+                                    <p className="text-sm text-[#00D9FF]/90 whitespace-pre-wrap">{bike.notes}</p>
+                                  </div>
+                                )}
+                                {(bike.attachments?.length ?? 0) > 0 && (
+                                  <div className="p-3 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]">
+                                    <div className="text-xs font-semibold text-[#67C7EB] mb-2">Attachments</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {(bike.attachments || []).map((a) => (
+                                        <div key={a.id} className="flex items-center gap-2">
+                                          {a.type.startsWith("image/") ? (
+                                            <a href={a.dataUrl} target="_blank" rel="noopener noreferrer" className="block">
+                                              <img src={a.dataUrl} alt={a.name} className="h-16 w-auto rounded border border-[#00D9FF]/30 object-cover" />
+                                            </a>
+                                          ) : (
+                                            <a href={a.dataUrl} download={a.name} className="text-[#00D9FF] hover:underline text-sm truncate max-w-[120px]">
+                                              📎 {a.name}
+                                            </a>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => removeAttachment(bike.id, a.id)}
+                                            className="text-red-400 hover:text-red-300 text-xs"
+                                            aria-label="Remove attachment"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -807,22 +712,6 @@ export default function ComponentListPage() {
                                 ))}
                               </div>
                             )}
-                          </div>
-                        )}
-
-                        {editingBikeId !== bike.id && (
-                          <div className="mb-4">
-                            <label className="block text-xs font-medium text-[#67C7EB] mb-1">Attach files</label>
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) addAttachment(bike.id, file);
-                                e.target.value = "";
-                              }}
-                              className="block w-full text-sm text-[#67C7EB] file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-[rgba(0,217,255,0.2)] file:text-[#00D9FF] hover:file:bg-[rgba(0,217,255,0.3)]"
-                            />
                           </div>
                         )}
 
@@ -953,40 +842,58 @@ export default function ComponentListPage() {
                               <div key={cat}>
                                 <h4 className="text-xs font-semibold text-[#67C7EB] mb-2 uppercase tracking-wide">{cat}</h4>
                                 <ul className="space-y-2">
-                                  {(byCategory[cat] || []).map((c) => (
-                                    <li
-                                      key={c.id}
-                                      className="flex items-start justify-between px-3 py-2 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]"
-                                    >
-                                      <div className="min-w-0 flex-1">
-                                        <span className="font-medium text-[#00D9FF]">{c.name}</span>
-                                        {(c.brand || c.model) && (
-                                          <span className="text-[#67C7EB] text-sm ml-2">
-                                            {[c.brand, c.model].filter(Boolean).join(" ")}
-                                          </span>
-                                        )}
-                                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-[#67C7EB]/80">
-                                          {c.size && <span>Size: {c.size}</span>}
-                                          {c.weight != null && <span>{c.weight}g</span>}
-                                          {c.installDate && <span>Installed: {c.installDate}</span>}
-                                          {c.serviceIntervalMiles != null && (
-                                            <span>Service every {c.serviceIntervalMiles} mi</span>
+                                  {(byCategory[cat] || []).map((c) =>
+                                    editingComponentId === c.id ? (
+                                      <li key={c.id}>
+                                        <ComponentEditForm
+                                          component={c}
+                                          onSave={(updates) => updateComponent(bike.id, c.id, updates)}
+                                          onCancel={() => setEditingComponentId(null)}
+                                        />
+                                      </li>
+                                    ) : (
+                                      <li
+                                        key={c.id}
+                                        className="flex items-start justify-between px-3 py-2 rounded-lg border border-[#00D9FF]/20 bg-[rgba(0,217,255,0.03)]"
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <span className="font-medium text-[#00D9FF]">{c.name}</span>
+                                          {(c.brand || c.model) && (
+                                            <span className="text-[#67C7EB] text-sm ml-2">
+                                              {[c.brand, c.model].filter(Boolean).join(" ")}
+                                            </span>
+                                          )}
+                                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-[#67C7EB]/80">
+                                            {c.size && <span>Size: {c.size}</span>}
+                                            {c.weight != null && <span>{c.weight}g</span>}
+                                            {c.installDate && <span>Installed: {c.installDate}</span>}
+                                            {c.serviceIntervalMiles != null && (
+                                              <span>Service every {c.serviceIntervalMiles} mi</span>
+                                            )}
+                                          </div>
+                                          {c.notes && (
+                                            <p className="text-xs text-[#67C7EB]/70 mt-0.5">{c.notes}</p>
                                           )}
                                         </div>
-                                        {c.notes && (
-                                          <p className="text-xs text-[#67C7EB]/70 mt-0.5">{c.notes}</p>
-                                        )}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeComponent(bike.id, c.id)}
-                                        className="text-red-400 hover:text-red-300 text-xs px-2 py-1 flex-shrink-0"
-                                        aria-label="Remove"
-                                      >
-                                        Remove
-                                      </button>
-                                    </li>
-                                  ))}
+                                        <div className="flex flex-col gap-1 flex-shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingComponentId(c.id)}
+                                            className="text-[#00D9FF] hover:text-[#67C7EB] text-xs px-2 py-1"
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeComponent(bike.id, c.id)}
+                                            className="text-red-400 hover:text-red-300 text-xs px-2 py-1"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                      </li>
+                                    )
+                                  )}
                                 </ul>
                               </div>
                             ))}

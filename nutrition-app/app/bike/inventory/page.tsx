@@ -54,6 +54,7 @@ function clampHelmetYears(val: number): number {
 
 export default function GearInventoryPage() {
   const [items, setItems] = useState<GearItem[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("");
@@ -89,11 +90,13 @@ export default function GearInventoryPage() {
         setItems([]);
       }
     }
+    setIsLoaded(true);
   }, []);
 
   useEffect(() => {
+    if (!isLoaded) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+  }, [items, isLoaded]);
 
   const addItem = () => {
     let name = newItem.name.trim();

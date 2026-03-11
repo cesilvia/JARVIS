@@ -229,7 +229,20 @@ function PackingChecklistIcon({ className = "w-12 h-12", style, stroke: strokeCo
   );
 }
 
+// Strava icon: upward chevron (Strava's distinctive arrow mark)
+function StravaIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" stroke={strokeColor ?? "currentColor"} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
+      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      <polyline points="16,33 24,13 32,33" strokeWidth="2.5" fill="none" />
+      <polyline points="24,21 29,33" strokeWidth="2" fill="none" opacity="0.55" />
+      <polyline points="24,21 19,33" strokeWidth="2" fill="none" opacity="0.55" />
+    </svg>
+  );
+}
+
 const sections = [
+  { id: "strava", name: "Strava", icon: StravaIcon, description: "Sync mileage" },
   { id: "components", name: "Component list", icon: ChainGearsIcon, description: "Bikes and parts" },
   { id: "inventory", name: "Gear inventory", icon: GearInventoryIcon, description: "Helmets, kit, tools" },
   { id: "service", name: "Service log", icon: ServiceLogIcon, description: "Maintenance history" },
@@ -260,6 +273,17 @@ export default function BikeGearPage() {
                 <div className="font-semibold text-[#00D9FF] text-sm">{name}</div>
               </>
             );
+            if (id === "strava") {
+              return (
+                <Link
+                  key={id}
+                  href="/bike/strava"
+                  className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 p-4"
+                >
+                  {content}
+                </Link>
+              );
+            }
             if (id === "components") {
               return (
                 <Link
@@ -276,6 +300,17 @@ export default function BikeGearPage() {
                 <Link
                   key={id}
                   href="/bike/inventory"
+                  className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 p-4"
+                >
+                  {content}
+                </Link>
+              );
+            }
+            if (id === "tire-pressure") {
+              return (
+                <Link
+                  key={id}
+                  href="/bike/tire-pressure"
                   className="flex flex-col items-center justify-center gap-3 text-center transition-opacity hover:opacity-90 p-4"
                 >
                   {content}

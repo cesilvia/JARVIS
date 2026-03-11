@@ -360,3 +360,63 @@
 - **Rationale:** User wanted to see what alerts are active without leaving the hub.
 - **Implementation:** `hubGetAlertSummaries()` returns summary strings (backup reminder, helmet replacement). Passed as `summaryLines` to WedgeSummaryCard. Text rendered as SVG `<text>/<tspan>` inside the wedge, clipped to wedge path, counter-rotated so text stays horizontal on the page. Bullet points ("• ") for each alert with hanging indent on wrapped lines. "No Current Alerts" shown (centered) when no alerts exist. White text with dark drop shadow for readability. Left-aligned with increased line spacing (LINE_HEIGHT=20).
 - **Status:** Implemented
+
+## 2026-03-10
+
+### Strava – Dedicated Page
+
+**Decision:** Move Strava connect/sync/disconnect to its own page at `/bike/strava`
+- **Rationale:** Strava OAuth, token refresh, activity sync, and gear fetching added complexity to the Component list page. A dedicated Strava page gives a cleaner separation of concerns and room to grow (linked-bike mileage display, gear list).
+- **Implementation:** New `bike/strava/page.tsx` handles OAuth callback (hash params), token storage (`jarvis-strava-tokens`), token refresh, activities + gear API calls, mileage aggregation (total/indoor/road), and writes synced gear to `jarvis-strava-gear` in localStorage. Component list now reads gear options from `jarvis-strava-gear` instead of managing tokens directly. Strava page shows connected status, sync button, disconnect, last-sync timestamp, linked bikes with mileage, and Strava gear list.
+- **Status:** Implemented
+
+**Decision:** Add Strava icon and section to bike page
+- **Rationale:** Strava needed its own entry point on the cycling hub alongside the other sections.
+- **Implementation:** `StravaIcon` SVG (upward chevron/arrow mark inside circle, matching Strava's brand). Added as first section in the bike page grid, linking to `/bike/strava`.
+- **Status:** Implemented
+
+### Tire Pressure Calculator
+
+**Decision:** Create tire pressure calculator page at `/bike/tire-pressure`
+- **Rationale:** User wanted a tool to compute recommended front/rear PSI based on total system weight, tire width, tire type, surface, and conditions.
+- **Implementation:** Full-featured calculator with:
+  - **Weight components:** Rider & kit (lbs), helmet (oz), shoes (oz), bike (lbs), selectable wheel sets, water bottles (configurable count and type), repair kits (saddle/tube toggles), front/rear lights, computer.
+  - **Defaults system:** Weights auto-save on blur. If a value differs from the saved default, a banner asks "Set as new default?" with Yes/No.
+  - **Tire settings:** Bike selection (reads from `jarvis-bikes`), tire width (common presets 23–50mm + custom), same or different front/rear, tire type (clincher/tubeless/tubular), surface (smooth/rough/gravel/mixed), conditions (dry/wet).
+  - **PSI calculation:** Based on 15% tire drop methodology. Wheel-load = total weight × front/rear fraction. PSI = (wheel-load × tire-type-K) / width, adjusted for surface and conditions, clamped to safe min/max per width.
+  - **Front/rear split:** Slider (30–50%) with bike-type presets (road 40/60, gravel 42/58, etc.).
+  - **Tire Pressure Limits table:** Built-in tires (Bontrager R3, Continental GP 5000 S TR) plus user-added custom tires. Persistent via `jarvis-tire-pressure-tires`.
+  - **Collapsible sections** for Weight and Tire Settings.
+  - **PSI results** at top: front and rear PSI with ±8% range.
+- **Status:** Implemented
+
+**Decision:** Link tire pressure section on bike page to `/bike/tire-pressure`
+- **Rationale:** Tire pressure was a placeholder section; now routes to the new calculator page.
+- **Status:** Implemented
+
+### Component List Refinements
+
+**Decision:** Remove bike color from Component list
+- **Rationale:** Color picker/swatch added clutter without practical value. Bike type is sufficient identification.
+- **Implementation:** Removed `BIKE_COLORS` array, color picker from add/edit forms, color swatch from bike row, and `color` from all type signatures.
+- **Status:** Implemented
+
+**Decision:** Add inline editing for individual components
+- **Rationale:** Previously components could only be added or removed. User needed to edit component details (brand, model, size, weight, install date, mileage, service interval, notes) without deleting and re-adding.
+- **Implementation:** `ComponentEditForm` component with all editable fields. Each component row shows Edit and Remove buttons. `updateComponent()` merges partial updates into the bike's component array.
+- **Status:** Implemented
+
+**Decision:** Collapsible Notes & Attachments section per bike
+- **Rationale:** Notes and attachments took up vertical space even when not needed. Collapsing keeps the bike list compact.
+- **Implementation:** Toggle button ("▸ Notes & Attachments" / "▾ Notes & Attachments") controlled by `showDetailsId` state. Attach-files input moved inside the collapsible area.
+- **Status:** Implemented
+
+**Decision:** Fix localStorage persistence race condition (isLoaded pattern)
+- **Rationale:** Component list and gear inventory had a bug where the save effect could run before data was loaded from localStorage, overwriting saved data with empty state.
+- **Implementation:** Added `isLoaded` boolean state. Set to `true` after load effect completes. Save effect skips when `isLoaded` is false. Applied to Component list (`bikes`) and Gear inventory (`items`).
+- **Status:** Implemented
+
+**Decision:** Rename headings for consistency
+- **Rationale:** Minor capitalization cleanup.
+- **Implementation:** "Component list" → "Component List", "Bikes and parts" → "Bikes and Components".
+- **Status:** Implemented
