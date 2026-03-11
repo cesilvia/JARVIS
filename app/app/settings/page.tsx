@@ -4,12 +4,17 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../components/Navigation";
 import { useRouter } from "next/navigation";
+import {
+  STRAVA_ZONES_KEY, ZoneConfig, ZoneBand,
+  buildDefaultPowerZones, buildDefaultHRZones, loadZones,
+} from "../bike/strava/types";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
 const STRAVA_ACTIVITIES_KEY = "jarvis-strava-activities";
 const STRAVA_GEAR_KEY = "jarvis-strava-gear";
 const BIKES_STORAGE_KEY = "jarvis-bikes";
+const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";
 const METERS_TO_MILES = 1 / 1609.34;
 
 export default function SettingsPage() {
@@ -23,20 +28,24 @@ export default function SettingsPage() {
   const [stravaSyncing, setStravaSyncing] = useState(false);
   const [stravaError, setStravaError] = useState("");
   const [stravaLastSync, setStravaLastSync] = useState<string | null>(null);
+  const [ftp, setFtp] = useState("");
+  const [maxHR, setMaxHR] = useState("");
+  const [powerZones, setPowerZones] = useState<ZoneBand[]>([]);
+  const [hrZones, setHRZones] = useState<ZoneBand[]>([]);
+  const [zonesSaved, setZonesSaved] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setLastBackup(localStorage.getItem(JARVIS_LAST_BACKUP_KEY));
       const tokens = localStorage.getItem(STRAVA_TOKENS_KEY);
       setStravaConnected(!!tokens);
-      // Derive last sync from bikes
-      const bikesRaw = localStorage.getItem(BIKES_STORAGE_KEY);
-      if (bikesRaw) {
-        try {
-          const bikes = JSON.parse(bikesRaw);
-          const synced = bikes.filter((b: { lastSyncAt?: string }) => b.lastSyncAt).sort((a: { lastSyncAt?: string }, b: { lastSyncAt?: string }) => (b.lastSyncAt ?? "").localeCompare(a.lastSyncAt ?? ""));
-          if (synced.length > 0) setStravaLastSync(synced[0].lastSyncAt);
-        } catch { /* ignore */ }
+      setStravaLastSync(localStorage.getItem(STRAVA_LAST_SYNC_KEY));
+      const existingZones = loadZones();
+      if (existingZones) {
+        setFtp(String(existingZones.ftp));
+        setMaxHR(String(existingZones.maxHR));
+        setPowerZones(existingZones.powerZones);
+        setHRZones(existingZones.hrZones);
       }
       if (window.PublicKeyCredential) {
         setBiometricSupported(true);
@@ -141,6 +150,7 @@ export default function SettingsPage() {
         return { ...b, totalMiles: Math.round(total * 10) / 10, indoorMiles: Math.round(indoor * 10) / 10, roadMiles: Math.round(road * 10) / 10, lastSyncAt: now };
       });
       localStorage.setItem(BIKES_STORAGE_KEY, JSON.stringify(currentBikes));
+      localStorage.setItem(STRAVA_LAST_SYNC_KEY, now);
       setStravaLastSync(now);
     } catch (err) {
       setStravaError(err instanceof Error ? err.message : "Sync failed");
@@ -154,6 +164,38 @@ export default function SettingsPage() {
       localStorage.removeItem(STRAVA_TOKENS_KEY);
       setStravaConnected(false);
     }
+  };
+
+  const handleFtpChange = (val: string) => {
+    setFtp(val);
+    const n = parseInt(val, 10);
+    if (n > 0) setPowerZones(buildDefaultPowerZones(n));
+  };
+
+  const handleMaxHRChange = (val: string) => {
+    setMaxHR(val);
+    const n = parseInt(val, 10);
+    if (n > 0) setHRZones(buildDefaultHRZones(n));
+  };
+
+  const handleZoneBoundaryChange = (type: "power" | "hr", index: number, field: "min" | "max", value: string) => {
+    const setter = type === "power" ? setPowerZones : setHRZones;
+    setter((prev) => prev.map((z, i) => i === index ? { ...z, [field]: parseInt(value, 10) || 0 } : z));
+  };
+
+  const handleResetZone = (type: "power" | "hr", index: number) => {
+    const setter = type === "power" ? setPowerZones : setHRZones;
+    setter((prev) => prev.map((z, i) => i === index ? { ...z, min: z.defaultMin, max: z.defaultMax } : z));
+  };
+
+  const handleSaveZones = () => {
+    const ftpNum = parseInt(ftp, 10);
+    const maxHRNum = parseInt(maxHR, 10);
+    if (!ftpNum || !maxHRNum) return;
+    const config: ZoneConfig = { ftp: ftpNum, maxHR: maxHRNum, zonesUpdatedAt: new Date().toISOString(), powerZones, hrZones };
+    localStorage.setItem(STRAVA_ZONES_KEY, JSON.stringify(config));
+    setZonesSaved(true);
+    setTimeout(() => setZonesSaved(false), 3000);
   };
 
   const handleRegisterBiometric = async () => {
@@ -315,6 +357,73 @@ export default function SettingsPage() {
             >
               Connect Strava
             </a>
+          )}
+        </section>
+
+        <section className="border border-slate-700 rounded-lg p-6 mb-6 scroll-mt-8">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Training Zones</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            Set your FTP and Max HR. Default zones are auto-calculated; override any boundary manually.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-slate-400 font-mono text-xs block mb-1">FTP (watts)</label>
+              <input type="number" value={ftp} onChange={(e) => handleFtpChange(e.target.value)} placeholder="e.g. 250" className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm" />
+            </div>
+            <div>
+              <label className="text-slate-400 font-mono text-xs block mb-1">Max HR (bpm)</label>
+              <input type="number" value={maxHR} onChange={(e) => handleMaxHRChange(e.target.value)} placeholder="e.g. 185" className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm" />
+            </div>
+          </div>
+          {powerZones.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-slate-300 font-mono text-sm mb-2">Power Zones</h3>
+              <div className="space-y-1.5">
+                {powerZones.map((z, i) => {
+                  const isCustom = z.min !== z.defaultMin || z.max !== z.defaultMax;
+                  return (
+                    <div key={z.name} className="flex items-center gap-2 text-xs font-mono">
+                      <span className="w-36 text-slate-400 truncate">{z.name}</span>
+                      <input type="number" value={z.min} onChange={(e) => handleZoneBoundaryChange("power", i, "min", e.target.value)} className="w-16 px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-100 text-center" />
+                      <span className="text-slate-500">–</span>
+                      <input type="number" value={z.max >= 9999 ? "" : z.max} placeholder="max" onChange={(e) => handleZoneBoundaryChange("power", i, "max", e.target.value || "9999")} className="w-16 px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-100 text-center" />
+                      <span className="text-slate-500">w</span>
+                      {isCustom && <button onClick={() => handleResetZone("power", i)} className="text-slate-500 hover:text-slate-300 text-[10px]">reset</button>}
+                      {isCustom && <span className="text-amber-400 text-[10px]">custom</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {hrZones.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-slate-300 font-mono text-sm mb-2">HR Zones</h3>
+              <div className="space-y-1.5">
+                {hrZones.map((z, i) => {
+                  const isCustom = z.min !== z.defaultMin || z.max !== z.defaultMax;
+                  return (
+                    <div key={z.name} className="flex items-center gap-2 text-xs font-mono">
+                      <span className="w-36 text-slate-400 truncate">{z.name}</span>
+                      <input type="number" value={z.min} onChange={(e) => handleZoneBoundaryChange("hr", i, "min", e.target.value)} className="w-16 px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-100 text-center" />
+                      <span className="text-slate-500">–</span>
+                      <input type="number" value={z.max} onChange={(e) => handleZoneBoundaryChange("hr", i, "max", e.target.value)} className="w-16 px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-100 text-center" />
+                      <span className="text-slate-500">bpm</span>
+                      {isCustom && <button onClick={() => handleResetZone("hr", i)} className="text-slate-500 hover:text-slate-300 text-[10px]">reset</button>}
+                      {isCustom && <span className="text-amber-400 text-[10px]">custom</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {(parseInt(ftp, 10) > 0 && parseInt(maxHR, 10) > 0) && (
+            <div className="flex items-center gap-3">
+              <button onClick={handleSaveZones} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors">
+                Save Zones
+              </button>
+              {zonesSaved && <span className="text-green-400 font-mono text-xs">Saved! Reminder set for 28 days.</span>}
+            </div>
           )}
         </section>
 

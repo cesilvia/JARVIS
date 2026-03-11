@@ -434,7 +434,9 @@ const ALERT_ICON_ORANGE = "#FF6600";
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 const BACKUP_REMINDER_DAYS = 7;
 const GEAR_STORAGE_KEY = "jarvis-gear-inventory";
+const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const HELMET_REMINDER_DAYS = 30;
+const ZONE_REVIEW_DAYS = 28;
 
 function hubGetAlertSummaries(): string[] {
   const lines: string[] = [];
@@ -460,6 +462,20 @@ function hubGetAlertSummaries(): string[] {
         d.setFullYear(d.getFullYear() + item.replaceReminderYears);
         if (d.getTime() <= cutoff) {
           lines.push(`Helmet: ${item.name} — replace by ${d.toLocaleDateString()}`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
+  if (zonesRaw) {
+    try {
+      const zones = JSON.parse(zonesRaw);
+      if (zones.zonesUpdatedAt) {
+        const zoneDays = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
+        if (zoneDays >= ZONE_REVIEW_DAYS) {
+          lines.push(`Review training zones (${Math.floor(zoneDays)} days old)`);
         }
       }
     } catch {

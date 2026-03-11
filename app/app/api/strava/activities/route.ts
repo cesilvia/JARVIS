@@ -17,6 +17,18 @@ export interface StravaActivity {
   average_speed: number;
   max_speed: number;
   average_heartrate?: number;
+  max_heartrate?: number;
+  has_heartrate?: boolean;
+  average_watts?: number;
+  max_watts?: number;
+  weighted_average_watts?: number;
+  device_watts?: boolean;
+  kilojoules?: number;
+  calories?: number;
+  average_cadence?: number;
+  suffer_score?: number;
+  pr_count?: number;
+  achievement_count?: number;
   kudos_count: number;
 }
 

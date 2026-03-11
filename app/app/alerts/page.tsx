@@ -6,8 +6,10 @@ import Navigation from "../components/Navigation";
 import { GEAR_STORAGE_KEY } from "../bike/inventory/page";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
+const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const BACKUP_REMINDER_DAYS = 7;
 const HELMET_REMINDER_DAYS = 30;
+const ZONE_REVIEW_DAYS = 28;
 
 interface GearItem {
   id: string;
@@ -29,6 +31,8 @@ export default function AlertsPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [backupOverdue, setBackupOverdue] = useState(false);
   const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
+  const [zoneReviewDue, setZoneReviewDue] = useState(false);
+  const [zoneReviewDays, setZoneReviewDays] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -42,6 +46,21 @@ export default function AlertsPage() {
     const now = Date.now();
     const daysSince = (now - then) / (1000 * 60 * 60 * 24);
     setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
+    if (zonesRaw) {
+      try {
+        const zones = JSON.parse(zonesRaw);
+        if (zones.zonesUpdatedAt) {
+          const days = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
+          setZoneReviewDays(Math.floor(days));
+          setZoneReviewDue(days >= ZONE_REVIEW_DAYS);
+        }
+      } catch { /* ignore */ }
+    }
   }, []);
 
   useEffect(() => {
@@ -104,6 +123,23 @@ export default function AlertsPage() {
             <p className="text-slate-400 font-mono text-sm">
               Nutrition backup is up to date. Last backup: {new Date(lastBackup).toLocaleDateString()}. You can export or import in <Link href="/settings" className="text-slate-300 underline hover:text-white">Settings</Link>.
             </p>
+          </section>
+        )}
+
+        {zoneReviewDue && (
+          <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
+            <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
+              Review your training zones
+            </h2>
+            <p className="text-slate-400 font-mono text-sm mb-4">
+              Your power and HR zones were last updated {zoneReviewDays} days ago. Review your FTP and zones to keep your training analysis accurate.
+            </p>
+            <Link
+              href="/settings#strava"
+              className="inline-block px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Open Settings → Training Zones
+            </Link>
           </section>
         )}
 

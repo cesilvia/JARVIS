@@ -473,3 +473,20 @@
   - Dashboard sections: YTD stats (distance, time, elevation, rides), weekly/monthly mileage comparison bars, per-bike mileage breakdown, pure SVG mileage-over-time chart (12 weeks / 12 months toggle), recent rides list (last 10 with distance, time, speed, elevation, heartrate).
   - All units displayed in miles/feet/mph. Time as `Xh Ym`.
 - **Status:** Implemented
+
+### Strava Deep Analytics
+
+**Decision:** Expand Strava page into a full cycling analytics platform with tabs, streams, and training load
+- **Rationale:** The basic mileage dashboard didn't expose the rich data available from Strava (power, cadence, HR zones, training load). User wanted power curves, zone distributions, per-ride detail charts, and fitness tracking.
+- **Implementation:**
+  - **Expanded API fields:** `average_watts`, `max_watts`, `weighted_average_watts`, `kilojoules`, `calories`, `average_cadence`, `max_heartrate`, `suffer_score`, `device_watts`, `pr_count`, `achievement_count`.
+  - **Tab navigation:** Overview (existing stats + calories/power/HR/cadence cards), Rides (full list with click-to-expand detail), Power (power curve + zones), Fitness (TSS/CTL/ATL/TSB training load + HR zones).
+  - **Auto-sync:** Page auto-syncs if last sync > 6 hours old, plus manual sync in Settings.
+  - **Streams API:** New `/api/strava/streams` route fetches per-activity time-series (power, HR, cadence, speed, altitude). Cached in localStorage per activity.
+  - **Ride detail:** Click any ride to see SVG charts for power, HR, cadence, speed, elevation over time. Per-ride zone distribution when zones are configured.
+  - **Power curve:** Sliding-window best-effort computation across all rides (5s to 60min). SVG chart with log-scale x-axis. Progressive fetch with rate-limit awareness.
+  - **Training zones:** FTP and Max HR set in Settings. Default zones auto-calculated; individual zone boundaries can be overridden. Stored in `jarvis-strava-zones`. 28-day review reminder on Alerts page and hub.
+  - **Training load (Fitness):** TSS per ride from summary data (NP + duration + FTP). CTL/ATL/TSB (fitness/fatigue/form) computed as exponentially weighted averages. SVG chart with 90d/180d/1yr toggle.
+  - **Shared types:** Extracted to `bike/strava/types.ts` for consistency between page, settings, and alerts.
+  - **Migrated middleware.ts to proxy.ts** for Next.js 16 compatibility.
+- **Status:** Implemented
