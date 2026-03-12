@@ -53,6 +53,12 @@ async function syncActivities(): Promise<StravaActivity[]> {
   ]);
   if (!actRes.ok) throw new Error((await actRes.json().catch(() => ({}))).error || `${actRes.status}`);
   const { activities } = await actRes.json();
+  if (!Array.isArray(activities) || activities.length === 0) {
+    // Don't overwrite stored rides with empty results — return what we already have
+    const stored = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
+    if (stored) { try { return JSON.parse(stored); } catch { /* fall through */ } }
+    return [];
+  }
   localStorage.setItem(STRAVA_ACTIVITIES_KEY, JSON.stringify(activities));
   localStorage.setItem(STRAVA_LAST_SYNC_KEY, new Date().toISOString());
   if (gearRes.ok) {
@@ -214,6 +220,99 @@ function LineChart({ data, yKey, color, label, unit, height = 120 }: {
           avg {Math.round(data.reduce((s, v) => s + v, 0) / data.length)} {unit}
         </text>
       </svg>
+    </div>
+  );
+}
+
+const OVERLAY_COLORS = ["#00D9FF", "rgba(0,217,255,0.5)", "rgba(0,217,255,0.3)", "rgba(0,217,255,0.15)"];
+
+function OverlayChart({ series, labels, color, label, unit, height = 140 }: {
+  series: (number[] | undefined)[]; labels: string[]; color: string; label: string; unit: string; height?: number;
+}) {
+  const validSeries = series.filter((s): s is number[] => !!s && s.length > 0);
+  if (validSeries.length === 0) return null;
+  const W = 700, padL = 45, padR = 10, padT = 10, padB = 28;
+  const cW = W - padL - padR, cH = height - padT - padB;
+  const allMax = Math.max(...validSeries.map((s) => Math.max(...s)), 1);
+  const allMin = Math.min(...validSeries.map((s) => Math.min(...s)), 0);
+  const range = allMax - allMin || 1;
+  const colors = [color, ...OVERLAY_COLORS.slice(1)];
+  return (
+    <div className="mb-3">
+      <div className="text-xs mb-1" style={{ color }}>{label}</div>
+      <svg viewBox={`0 0 ${W} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+        {[0, 0.5, 1].map((f) => {
+          const y = padT + cH - f * cH;
+          return (
+            <g key={f}>
+              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={color} strokeOpacity="0.1" strokeWidth="0.5" />
+              <text x={padL - 5} y={y + 3} textAnchor="end" fill={color} fontSize="8" opacity="0.5">{Math.round(allMin + f * range)}</text>
+            </g>
+          );
+        })}
+        {validSeries.map((data, si) => {
+          const step = Math.max(1, Math.floor(data.length / 500));
+          const sampled = data.filter((_, i) => i % step === 0);
+          const pts = sampled.map((v, i) => ({
+            x: padL + (i / (sampled.length - 1)) * cW,
+            y: padT + cH - ((v - allMin) / range) * cH,
+          }));
+          const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+          return <path key={si} d={path} fill="none" stroke={colors[si] || colors[colors.length - 1]} strokeWidth={si === 0 ? "1.5" : "1"} />;
+        }).reverse()}
+        {/* Legend */}
+        {labels.map((lbl, i) => (
+          <g key={i}>
+            <rect x={padL + i * 120} y={height - 14} width={10} height={3} fill={colors[i] || colors[colors.length - 1]} rx="1" />
+            <text x={padL + i * 120 + 14} y={height - 10} fill={color} fontSize="7" opacity="0.7">{lbl}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ZoneCompareGrouped({ title, zones, allTimes, dateLabels, colors }: {
+  title: string; zones: { name: string }[]; allTimes: number[][]; dateLabels: string[]; colors: string[];
+}) {
+  // For each zone, show grouped bars (one per ride)
+  const rideColors = ["#00D9FF", "rgba(0,217,255,0.5)", "rgba(0,217,255,0.3)", "rgba(0,217,255,0.15)"];
+  const allTotals = allTimes.map((times) => times.reduce((s, t) => s + t, 0) || 1);
+  const maxPct = Math.max(...allTimes.flatMap((times, ri) => times.map((t) => (t / allTotals[ri]) * 100)), 1);
+  return (
+    <div className="mb-4">
+      <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>{title}</div>
+      <div className="space-y-2">
+        {zones.map((z, zi) => (
+          <div key={z.name}>
+            <div className="text-[10px] mb-0.5" style={{ color: colors[zi] }}>{z.name}</div>
+            <div className="space-y-0.5">
+              {allTimes.map((times, ri) => {
+                const pct = (times[zi] / allTotals[ri]) * 100;
+                const barW = (pct / maxPct) * 100;
+                return (
+                  <div key={ri} className="flex items-center gap-2 text-[10px]">
+                    <span className="w-20 truncate" style={{ color: rideColors[ri] }}>{dateLabels[ri]}</span>
+                    <div className="flex-1 h-2.5 rounded-full bg-[rgba(0,217,255,0.05)]">
+                      <div className="h-2.5 rounded-full" style={{ width: `${barW}%`, backgroundColor: colors[zi], opacity: ri === 0 ? 0.8 : 0.3 + (0.2 / (ri + 1)) }} />
+                    </div>
+                    <span className="w-10 text-right" style={{ color: hubTheme.secondary }}>{pct.toFixed(0)}%</span>
+                    <span className="w-12 text-right" style={{ color: hubTheme.secondary }}>{formatTime(times[zi])}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Legend */}
+      <div className="flex gap-4 mt-2">
+        {dateLabels.map((lbl, i) => (
+          <div key={i} className="flex items-center gap-1 text-[10px]" style={{ color: rideColors[i] }}>
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: rideColors[i] }} />{lbl}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -606,6 +705,10 @@ export default function StravaPage() {
   const [curveProgress, setCurveProgress] = useState("");
   const [fitnessRange, setFitnessRange] = useState(90);
   const [goals, setGoals] = useState<StravaGoal[]>([]);
+  const [rideDaysShown, setRideDaysShown] = useState(7);
+  const [compareRide, setCompareRide] = useState<number | null>(null);
+  const [compareStreams, setCompareStreams] = useState<Record<number, StreamData>>({});
+  const [loadingCompareStreams, setLoadingCompareStreams] = useState(false);
 
   // Load from localStorage
   useEffect(() => {
@@ -630,7 +733,14 @@ export default function StravaPage() {
     setSyncMsg("Auto-syncing...");
     syncActivities()
       .then((acts) => { setActivities(acts); setSyncMsg(`Synced ${acts.length} rides`); setTimeout(() => setSyncMsg(""), 3000); })
-      .catch(() => setSyncMsg(""))
+      .catch((err) => {
+        console.error("Strava auto-sync failed:", err);
+        setSyncMsg("Sync failed — showing cached rides");
+        setTimeout(() => setSyncMsg(""), 5000);
+        // Fall back to localStorage so we don't show empty state
+        const stored = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
+        if (stored) { try { setActivities(JSON.parse(stored)); } catch { /* ignore */ } }
+      })
       .finally(() => setSyncing(false));
   }, [connected]);
 
@@ -706,6 +816,83 @@ export default function StravaPage() {
     () => [...activities].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()),
     [activities]
   );
+
+  // Rides filtered by date window
+  const visibleRides = useMemo(() => {
+    const cutoff = Date.now() - rideDaysShown * 24 * 60 * 60 * 1000;
+    return allRides.filter((r) => new Date(r.start_date).getTime() >= cutoff);
+  }, [allRides, rideDaysShown]);
+
+  const hasMoreRides = visibleRides.length < allRides.length;
+
+  const handleShowMore = useCallback(() => {
+    setRideDaysShown((prev) => (prev === 7 ? 28 : prev + 30));
+  }, []);
+
+  // Find similar rides for comparison (by name for structured workouts, by route for outdoor)
+  const similarRides = useMemo(() => {
+    if (!compareRide) return [];
+    const target = allRides.find((r) => r.id === compareRide);
+    if (!target) return [];
+    const candidates = allRides.filter((r) => r.id !== target.id);
+    // Try matching by name first (structured workouts like TrainerRoad)
+    const nameMatches = candidates.filter((r) => r.name === target.name);
+    if (nameMatches.length > 0) return nameMatches.slice(0, 3);
+    // Fall back to route matching via summary_polyline
+    const targetPoly = target.map?.summary_polyline;
+    if (targetPoly && targetPoly.length > 10) {
+      const routeMatches = candidates.filter((r) => {
+        const poly = r.map?.summary_polyline;
+        if (!poly || poly.length < 10) return false;
+        // Simple heuristic: polylines that share at least 60% prefix are similar routes
+        const minLen = Math.min(targetPoly.length, poly.length);
+        let match = 0;
+        for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
+        return match / minLen > 0.6;
+      });
+      if (routeMatches.length > 0) return routeMatches.slice(0, 3);
+    }
+    return [];
+  }, [compareRide, allRides]);
+
+  // Load streams for comparison rides
+  const handleCompare = useCallback(async (rideId: number) => {
+    setCompareRide(rideId);
+    const target = allRides.find((r) => r.id === rideId);
+    if (!target) return;
+    // Find matches (duplicate logic but needed for async fetch)
+    const candidates = allRides.filter((r) => r.id !== rideId);
+    const nameMatches = candidates.filter((r) => r.name === target.name);
+    let matches: StravaActivity[];
+    if (nameMatches.length > 0) {
+      matches = nameMatches.slice(0, 3);
+    } else {
+      const targetPoly = target.map?.summary_polyline;
+      if (targetPoly && targetPoly.length > 10) {
+        matches = candidates.filter((r) => {
+          const poly = r.map?.summary_polyline;
+          if (!poly || poly.length < 10) return false;
+          const minLen = Math.min(targetPoly.length, poly.length);
+          let match = 0;
+          for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
+          return match / minLen > 0.6;
+        }).slice(0, 3);
+      } else {
+        matches = [];
+      }
+    }
+    if (matches.length === 0) return;
+    setLoadingCompareStreams(true);
+    const allIds = [rideId, ...matches.map((m) => m.id)];
+    const streams: Record<number, StreamData> = {};
+    for (const id of allIds) {
+      if (rideStreams[id]) { streams[id] = rideStreams[id]; continue; }
+      const s = await fetchStream(id);
+      if (s) streams[id] = s;
+    }
+    setCompareStreams(streams);
+    setLoadingCompareStreams(false);
+  }, [allRides, rideStreams]);
 
   // Aggregated zone times from cached streams
   const aggregatedPowerZoneTimes = useMemo(() => {
@@ -843,11 +1030,152 @@ export default function StravaPage() {
             {/* ─── RIDES TAB ─── */}
             {tab === "rides" && (
               <div className="space-y-2">
-                <p className="text-xs mb-4" style={{ color: hubTheme.secondary }}>{allRides.length} rides total. Click a ride for detail charts.</p>
-                {allRides.map((ride) => {
+                {/* Comparison view */}
+                {compareRide && (() => {
+                  const target = allRides.find((r) => r.id === compareRide);
+                  if (!target) return null;
+                  const matches = similarRides;
+                  const allCompare = [target, ...matches];
+                  const hasPolyline = !!target.map?.summary_polyline;
+                  return (
+                    <div className="hud-card rounded-lg p-6 mb-4 border border-[#00D9FF]/20">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold" style={{ color: hubTheme.primary }}>
+                          Comparing: {target.name} ({matches.length} past instance{matches.length !== 1 ? "s" : ""})
+                        </h3>
+                        <button onClick={() => setCompareRide(null)} className="text-xs px-2 py-1 rounded border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF]">
+                          Close
+                        </button>
+                      </div>
+                      {matches.length === 0 && !loadingCompareStreams && (
+                        <p className="text-xs" style={{ color: hubTheme.secondary }}>No similar rides found to compare against.</p>
+                      )}
+                      {loadingCompareStreams && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading stream data for comparison...</p>}
+                      {matches.length > 0 && (
+                        <>
+                          <div className="mb-4">
+                            <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Metrics</div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs" style={{ color: hubTheme.secondary }}>
+                                <thead>
+                                  <tr className="border-b border-[#00D9FF]/10">
+                                    <th className="text-left py-1 pr-3" style={{ color: hubTheme.primary }}>Ride</th>
+                                    <th className="text-right py-1 px-2">Date</th>
+                                    <th className="text-right py-1 px-2">Dist</th>
+                                    <th className="text-right py-1 px-2">Time</th>
+                                    <th className="text-right py-1 px-2">Speed</th>
+                                    <th className="text-right py-1 px-2">Power</th>
+                                    <th className="text-right py-1 px-2">NP</th>
+                                    <th className="text-right py-1 px-2">HR</th>
+                                    <th className="text-right py-1 px-2">Elev</th>
+                                    <th className="text-right py-1 px-2">Cal</th>
+                                    <th className="text-right py-1 px-2">Cadence</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {allCompare.map((r, i) => {
+                                    const prev = i < allCompare.length - 1 ? allCompare[i + 1] : undefined;
+                                    const delta = (val: number | undefined, prevVal: number | undefined, decimals = 0) => {
+                                      if (val === undefined || prevVal === undefined) return null;
+                                      const d = val - prevVal;
+                                      const fmt = decimals > 0 ? d.toFixed(decimals) : String(Math.round(d));
+                                      return <span className={`ml-1 text-[9px] ${d >= 0 ? "text-green-400" : "text-red-400"}`}>({d >= 0 ? "+" : ""}{fmt})</span>;
+                                    };
+                                    return (
+                                      <tr key={r.id} className={`border-b border-[#00D9FF]/5 ${i === 0 ? "font-medium" : ""}`} style={i === 0 ? { color: hubTheme.primary } : undefined}>
+                                        <td className="py-1.5 pr-3 truncate max-w-[120px]">{i === 0 ? "Selected" : formatDate(r.start_date)}</td>
+                                        <td className="text-right py-1.5 px-2">{formatDate(r.start_date)}</td>
+                                        <td className="text-right py-1.5 px-2">{(r.distance * METERS_TO_MILES).toFixed(1)} mi{delta(r.distance * METERS_TO_MILES, prev ? prev.distance * METERS_TO_MILES : undefined, 1)}</td>
+                                        <td className="text-right py-1.5 px-2">{formatTime(r.moving_time)}</td>
+                                        <td className="text-right py-1.5 px-2">{(r.average_speed * MPS_TO_MPH).toFixed(1)}{delta(r.average_speed * MPS_TO_MPH, prev ? prev.average_speed * MPS_TO_MPH : undefined, 1)}</td>
+                                        <td className="text-right py-1.5 px-2">{r.average_watts ? `${Math.round(r.average_watts)}w` : "—"}{delta(r.average_watts, prev?.average_watts)}</td>
+                                        <td className="text-right py-1.5 px-2">{r.weighted_average_watts ? `${r.weighted_average_watts}w` : "—"}{delta(r.weighted_average_watts, prev?.weighted_average_watts)}</td>
+                                        <td className="text-right py-1.5 px-2">{r.average_heartrate ? `${Math.round(r.average_heartrate)}` : "—"}{delta(r.average_heartrate, prev?.average_heartrate)}</td>
+                                        <td className="text-right py-1.5 px-2">{Math.round(r.total_elevation_gain * METERS_TO_FEET)}{delta(r.total_elevation_gain * METERS_TO_FEET, prev ? prev.total_elevation_gain * METERS_TO_FEET : undefined)}</td>
+                                        <td className="text-right py-1.5 px-2">{r.calories ? Math.round(r.calories) : "—"}{delta(r.calories, prev?.calories)}</td>
+                                        <td className="text-right py-1.5 px-2">{r.average_cadence ? Math.round(r.average_cadence) : "—"}{delta(r.average_cadence, prev?.average_cadence)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          {/* Overlay charts */}
+                          {!loadingCompareStreams && Object.keys(compareStreams).length > 0 && (() => {
+                            const streamList = allCompare.map((r) => compareStreams[r.id]);
+                            const dateLabels = allCompare.map((r) => formatDate(r.start_date));
+                            return (
+                              <>
+                                <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Stream Overlays</div>
+                                <OverlayChart
+                                  series={streamList.map((s) => s?.watts)}
+                                  labels={dateLabels} color="#FFD700" label="Power (watts)" unit="w"
+                                />
+                                <OverlayChart
+                                  series={streamList.map((s) => s?.heartrate)}
+                                  labels={dateLabels} color="#FF4444" label="Heart Rate (bpm)" unit="bpm"
+                                />
+                                <OverlayChart
+                                  series={streamList.map((s) => s?.cadence)}
+                                  labels={dateLabels} color="#00FF88" label="Cadence (rpm)" unit="rpm"
+                                />
+                                {hasPolyline && (
+                                  <OverlayChart
+                                    series={streamList.map((s) => s?.velocity_smooth?.map((v) => v * MPS_TO_MPH))}
+                                    labels={dateLabels} color="#67C7EB" label="Speed (mph)" unit="mph"
+                                  />
+                                )}
+                                {/* Zone comparisons */}
+                                {zones && (() => {
+                                  const powerTimesAll = streamList.map((s) => s?.watts ? computeZoneTime(s.watts, zones.powerZones) : new Array(zones.powerZones.length).fill(0));
+                                  const hrTimesAll = streamList.map((s) => s?.heartrate ? computeZoneTime(s.heartrate, zones.hrZones) : new Array(zones.hrZones.length).fill(0));
+                                  const hasPower = powerTimesAll.some((t) => t.some((v) => v > 0));
+                                  const hasHR = hrTimesAll.some((t) => t.some((v) => v > 0));
+                                  return (
+                                    <>
+                                      {hasPower && (
+                                        <ZoneCompareGrouped
+                                          title="Power Zones" zones={zones.powerZones}
+                                          allTimes={powerTimesAll} dateLabels={dateLabels} colors={POWER_ZONE_COLORS}
+                                        />
+                                      )}
+                                      {hasHR && (
+                                        <ZoneCompareGrouped
+                                          title="HR Zones" zones={zones.hrZones}
+                                          allTimes={hrTimesAll} dateLabels={dateLabels} colors={HR_ZONE_COLORS}
+                                        />
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </>
+                            );
+                          })()}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Ride list */}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs" style={{ color: hubTheme.secondary }}>
+                    {visibleRides.length} of {allRides.length} rides (last {rideDaysShown} days)
+                  </p>
+                  {rideDaysShown > 7 && (
+                    <button onClick={() => setRideDaysShown(7)} className="text-[10px] px-2 py-0.5 rounded border border-[#00D9FF]/20 text-[#67C7EB] hover:text-[#00D9FF]">
+                      Reset to 7 days
+                    </button>
+                  )}
+                </div>
+                {visibleRides.map((ride) => {
                   const isExpanded = expandedRide === ride.id;
                   const stream = rideStreams[ride.id];
                   const isLoading = loadingStream === ride.id;
+                  // Check if this ride has similar rides for comparison
+                  const hasSimilar = allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0
+                    || (ride.map?.summary_polyline && ride.map.summary_polyline.length > 10);
                   return (
                     <div key={ride.id}>
                       <button
@@ -876,6 +1204,14 @@ export default function StravaPage() {
                       </button>
                       {isExpanded && (
                         <div className="hud-card rounded-lg p-4 mt-1 mb-2 border border-[#00D9FF]/20">
+                          {hasSimilar && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCompare(ride.id); }}
+                              className="mb-3 px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                            >
+                              Compare with past rides
+                            </button>
+                          )}
                           {isLoading && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading streams...</p>}
                           {!isLoading && !stream && <p className="text-xs" style={{ color: hubTheme.secondary }}>No stream data available for this ride.</p>}
                           {stream && (
@@ -904,6 +1240,14 @@ export default function StravaPage() {
                     </div>
                   );
                 })}
+                {hasMoreRides && (
+                  <button
+                    onClick={handleShowMore}
+                    className="w-full py-3 rounded-lg border border-[#00D9FF]/20 text-xs text-[#00D9FF] hover:bg-[rgba(0,217,255,0.08)] transition-colors"
+                  >
+                    Show More ({allRides.length - visibleRides.length} older rides)
+                  </button>
+                )}
               </div>
             )}
 

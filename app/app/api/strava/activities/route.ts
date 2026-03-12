@@ -30,6 +30,7 @@ export interface StravaActivity {
   pr_count?: number;
   achievement_count?: number;
   kudos_count: number;
+  map?: { summary_polyline?: string };
 }
 
 async function fetchAllActivities(accessToken: string): Promise<StravaActivity[]> {
