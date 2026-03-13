@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import CircuitBackground from "./CircuitBackground";
 import WedgeSummaryCard from "./WedgeSummaryCard";
+import {
+  StravaActivity,
+  STRAVA_ACTIVITIES_KEY,
+  METERS_TO_MILES,
+  METERS_TO_FEET,
+  getWeekStart,
+  getYearStart,
+} from "../bike/strava/types";
 
 interface Module {
   id: string;
@@ -491,6 +499,7 @@ export default function HubPage() {
   const [nutritionStats, setNutritionStats] = useState({ recipes: 0, ingredients: 0 });
   const [hasAlerts, setHasAlerts] = useState(false);
   const [alertSummaries, setAlertSummaries] = useState<string[]>([]);
+  const [stravaSummary, setStravaSummary] = useState<string[]>([]);
   const centerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -509,6 +518,72 @@ export default function HubPage() {
           // Ignore
         }
       }
+    }
+  }, []);
+
+  // Load Strava summary stats from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
+      if (!raw) { setStravaSummary(["No ride data"]); return; }
+      const activities: StravaActivity[] = JSON.parse(raw);
+      if (activities.length === 0) { setStravaSummary(["No rides yet"]); return; }
+
+      const now = new Date();
+      const yearStart = getYearStart();
+      const weekStart = getWeekStart(now);
+      const ytd = activities.filter((a) => new Date(a.start_date) >= yearStart);
+      const thisWeek = activities.filter((a) => new Date(a.start_date) >= weekStart);
+
+      const weekMiles = Math.round(thisWeek.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
+      const ytdMiles = Math.round(ytd.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
+      const ytdElev = Math.round(ytd.reduce((s, a) => s + a.total_elevation_gain * METERS_TO_FEET, 0));
+
+      // CTL/ATL/TSB
+      const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
+      let tsbLabel = "";
+      if (zonesRaw) {
+        try {
+          const zones = JSON.parse(zonesRaw);
+          const ftp = zones.ftp;
+          if (ftp) {
+            let ctl = 0, atl = 0;
+            const dailyTSS = new Map<string, number>();
+            for (const a of activities) {
+              const np = a.weighted_average_watts;
+              if (!np) continue;
+              const iff = np / ftp;
+              const tss = (a.moving_time * np * iff) / (ftp * 3600) * 100;
+              const day = a.start_date.slice(0, 10);
+              dailyTSS.set(day, (dailyTSS.get(day) || 0) + tss);
+            }
+            const sorted = Array.from(dailyTSS.keys()).sort();
+            if (sorted.length > 0) {
+              const start = new Date(sorted[0]);
+              for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+                const key = d.toISOString().slice(0, 10);
+                const tss = dailyTSS.get(key) || 0;
+                ctl = ctl + (tss - ctl) / 42;
+                atl = atl + (tss - atl) / 7;
+              }
+              const tsb = ctl - atl;
+              const status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
+              tsbLabel = `TSB: ${Math.round(tsb)} (${status})`;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      const lines: string[] = [];
+      lines.push(`Week: ${weekMiles} mi`);
+      lines.push(`YTD: ${ytdMiles.toLocaleString()} mi`);
+      lines.push(`Elev: ${ytdElev.toLocaleString()} ft`);
+      if (tsbLabel) lines.push(tsbLabel);
+
+      setStravaSummary(lines);
+    } catch {
+      setStravaSummary(["Data error"]);
     }
   }, []);
 
@@ -721,7 +796,12 @@ export default function HubPage() {
                       moduleHref={href}
                       themeColor={themeColor}
                       onNavigate={() => handleWedgeNavigate(wedgeModule)}
-                      summaryLines={wedgeModule === "alerts" ? (alertSummaries.length > 0 ? alertSummaries : ["No Current Alerts"]) : undefined}
+                      summaryLines={
+                        wedgeModule === "alerts" ? (alertSummaries.length > 0 ? alertSummaries : ["No Current Alerts"])
+                        : wedgeModule === "strava" ? (stravaSummary.length > 0 ? stravaSummary : undefined)
+                        : undefined
+                      }
+                      noBullets={wedgeModule === "strava"}
                     />
                   </div>
                 </div>

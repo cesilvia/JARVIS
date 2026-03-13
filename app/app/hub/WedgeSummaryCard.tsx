@@ -4,30 +4,10 @@ import React from "react";
 import Link from "next/link";
 
 const ANIMATION_MS = 200;
-const MAX_CHARS_PER_LINE = 12; /* wrap earlier so full words (e.g. nutrition) stay visible inside wedge */
-const LINE_HEIGHT = 20;
-const TEXT_LEFT_X = 0.2; /* bullet close to left margin of wedge */
-/* Continuation indent = width of "• " in same font so wrap lines align under first word */
-const BULLET_SPACE_EM = 1.2; /* approx. 2 chars in monospace */
+const LINE_HEIGHT = 26;
+const TEXT_LEFT_X = 0.1; /* label left margin */
+const TEXT_RIGHT_X = 0.9; /* value right margin */
 const MAX_DISPLAY_LINES = 8;
-
-/** Break text into lines that fit within the wedge width */
-function wrapLine(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-  for (const w of words) {
-    const next = current ? `${current} ${w}` : w;
-    if (next.length <= maxChars) {
-      current = next;
-    } else {
-      if (current) lines.push(current);
-      current = w.length > maxChars ? w.slice(0, maxChars - 1) + "…" : w;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
 
 interface WedgeSummaryCardProps {
   originX: number;
@@ -40,6 +20,8 @@ interface WedgeSummaryCardProps {
   onNavigate: () => void;
   /** Optional summary lines (e.g. alert descriptions) shown inside the wedge */
   summaryLines?: string[];
+  /** If true, render lines without bullet prefixes */
+  noBullets?: boolean;
 }
 
 export default function WedgeSummaryCard({
@@ -52,26 +34,32 @@ export default function WedgeSummaryCard({
   themeColor,
   onNavigate,
   summaryLines,
+  noBullets,
 }: WedgeSummaryCardProps) {
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
-  // Build wrapped lines: first line of each alert has "• ", continuation lines align with text
-  const displayLines: { text: string; isContinuation: boolean }[] = [];
+  const skipBullets = noBullets || isNoAlertsMessage;
+  // Each summary line renders on its own row — no wrapping.
+  // When skipBullets, split on ": " for left-label / right-value alignment.
+  const displayLines: { label: string; value: string | null }[] = [];
   if (hasSummary) {
-    for (const line of summaryLines!.slice(0, 5)) {
-      const prefixed = isNoAlertsMessage ? line : "• " + line;
-      const wrapped = wrapLine(prefixed, MAX_CHARS_PER_LINE);
-      wrapped.forEach((text, i) => {
-        displayLines.push({ text, isContinuation: !isNoAlertsMessage && i > 0 });
-      });
-      if (displayLines.length >= MAX_DISPLAY_LINES) break;
+    for (const line of summaryLines!.slice(0, MAX_DISPLAY_LINES)) {
+      if (skipBullets) {
+        const idx = line.indexOf(": ");
+        if (idx >= 0) {
+          displayLines.push({ label: line.slice(0, idx), value: line.slice(idx + 2) });
+        } else {
+          displayLines.push({ label: line, value: null });
+        }
+      } else {
+        displayLines.push({ label: "• " + line, value: null });
+      }
     }
   }
-  const lineCount = Math.min(displayLines.length, MAX_DISPLAY_LINES);
+  const lineCount = displayLines.length;
   const L = length;
   const halfAngleRad = (wedgeAngleDeg / 2) * (Math.PI / 180);
-  const fontSize = Math.max(9, Math.min(L * 0.08, (L * 0.9) / lineCount));
-  const continuationIndent = fontSize * BULLET_SPACE_EM; /* align under first word */
+  const fontSize = Math.max(9, Math.min(L * 0.08, lineCount > 0 ? (L * 0.9) / lineCount : L * 0.08));
 
   // Wedge path: point at origin, two rays, rounded arc at end
   const x1 = L * Math.cos(-halfAngleRad);
@@ -156,9 +144,6 @@ export default function WedgeSummaryCard({
           {hasSummary && lineCount > 0 && (
             <g clipPath="url(#wedgeClip)" transform={`rotate(${-rotation}, ${L * 0.5}, 0)`}>
               <text
-                x={isNoAlertsMessage ? L * 0.5 : L * TEXT_LEFT_X}
-                y={0}
-                textAnchor={isNoAlertsMessage ? "middle" : "start"}
                 fill="#ffffff"
                 fontSize={fontSize}
                 fontFamily="ui-monospace, monospace"
@@ -166,12 +151,20 @@ export default function WedgeSummaryCard({
                   filter: "drop-shadow(0 0 1px rgba(0,0,0,0.8)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
                 }}
               >
-                {displayLines.slice(0, MAX_DISPLAY_LINES).map((row, i) => {
-                  const x = isNoAlertsMessage ? L * 0.5 : (row.isContinuation ? L * TEXT_LEFT_X + continuationIndent : L * TEXT_LEFT_X);
+                {displayLines.map((row, i) => {
                   const y = (i - (lineCount - 1) / 2) * LINE_HEIGHT;
+                  if (row.value !== null) {
+                    return (
+                      <React.Fragment key={i}>
+                        <tspan x={L * TEXT_LEFT_X} y={y} textAnchor="start">{row.label}</tspan>
+                        <tspan x={L * TEXT_RIGHT_X} y={y} textAnchor="end">{row.value}</tspan>
+                      </React.Fragment>
+                    );
+                  }
+                  const x = skipBullets ? L * 0.5 : L * TEXT_LEFT_X;
                   return (
-                    <tspan key={i} x={x} y={y}>
-                      {row.text}
+                    <tspan key={i} x={x} y={y} textAnchor={skipBullets ? "middle" : "start"}>
+                      {row.label}
                     </tspan>
                   );
                 })}
