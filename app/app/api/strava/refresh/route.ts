@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
         grant_type: "refresh_token",
         refresh_token: refreshToken,
       }).toString(),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!res.ok) {

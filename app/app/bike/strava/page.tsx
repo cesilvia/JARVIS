@@ -8,7 +8,7 @@ import CyclingIcon from "../CyclingIcon";
 import {
   StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal,
   STRAVA_ACTIVITIES_KEY, STRAVA_DESCRIPTIONS_KEY, STRAVA_TOKENS_KEY, STRAVA_LAST_SYNC_KEY,
-  STRAVA_ZONES_KEY, STRAVA_POWER_CURVE_KEY, BIKES_STORAGE_KEY,
+  STRAVA_ZONES_KEY, STRAVA_POWER_CURVE_KEY, STRAVA_POWER_CURVE_RIDES_KEY, STRAVA_POWER_CURVE_UPDATED_KEY, BIKES_STORAGE_KEY,
   METERS_TO_MILES, METERS_TO_FEET, MPS_TO_MPH, AUTO_SYNC_INTERVAL_MS,
   POWER_ZONE_COLORS, HR_ZONE_COLORS,
   formatTime, formatHours, formatDate, getWeekStart, getMonthStart, getYearStart,
@@ -28,17 +28,23 @@ async function getAccessToken(): Promise<string | null> {
   let accessToken = tokens.accessToken;
   const expiresIn = tokens.expiresAt - Math.floor(Date.now() / 1000);
   if (expiresIn < 3600) {
-    const res = await fetch("/api/strava/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      accessToken = data.accessToken;
-      localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify({
-        accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt,
-      }));
+    try {
+      const res = await fetch("/api/strava/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        accessToken = data.accessToken;
+        localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify({
+          accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt,
+        }));
+      }
+    } catch (err) {
+      console.warn("Token refresh failed:", err);
+      // Return existing token — it may still work briefly
     }
   }
   return accessToken;
@@ -421,17 +427,52 @@ function ZoneBar({ zones, times, colors, unit }: { zones: { name: string; min: n
 
 function FitnessChart({ data }: { data: { date: string; ctl: number; atl: number; tsb: number }[] }) {
   if (data.length < 2) return <p className="text-xs" style={{ color: hubTheme.secondary }}>Not enough data for fitness chart.</p>;
-  const W = 700, H = 220, padL = 45, padR = 10, padT = 15, padB = 30;
+  const W = 700, H = 255, padL = 45, padR = 10, padT = 15, padB = 45;
   const cW = W - padL - padR, cH = H - padT - padB;
   const allVals = data.flatMap((d) => [d.ctl, d.atl, d.tsb]);
   const max = Math.max(...allVals, 1);
-  const min = Math.min(...allVals, -10);
+  const min = Math.min(...allVals, -35);
   const range = max - min || 1;
   const toY = (v: number) => padT + cH - ((v - min) / range) * cH;
   const toX = (i: number) => padL + (i / (data.length - 1)) * cW;
   const mkPath = (key: "ctl" | "atl" | "tsb") => data.map((d, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(d[key]).toFixed(1)}`).join(" ");
 
-  const zeroY = toY(0);
+  // Linear trendline helper
+  const mkTrend = (key: "ctl" | "atl" | "tsb") => {
+    const n = data.length;
+    let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+    data.forEach((d, i) => { const v = d[key]; sx += i; sy += v; sxy += i * v; sx2 += i * i; });
+    const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
+    const intercept = (sy - slope * sx) / n;
+    const y0 = intercept, y1 = intercept + slope * (n - 1);
+    return `M${toX(0).toFixed(1)},${toY(y0).toFixed(1)} L${toX(n - 1).toFixed(1)},${toY(y1).toFixed(1)}`;
+  };
+
+  // TSB zone background rects
+  const tsbZones = (() => {
+    const y_pos20 = toY(20);
+    const y_neg10 = toY(-10);
+    const y_neg30 = toY(-30);
+    const chartTop = padT;
+    const chartBot = padT + cH;
+    const x0 = padL, x1 = W - padR;
+    const clamp = (v: number) => Math.min(Math.max(v, chartTop), chartBot);
+    const rects: { y: number; h: number; fill: string }[] = [];
+    // Green: +20 to -10 (fresh/balanced)
+    const greenTop = clamp(y_pos20);
+    const greenBot = clamp(y_neg10);
+    if (greenBot > greenTop) rects.push({ y: greenTop, h: greenBot - greenTop, fill: "rgba(0,200,60,0.15)" });
+    // Amber: -10 to -30 (training load)
+    const yellowTop = clamp(y_neg10);
+    const yellowBot = clamp(y_neg30);
+    if (yellowBot > yellowTop) rects.push({ y: yellowTop, h: yellowBot - yellowTop, fill: "rgba(255,140,0,0.20)" });
+    // Red: below -30 (overreaching)
+    const redTop = clamp(y_neg30);
+    const redBot = chartBot;
+    if (redBot > redTop) rects.push({ y: redTop, h: redBot - redTop, fill: "rgba(255,30,30,0.20)" });
+    return rects.map((r, i) => <rect key={i} x={x0} y={r.y} width={x1 - x0} height={r.h} fill={r.fill} />);
+  })();
+
   const monthLabels: { x: number; label: string }[] = [];
   let lastMonth = "";
   data.forEach((d, i) => {
@@ -441,25 +482,39 @@ function FitnessChart({ data }: { data: { date: string; ctl: number; atl: number
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="xMidYMid meet">
-      <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} stroke="#67C7EB" strokeOpacity="0.3" strokeWidth="0.5" strokeDasharray="4,4" />
-      {[0.25, 0.5, 0.75, 1].map((f) => {
-        const y = padT + cH - f * cH;
-        return <line key={f} x1={padL} y1={y} x2={W - padR} y2={y} stroke="#00D9FF" strokeOpacity="0.05" strokeWidth="0.5" />;
-      })}
+      {/* TSB zone backgrounds */}
+      {tsbZones}
+      {/* Grid lines and Y-axis labels at nice intervals */}
+      {(() => {
+        const step = range < 60 ? 10 : range < 120 ? 20 : 50;
+        const first = Math.ceil(min / step) * step;
+        const ticks: number[] = [];
+        for (let v = first; v <= max; v += step) ticks.push(v);
+        return ticks.map((v) => (
+          <g key={v}>
+            <line x1={padL} y1={toY(v)} x2={W - padR} y2={toY(v)} stroke="#00D9FF" strokeOpacity={v === 0 ? "0.3" : "0.07"} strokeWidth="0.5" strokeDasharray={v === 0 ? "4,4" : undefined} />
+            <text x={padL - 5} y={toY(v) + 3} textAnchor="end" fill="#67C7EB" fontSize="8" opacity="0.5">{v}</text>
+          </g>
+        ));
+      })()}
+      {/* Data lines */}
       <path d={mkPath("ctl")} fill="none" stroke="#00D9FF" strokeWidth="2" />
       <path d={mkPath("atl")} fill="none" stroke="#FF00FF" strokeWidth="1.5" strokeOpacity="0.8" />
-      <path d={mkPath("tsb")} fill="none" stroke="#00FF88" strokeWidth="1.5" strokeOpacity="0.8" />
+      <path d={mkPath("tsb")} fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeOpacity="0.9" />
+      {/* Dashed trendlines */}
+      <path d={mkTrend("ctl")} fill="none" stroke="#00D9FF" strokeWidth="1" strokeDasharray="6,4" strokeOpacity="0.5" />
+      <path d={mkTrend("atl")} fill="none" stroke="#FF00FF" strokeWidth="1" strokeDasharray="6,4" strokeOpacity="0.5" />
+      <path d={mkTrend("tsb")} fill="none" stroke="#FFFFFF" strokeWidth="1" strokeDasharray="6,4" strokeOpacity="0.4" />
+      {/* Month labels */}
       {monthLabels.map((m) => <text key={m.x} x={m.x} y={H - 5} fill="#67C7EB" fontSize="8" opacity="0.6">{m.label}</text>)}
-      <text x={padL - 5} y={padT + 8} textAnchor="end" fill="#67C7EB" fontSize="7" opacity="0.5">{Math.round(max)}</text>
-      <text x={padL - 5} y={padT + cH + 3} textAnchor="end" fill="#67C7EB" fontSize="7" opacity="0.5">{Math.round(min)}</text>
+      {/* Legend — bottom row below month labels */}
       <g>
-        <rect x={W - padR - 90} y={padT} width={85} height={40} rx={3} fill="rgba(0,0,0,0.6)" />
-        <line x1={W - padR - 85} y1={padT + 10} x2={W - padR - 70} y2={padT + 10} stroke="#00D9FF" strokeWidth="2" />
-        <text x={W - padR - 66} y={padT + 13} fill="#00D9FF" fontSize="7">Fitness (CTL)</text>
-        <line x1={W - padR - 85} y1={padT + 22} x2={W - padR - 70} y2={padT + 22} stroke="#FF00FF" strokeWidth="1.5" />
-        <text x={W - padR - 66} y={padT + 25} fill="#FF00FF" fontSize="7">Fatigue (ATL)</text>
-        <line x1={W - padR - 85} y1={padT + 34} x2={W - padR - 70} y2={padT + 34} stroke="#00FF88" strokeWidth="1.5" />
-        <text x={W - padR - 66} y={padT + 37} fill="#00FF88" fontSize="7">Form (TSB)</text>
+        <line x1={padL} y1={H - 2} x2={padL + 15} y2={H - 2} stroke="#00D9FF" strokeWidth="2" />
+        <text x={padL + 19} y={H + 1} fill="#00D9FF" fontSize="8">CTL</text>
+        <line x1={padL + 50} y1={H - 2} x2={padL + 65} y2={H - 2} stroke="#FF00FF" strokeWidth="1.5" />
+        <text x={padL + 69} y={H + 1} fill="#FF00FF" fontSize="8">ATL</text>
+        <line x1={padL + 100} y1={H - 2} x2={padL + 115} y2={H - 2} stroke="#FFFFFF" strokeWidth="1.5" />
+        <text x={padL + 119} y={H + 1} fill="#FFFFFF" fontSize="8">TSB</text>
       </g>
     </svg>
   );
@@ -787,30 +842,163 @@ export default function StravaPage() {
     setLoadingStream(null);
   }, [expandedRide, rideStreams]);
 
-  // Build power curve
+  // Build power curve in two phases: cached streams first, then API fetches
   const handleBuildCurve = useCallback(async () => {
     setBuildingCurve(true);
     const powerRides = activities.filter((a) => a.device_watts || a.average_watts);
-    const bestAll: Record<number, number> = { ...powerCurve };
-    let processed = 0;
-    for (const ride of powerRides) {
-      const stream = await fetchStream(ride.id);
-      if (stream?.watts) {
-        const best = computeBestEfforts(stream.watts);
-        for (const [dur, w] of Object.entries(best)) {
-          const d = Number(dur);
-          if (!bestAll[d] || w > bestAll[d]) bestAll[d] = w;
-        }
+    let processedIds: Set<number> = new Set();
+    try {
+      const stored = localStorage.getItem(STRAVA_POWER_CURVE_RIDES_KEY);
+      if (stored) processedIds = new Set(JSON.parse(stored));
+    } catch { /* ignore */ }
+    const remaining = powerRides.filter((r) => !processedIds.has(r.id));
+    // Read existing curve from localStorage (not state) to avoid stale closure issues
+    let bestAll: Record<number, number> = {};
+    try {
+      const curveStored = localStorage.getItem(STRAVA_POWER_CURVE_KEY);
+      if (curveStored) bestAll = JSON.parse(curveStored);
+    } catch { /* ignore */ }
+    let done = powerRides.length - remaining.length;
+    const total = powerRides.length;
+
+    const addStream = (stream: StreamData) => {
+      if (!stream.watts) return;
+      const best = computeBestEfforts(stream.watts);
+      for (const [dur, w] of Object.entries(best)) {
+        const d = Number(dur);
+        if (!bestAll[d] || w > bestAll[d]) bestAll[d] = w;
       }
-      processed++;
-      setCurveProgress(`${processed}/${powerRides.length} rides`);
-      if (processed % 8 === 0) await new Promise((r) => setTimeout(r, 500));
+    };
+
+    const saveProgress = () => {
+      setPowerCurve({ ...bestAll });
+      localStorage.setItem(STRAVA_POWER_CURVE_KEY, JSON.stringify(bestAll));
+      localStorage.setItem(STRAVA_POWER_CURVE_RIDES_KEY, JSON.stringify([...processedIds]));
+    };
+
+    // Phase 1: Process all rides with cached streams (no API calls)
+    const uncached: typeof remaining = [];
+    setCurveProgress(`${done}/${total} (scanning cache...)`);
+    await new Promise((r) => setTimeout(r, 0)); // yield for UI
+    for (const ride of remaining) {
+      const cached = localStorage.getItem(getStreamCacheKey(ride.id));
+      if (cached) {
+        try { addStream(JSON.parse(cached)); } catch { /* ignore */ }
+        processedIds.add(ride.id);
+        done++;
+      } else {
+        uncached.push(ride);
+      }
     }
-    setPowerCurve(bestAll);
-    localStorage.setItem(STRAVA_POWER_CURVE_KEY, JSON.stringify(bestAll));
+    saveProgress();
+    setCurveProgress(`${done}/${total} (${uncached.length} need fetching)`);
+    await new Promise((r) => setTimeout(r, 100)); // yield for UI
+
+    // Phase 2: Fetch uncached streams from API one at a time
+    if (uncached.length > 0) {
+      let accessToken = await getAccessToken();
+      if (!accessToken) {
+        setCurveProgress(`${done}/${total} (no access token — cached only)`);
+        setBuildingCurve(false);
+        return;
+      }
+      let consecutiveFailures = 0;
+      for (let i = 0; i < uncached.length; i++) {
+        const ride = uncached[i];
+        setCurveProgress(`${done}/${total} (fetching ${i + 1}/${uncached.length})`);
+
+        let stream: StreamData | null = null;
+        try {
+          const res = await fetch("/api/strava/streams", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accessToken, activityId: ride.id }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.status === 429) {
+            saveProgress();
+            setCurveProgress(`${done}/${total} (rate limited, pausing 90s...)`);
+            await new Promise((r) => setTimeout(r, 90000));
+            accessToken = await getAccessToken() || accessToken;
+            // Retry once
+            try {
+              const retry = await fetch("/api/strava/streams", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accessToken, activityId: ride.id }),
+                signal: AbortSignal.timeout(10000),
+              });
+              if (retry.ok) {
+                const data = await retry.json();
+                if (data?.streams) stream = data.streams as StreamData;
+              }
+            } catch { /* retry failed */ }
+          } else if (res.ok) {
+            const data = await res.json();
+            if (data?.streams) stream = data.streams as StreamData;
+          }
+        } catch (err) {
+          console.warn(`Power curve: failed to fetch ride ${ride.id}:`, err);
+        }
+
+        if (stream) {
+          localStorage.setItem(getStreamCacheKey(ride.id), JSON.stringify(stream));
+          addStream(stream);
+          consecutiveFailures = 0;
+        } else {
+          consecutiveFailures++;
+        }
+        processedIds.add(ride.id);
+        done++;
+
+        if (done % 10 === 0) saveProgress();
+
+        if (consecutiveFailures >= 5) {
+          saveProgress();
+          setCurveProgress(`${done}/${total} (stopped — ${consecutiveFailures} failures in a row)`);
+          setBuildingCurve(false);
+          return;
+        }
+
+        // Pace: 3s between API calls
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+
+    saveProgress();
+    localStorage.setItem(STRAVA_POWER_CURVE_UPDATED_KEY, new Date().toISOString());
     setBuildingCurve(false);
     setCurveProgress("");
-  }, [activities, powerCurve]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activities]);
+
+  // Auto-build/update power curve: on first load if never built, or daily for new rides
+  useEffect(() => {
+    if (!connected || activities.length === 0 || buildingCurve) return;
+    const powerRides = activities.filter((a) => a.device_watts || a.average_watts);
+    if (powerRides.length === 0) return;
+
+    const lastUpdated = localStorage.getItem(STRAVA_POWER_CURVE_UPDATED_KEY);
+    const hasExistingCurve = Object.keys(powerCurve).length > 0;
+
+    // Check if there are unprocessed rides
+    let processedIds: Set<number> = new Set();
+    try {
+      const stored = localStorage.getItem(STRAVA_POWER_CURVE_RIDES_KEY);
+      if (stored) processedIds = new Set(JSON.parse(stored));
+    } catch { /* ignore */ }
+    const hasNewRides = powerRides.some((r) => !processedIds.has(r.id));
+
+    if (!hasExistingCurve) {
+      // Never built — start building automatically
+      handleBuildCurve();
+    } else if (hasNewRides && lastUpdated) {
+      // Has new rides — update if last update was >24h ago
+      const hoursSinceUpdate = (Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceUpdate >= 24) {
+        handleBuildCurve();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, activities]);
 
   // Computed values
   const now = useMemo(() => new Date(), []);
@@ -1471,7 +1659,7 @@ export default function StravaPage() {
                       <div className="grid grid-cols-3 gap-3 mb-6">
                         <StatCard label="Fitness (CTL)" value={String(Math.round(fitnessData[fitnessData.length - 1].ctl))} />
                         <StatCard label="Fatigue (ATL)" value={String(Math.round(fitnessData[fitnessData.length - 1].atl))} />
-                        <StatCard label="Form (TSB)" value={String(Math.round(fitnessData[fitnessData.length - 1].tsb))} sub={fitnessData[fitnessData.length - 1].tsb > 5 ? "Fresh" : fitnessData[fitnessData.length - 1].tsb < -10 ? "Fatigued" : "Neutral"} />
+                        <StatCard label="Form (TSB)" value={String(Math.round(fitnessData[fitnessData.length - 1].tsb))} sub={fitnessData[fitnessData.length - 1].tsb > -10 ? "Fresh" : fitnessData[fitnessData.length - 1].tsb > -30 ? "Training Load" : "Overreaching"} />
                       </div>
                     )}
                     <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">

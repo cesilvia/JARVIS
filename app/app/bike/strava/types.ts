@@ -102,6 +102,8 @@ export const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
 export const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";
 export const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 export const STRAVA_POWER_CURVE_KEY = "jarvis-strava-power-curve";
+export const STRAVA_POWER_CURVE_RIDES_KEY = "jarvis-strava-power-curve-rides";
+export const STRAVA_POWER_CURVE_UPDATED_KEY = "jarvis-strava-power-curve-updated";
 export const BIKES_STORAGE_KEY = "jarvis-bikes";
 
 export const METERS_TO_MILES = 1 / 1609.34;

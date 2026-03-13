@@ -11,9 +11,13 @@ export async function POST(request: NextRequest) {
     }
 
     const url = `${STRAVA_BASE}/activities/${activityId}/streams?keys=${STREAM_KEYS}&key_by_type=true`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       if (res.status === 429) {
