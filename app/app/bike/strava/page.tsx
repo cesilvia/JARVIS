@@ -7,11 +7,11 @@ import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
 import {
   StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal,
-  STRAVA_ACTIVITIES_KEY, STRAVA_TOKENS_KEY, STRAVA_LAST_SYNC_KEY,
+  STRAVA_ACTIVITIES_KEY, STRAVA_DESCRIPTIONS_KEY, STRAVA_TOKENS_KEY, STRAVA_LAST_SYNC_KEY,
   STRAVA_ZONES_KEY, STRAVA_POWER_CURVE_KEY, BIKES_STORAGE_KEY,
   METERS_TO_MILES, METERS_TO_FEET, MPS_TO_MPH, AUTO_SYNC_INTERVAL_MS,
   POWER_ZONE_COLORS, HR_ZONE_COLORS,
-  formatTime, formatDate, getWeekStart, getMonthStart, getYearStart,
+  formatTime, formatHours, formatDate, getWeekStart, getMonthStart, getYearStart,
   loadZones, loadGoals,
 } from "./types";
 
@@ -107,6 +107,35 @@ async function fetchStream(activityId: number): Promise<StreamData | null> {
   const { streams } = await res.json();
   localStorage.setItem(getStreamCacheKey(activityId), JSON.stringify(streams));
   return streams as StreamData;
+}
+
+// ─── Description fetching ────────────────────────────────────────
+
+function loadDescriptionCache(): Record<number, string> {
+  const raw = localStorage.getItem(STRAVA_DESCRIPTIONS_KEY);
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
+function saveDescriptionCache(cache: Record<number, string>) {
+  localStorage.setItem(STRAVA_DESCRIPTIONS_KEY, JSON.stringify(cache));
+}
+
+async function fetchDescription(activityId: number): Promise<string | null> {
+  const cache = loadDescriptionCache();
+  if (cache[activityId] !== undefined) return cache[activityId];
+  const accessToken = await getAccessToken();
+  if (!accessToken) return null;
+  const res = await fetch("/api/strava/activity-detail", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken, activityId }),
+  });
+  if (!res.ok) return null;
+  const { activity } = await res.json();
+  const desc = activity.description || "";
+  cache[activityId] = desc;
+  saveDescriptionCache(cache);
+  return desc;
 }
 
 // ─── Power curve computation ────────────────────────────────────
@@ -367,15 +396,17 @@ function MileageChart({ activities, mode }: { activities: StravaActivity[]; mode
   );
 }
 
-function ZoneBar({ zones, times, colors }: { zones: { name: string }[]; times: number[]; colors: string[] }) {
+function ZoneBar({ zones, times, colors, unit }: { zones: { name: string; min: number; max: number }[]; times: number[]; colors: string[]; unit?: string }) {
   const total = times.reduce((s, t) => s + t, 0) || 1;
+  const u = unit || "";
   return (
     <div className="space-y-1.5">
       {zones.map((z, i) => {
         const pct = (times[i] / total) * 100;
+        const rangeLabel = z.max >= 9999 ? `${z.min}${u}+` : `${z.min}-${z.max}${u}`;
         return (
           <div key={z.name} className="flex items-center gap-2 text-xs">
-            <span className="w-28 truncate" style={{ color: colors[i] }}>{z.name}</span>
+            <span className="w-44 truncate" style={{ color: colors[i] }}>{z.name} ({rangeLabel})</span>
             <div className="flex-1 h-3 rounded-full bg-[rgba(0,217,255,0.05)]">
               <div className="h-3 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: colors[i], opacity: 0.7 }} />
             </div>
@@ -706,6 +737,7 @@ export default function StravaPage() {
   const [fitnessRange, setFitnessRange] = useState(90);
   const [goals, setGoals] = useState<StravaGoal[]>([]);
   const [rideDaysShown, setRideDaysShown] = useState(7);
+  const [rideDescriptions, setRideDescriptions] = useState<Record<number, string>>({});
   const [compareRide, setCompareRide] = useState<number | null>(null);
   const [compareStreams, setCompareStreams] = useState<Record<number, StreamData>>({});
   const [loadingCompareStreams, setLoadingCompareStreams] = useState(false);
@@ -825,47 +857,76 @@ export default function StravaPage() {
 
   const hasMoreRides = visibleRides.length < allRides.length;
 
+  // Fetch descriptions for visible rides on the rides tab
+  useEffect(() => {
+    if (tab !== "rides" || visibleRides.length === 0) return;
+    const cache = loadDescriptionCache();
+    const missing = visibleRides.filter((r) => rideDescriptions[r.id] === undefined && cache[r.id] === undefined);
+    // Load already-cached descriptions into state
+    const fromCache: Record<number, string> = {};
+    for (const r of visibleRides) {
+      if (cache[r.id] !== undefined && rideDescriptions[r.id] === undefined) {
+        fromCache[r.id] = cache[r.id];
+      }
+    }
+    if (Object.keys(fromCache).length > 0) {
+      setRideDescriptions((prev) => ({ ...prev, ...fromCache }));
+    }
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const ride of missing) {
+        if (cancelled) break;
+        const desc = await fetchDescription(ride.id);
+        if (!cancelled && desc !== null) {
+          setRideDescriptions((prev) => ({ ...prev, [ride.id]: desc }));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, visibleRides, rideDescriptions]);
+
   const handleShowMore = useCallback(() => {
     setRideDaysShown((prev) => (prev === 7 ? 28 : prev + 30));
   }, []);
 
-  // Find similar rides for comparison (by name for structured workouts, by route for outdoor)
+  const [compareMode, setCompareMode] = useState<"workout" | "route" | null>(null);
+
+  // Find similar rides for comparison (by name for workouts, by route polyline)
   const similarRides = useMemo(() => {
-    if (!compareRide) return [];
+    if (!compareRide || !compareMode) return [];
     const target = allRides.find((r) => r.id === compareRide);
     if (!target) return [];
     const candidates = allRides.filter((r) => r.id !== target.id);
-    // Try matching by name first (structured workouts like TrainerRoad)
-    const nameMatches = candidates.filter((r) => r.name === target.name);
-    if (nameMatches.length > 0) return nameMatches.slice(0, 3);
-    // Fall back to route matching via summary_polyline
+    if (compareMode === "workout") {
+      return candidates.filter((r) => r.name === target.name).slice(0, 3);
+    }
+    // Route matching via summary_polyline
     const targetPoly = target.map?.summary_polyline;
     if (targetPoly && targetPoly.length > 10) {
       const routeMatches = candidates.filter((r) => {
         const poly = r.map?.summary_polyline;
         if (!poly || poly.length < 10) return false;
-        // Simple heuristic: polylines that share at least 60% prefix are similar routes
         const minLen = Math.min(targetPoly.length, poly.length);
         let match = 0;
         for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
         return match / minLen > 0.6;
       });
-      if (routeMatches.length > 0) return routeMatches.slice(0, 3);
+      return routeMatches.slice(0, 3);
     }
     return [];
-  }, [compareRide, allRides]);
+  }, [compareRide, compareMode, allRides]);
 
   // Load streams for comparison rides
-  const handleCompare = useCallback(async (rideId: number) => {
+  const handleCompare = useCallback(async (rideId: number, mode: "workout" | "route") => {
     setCompareRide(rideId);
+    setCompareMode(mode);
     const target = allRides.find((r) => r.id === rideId);
     if (!target) return;
-    // Find matches (duplicate logic but needed for async fetch)
     const candidates = allRides.filter((r) => r.id !== rideId);
-    const nameMatches = candidates.filter((r) => r.name === target.name);
     let matches: StravaActivity[];
-    if (nameMatches.length > 0) {
-      matches = nameMatches.slice(0, 3);
+    if (mode === "workout") {
+      matches = candidates.filter((r) => r.name === target.name).slice(0, 3);
     } else {
       const targetPoly = target.map?.summary_polyline;
       if (targetPoly && targetPoly.length > 10) {
@@ -895,29 +956,73 @@ export default function StravaPage() {
   }, [allRides, rideStreams]);
 
   // Aggregated zone times from cached streams
+  // Zone period selection and independent stream fetching
+  const [zonePeriod, setZonePeriod] = useState<"week" | "month" | "year">("week");
+  const [zoneStreams, setZoneStreams] = useState<Record<number, StreamData>>({});
+  const [loadingZoneStreams, setLoadingZoneStreams] = useState(false);
+  const [zoneStreamProgress, setZoneStreamProgress] = useState("");
+
+  const zoneRides = useMemo(() => {
+    const cutoff = zonePeriod === "week" ? thisWeekStart
+      : zonePeriod === "month" ? getMonthStart(now)
+      : yearStart;
+    return activities.filter((a) => new Date(a.start_date) >= cutoff && (a.device_watts || a.average_watts || a.average_heartrate));
+  }, [activities, zonePeriod, thisWeekStart, now, yearStart]);
+
+  // Auto-fetch streams for zone rides when on power or fitness tab (pause during curve build)
+  useEffect(() => {
+    if (tab !== "power" && tab !== "fitness") return;
+    if (!zones || zoneRides.length === 0) return;
+    if (buildingCurve) return;
+    const missing = zoneRides.filter((r) => !zoneStreams[r.id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    setLoadingZoneStreams(true);
+    (async () => {
+      let processed = 0;
+      for (const ride of missing) {
+        if (cancelled) break;
+        const stream = await fetchStream(ride.id);
+        if (stream && !cancelled) {
+          setZoneStreams((prev) => ({ ...prev, [ride.id]: stream }));
+        }
+        processed++;
+        setZoneStreamProgress(`${processed}/${missing.length} rides`);
+        if (processed % 8 === 0) await new Promise((r) => setTimeout(r, 500));
+      }
+      if (!cancelled) {
+        setLoadingZoneStreams(false);
+        setZoneStreamProgress("");
+      }
+    })();
+    return () => { cancelled = true; setLoadingZoneStreams(false); };
+  }, [tab, zones, zoneRides, zoneStreams, buildingCurve]);
+
   const aggregatedPowerZoneTimes = useMemo(() => {
     if (!zones) return null;
     const total = new Array(zones.powerZones.length).fill(0);
-    for (const [, stream] of Object.entries(rideStreams)) {
-      if (stream.watts) {
+    for (const ride of zoneRides) {
+      const stream = zoneStreams[ride.id];
+      if (stream?.watts) {
         const t = computeZoneTime(stream.watts, zones.powerZones);
         t.forEach((v, i) => (total[i] += v));
       }
     }
     return total.some((t) => t > 0) ? total : null;
-  }, [rideStreams, zones]);
+  }, [zoneRides, zoneStreams, zones]);
 
   const aggregatedHRZoneTimes = useMemo(() => {
     if (!zones) return null;
     const total = new Array(zones.hrZones.length).fill(0);
-    for (const [, stream] of Object.entries(rideStreams)) {
-      if (stream.heartrate) {
+    for (const ride of zoneRides) {
+      const stream = zoneStreams[ride.id];
+      if (stream?.heartrate) {
         const t = computeZoneTime(stream.heartrate, zones.hrZones);
         t.forEach((v, i) => (total[i] += v));
       }
     }
     return total.some((t) => t > 0) ? total : null;
-  }, [rideStreams, zones]);
+  }, [zoneRides, zoneStreams, zones]);
 
   // Fitness data
   const fitnessData = useMemo(() => {
@@ -1030,134 +1135,6 @@ export default function StravaPage() {
             {/* ─── RIDES TAB ─── */}
             {tab === "rides" && (
               <div className="space-y-2">
-                {/* Comparison view */}
-                {compareRide && (() => {
-                  const target = allRides.find((r) => r.id === compareRide);
-                  if (!target) return null;
-                  const matches = similarRides;
-                  const allCompare = [target, ...matches];
-                  const hasPolyline = !!target.map?.summary_polyline;
-                  return (
-                    <div className="hud-card rounded-lg p-6 mb-4 border border-[#00D9FF]/20">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-semibold" style={{ color: hubTheme.primary }}>
-                          Comparing: {target.name} ({matches.length} past instance{matches.length !== 1 ? "s" : ""})
-                        </h3>
-                        <button onClick={() => setCompareRide(null)} className="text-xs px-2 py-1 rounded border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF]">
-                          Close
-                        </button>
-                      </div>
-                      {matches.length === 0 && !loadingCompareStreams && (
-                        <p className="text-xs" style={{ color: hubTheme.secondary }}>No similar rides found to compare against.</p>
-                      )}
-                      {loadingCompareStreams && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading stream data for comparison...</p>}
-                      {matches.length > 0 && (
-                        <>
-                          <div className="mb-4">
-                            <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Metrics</div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-xs" style={{ color: hubTheme.secondary }}>
-                                <thead>
-                                  <tr className="border-b border-[#00D9FF]/10">
-                                    <th className="text-left py-1 pr-3" style={{ color: hubTheme.primary }}>Ride</th>
-                                    <th className="text-right py-1 px-2">Date</th>
-                                    <th className="text-right py-1 px-2">Dist</th>
-                                    <th className="text-right py-1 px-2">Time</th>
-                                    <th className="text-right py-1 px-2">Speed</th>
-                                    <th className="text-right py-1 px-2">Power</th>
-                                    <th className="text-right py-1 px-2">NP</th>
-                                    <th className="text-right py-1 px-2">HR</th>
-                                    <th className="text-right py-1 px-2">Elev</th>
-                                    <th className="text-right py-1 px-2">Cal</th>
-                                    <th className="text-right py-1 px-2">Cadence</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {allCompare.map((r, i) => {
-                                    const prev = i < allCompare.length - 1 ? allCompare[i + 1] : undefined;
-                                    const delta = (val: number | undefined, prevVal: number | undefined, decimals = 0) => {
-                                      if (val === undefined || prevVal === undefined) return null;
-                                      const d = val - prevVal;
-                                      const fmt = decimals > 0 ? d.toFixed(decimals) : String(Math.round(d));
-                                      return <span className={`ml-1 text-[9px] ${d >= 0 ? "text-green-400" : "text-red-400"}`}>({d >= 0 ? "+" : ""}{fmt})</span>;
-                                    };
-                                    return (
-                                      <tr key={r.id} className={`border-b border-[#00D9FF]/5 ${i === 0 ? "font-medium" : ""}`} style={i === 0 ? { color: hubTheme.primary } : undefined}>
-                                        <td className="py-1.5 pr-3 truncate max-w-[120px]">{i === 0 ? "Selected" : formatDate(r.start_date)}</td>
-                                        <td className="text-right py-1.5 px-2">{formatDate(r.start_date)}</td>
-                                        <td className="text-right py-1.5 px-2">{(r.distance * METERS_TO_MILES).toFixed(1)} mi{delta(r.distance * METERS_TO_MILES, prev ? prev.distance * METERS_TO_MILES : undefined, 1)}</td>
-                                        <td className="text-right py-1.5 px-2">{formatTime(r.moving_time)}</td>
-                                        <td className="text-right py-1.5 px-2">{(r.average_speed * MPS_TO_MPH).toFixed(1)}{delta(r.average_speed * MPS_TO_MPH, prev ? prev.average_speed * MPS_TO_MPH : undefined, 1)}</td>
-                                        <td className="text-right py-1.5 px-2">{r.average_watts ? `${Math.round(r.average_watts)}w` : "—"}{delta(r.average_watts, prev?.average_watts)}</td>
-                                        <td className="text-right py-1.5 px-2">{r.weighted_average_watts ? `${r.weighted_average_watts}w` : "—"}{delta(r.weighted_average_watts, prev?.weighted_average_watts)}</td>
-                                        <td className="text-right py-1.5 px-2">{r.average_heartrate ? `${Math.round(r.average_heartrate)}` : "—"}{delta(r.average_heartrate, prev?.average_heartrate)}</td>
-                                        <td className="text-right py-1.5 px-2">{Math.round(r.total_elevation_gain * METERS_TO_FEET)}{delta(r.total_elevation_gain * METERS_TO_FEET, prev ? prev.total_elevation_gain * METERS_TO_FEET : undefined)}</td>
-                                        <td className="text-right py-1.5 px-2">{r.calories ? Math.round(r.calories) : "—"}{delta(r.calories, prev?.calories)}</td>
-                                        <td className="text-right py-1.5 px-2">{r.average_cadence ? Math.round(r.average_cadence) : "—"}{delta(r.average_cadence, prev?.average_cadence)}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                          {/* Overlay charts */}
-                          {!loadingCompareStreams && Object.keys(compareStreams).length > 0 && (() => {
-                            const streamList = allCompare.map((r) => compareStreams[r.id]);
-                            const dateLabels = allCompare.map((r) => formatDate(r.start_date));
-                            return (
-                              <>
-                                <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Stream Overlays</div>
-                                <OverlayChart
-                                  series={streamList.map((s) => s?.watts)}
-                                  labels={dateLabels} color="#FFD700" label="Power (watts)" unit="w"
-                                />
-                                <OverlayChart
-                                  series={streamList.map((s) => s?.heartrate)}
-                                  labels={dateLabels} color="#FF4444" label="Heart Rate (bpm)" unit="bpm"
-                                />
-                                <OverlayChart
-                                  series={streamList.map((s) => s?.cadence)}
-                                  labels={dateLabels} color="#00FF88" label="Cadence (rpm)" unit="rpm"
-                                />
-                                {hasPolyline && (
-                                  <OverlayChart
-                                    series={streamList.map((s) => s?.velocity_smooth?.map((v) => v * MPS_TO_MPH))}
-                                    labels={dateLabels} color="#67C7EB" label="Speed (mph)" unit="mph"
-                                  />
-                                )}
-                                {/* Zone comparisons */}
-                                {zones && (() => {
-                                  const powerTimesAll = streamList.map((s) => s?.watts ? computeZoneTime(s.watts, zones.powerZones) : new Array(zones.powerZones.length).fill(0));
-                                  const hrTimesAll = streamList.map((s) => s?.heartrate ? computeZoneTime(s.heartrate, zones.hrZones) : new Array(zones.hrZones.length).fill(0));
-                                  const hasPower = powerTimesAll.some((t) => t.some((v) => v > 0));
-                                  const hasHR = hrTimesAll.some((t) => t.some((v) => v > 0));
-                                  return (
-                                    <>
-                                      {hasPower && (
-                                        <ZoneCompareGrouped
-                                          title="Power Zones" zones={zones.powerZones}
-                                          allTimes={powerTimesAll} dateLabels={dateLabels} colors={POWER_ZONE_COLORS}
-                                        />
-                                      )}
-                                      {hasHR && (
-                                        <ZoneCompareGrouped
-                                          title="HR Zones" zones={zones.hrZones}
-                                          allTimes={hrTimesAll} dateLabels={dateLabels} colors={HR_ZONE_COLORS}
-                                        />
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                              </>
-                            );
-                          })()}
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
-
                 {/* Ride list */}
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs" style={{ color: hubTheme.secondary }}>
@@ -1173,45 +1150,211 @@ export default function StravaPage() {
                   const isExpanded = expandedRide === ride.id;
                   const stream = rideStreams[ride.id];
                   const isLoading = loadingStream === ride.id;
-                  // Check if this ride has similar rides for comparison
-                  const hasSimilar = allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0
-                    || (ride.map?.summary_polyline && ride.map.summary_polyline.length > 10);
+                  const desc = rideDescriptions[ride.id] || "";
+                  // Parse workout name and route: before Feb 25 2026, route was in the name after " on "
+                  const nameOnMatch = ride.name.match(/^(.+?)\s+on\s+(.+)$/i);
+                  const workoutName = nameOnMatch ? nameOnMatch[1] : ride.name;
+                  const routeName = nameOnMatch ? nameOnMatch[2] : desc || "";
                   return (
                     <div key={ride.id}>
                       <button
                         onClick={() => handleExpandRide(ride.id)}
-                        className="w-full text-left flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3 rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)] hover:bg-[rgba(0,217,255,0.08)] transition-colors"
+                        className="w-full text-left grid gap-x-6 px-4 py-3 rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)] hover:bg-[rgba(0,217,255,0.08)] transition-colors"
+                        style={{ gridTemplateColumns: "minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(140px, 1fr)" }}
                       >
-                        <div className="flex-1 min-w-[160px]">
-                          <div className="font-medium text-sm" style={{ color: hubTheme.primary }}>{ride.name}</div>
+                        {/* Column 1: Name, Route, Date */}
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate" style={{ color: hubTheme.primary }}>{workoutName}</div>
+                          {routeName && <div className="text-xs truncate" style={{ color: hubTheme.secondary }}>{routeName}</div>}
                           <div className="text-xs" style={{ color: hubTheme.secondary }}>
                             {formatDate(ride.start_date)}
                             {ride.trainer && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-[rgba(0,217,255,0.15)] border border-[#00D9FF]/30">Indoor</span>}
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-3 text-xs" style={{ color: hubTheme.secondary }}>
-                          <span>{(ride.distance * METERS_TO_MILES).toFixed(1)} mi</span>
-                          <span>{formatTime(ride.moving_time)}</span>
-                          {ride.average_speed > 0 && <span>{(ride.average_speed * MPS_TO_MPH).toFixed(1)} mph</span>}
-                          {ride.total_elevation_gain > 0 && <span>{Math.round(ride.total_elevation_gain * METERS_TO_FEET).toLocaleString()} ft</span>}
-                          {ride.average_watts && <span>{Math.round(ride.average_watts)}w</span>}
-                          {ride.weighted_average_watts && <span>NP {ride.weighted_average_watts}w</span>}
-                          {ride.calories && <span>{Math.round(ride.calories)} cal</span>}
-                          {ride.average_cadence && <span>{Math.round(ride.average_cadence)} rpm</span>}
-                          {ride.average_heartrate && <span>{Math.round(ride.average_heartrate)} bpm</span>}
-                          {ride.max_heartrate && <span>max {ride.max_heartrate} bpm</span>}
+                        {/* Column 2: Miles, Time, MPH, Elevation */}
+                        <div className="text-xs space-y-0.5" style={{ color: hubTheme.secondary }}>
+                          <div className="flex justify-between"><span>Miles:</span><span>{(ride.distance * METERS_TO_MILES).toFixed(1)}</span></div>
+                          <div className="flex justify-between"><span>Time:</span><span>{formatHours(ride.moving_time)}</span></div>
+                          <div className="flex justify-between"><span>Mph:</span><span>{ride.average_speed > 0 ? (ride.average_speed * MPS_TO_MPH).toFixed(1) : "--"}</span></div>
+                          <div className="flex justify-between"><span>Elevation:</span><span>{ride.total_elevation_gain > 0 ? `${Math.round(ride.total_elevation_gain * METERS_TO_FEET).toLocaleString()} ft` : "--"}</span></div>
+                        </div>
+                        {/* Column 3: Watts, NP, Cadence, HR */}
+                        <div className="text-xs space-y-0.5" style={{ color: hubTheme.secondary }}>
+                          <div className="flex justify-between"><span>Average Watts:</span><span>{ride.average_watts ? Math.round(ride.average_watts) : "--"}</span></div>
+                          <div className="flex justify-between"><span>Normalized Power:</span><span>{ride.weighted_average_watts ? ride.weighted_average_watts : "--"}</span></div>
+                          <div className="flex justify-between"><span>Cadence:</span><span>{ride.average_cadence ? Math.round(ride.average_cadence) : "--"}</span></div>
+                          <div className="flex justify-between"><span>Average Heart Rate:</span><span>{ride.average_heartrate ? Math.round(ride.average_heartrate) : "--"}</span></div>
                         </div>
                       </button>
+                      {/* Comparison view — rendered directly below the ride card */}
+                      {compareRide === ride.id && (() => {
+                        const target = allRides.find((r) => r.id === compareRide);
+                        if (!target) return null;
+                        const matches = similarRides;
+                        const allCompare = [target, ...matches];
+                        const hasPolyline = !!target.map?.summary_polyline;
+                        return (
+                          <div className="hud-card rounded-lg p-6 mt-1 mb-2 border border-[#00D9FF]/20">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-sm font-semibold" style={{ color: hubTheme.primary }}>
+                                Comparing: {target.name} ({matches.length} past instance{matches.length !== 1 ? "s" : ""})
+                              </h3>
+                              <button onClick={() => { setCompareRide(null); setCompareMode(null); }} className="text-xs px-2 py-1 rounded border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF]">
+                                Close
+                              </button>
+                            </div>
+                            {matches.length === 0 && !loadingCompareStreams && (
+                              <p className="text-xs" style={{ color: hubTheme.secondary }}>No similar rides found to compare against.</p>
+                            )}
+                            {loadingCompareStreams && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading stream data for comparison...</p>}
+                            {matches.length > 0 && (
+                              <>
+                                <div className="mb-4">
+                                  <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Metrics</div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs" style={{ color: hubTheme.secondary }}>
+                                      <thead>
+                                        <tr className="border-b border-[#00D9FF]/10">
+                                          <th className="text-left py-1 pr-3" style={{ color: hubTheme.primary }}>Ride</th>
+                                          <th className="text-right py-1 px-2">Date</th>
+                                          <th className="text-right py-1 px-2">Dist</th>
+                                          <th className="text-right py-1 px-2">Time</th>
+                                          <th className="text-right py-1 px-2">Speed</th>
+                                          <th className="text-right py-1 px-2">Power</th>
+                                          <th className="text-right py-1 px-2">NP</th>
+                                          <th className="text-right py-1 px-2">HR</th>
+                                          <th className="text-right py-1 px-2">Elev</th>
+                                          <th className="text-right py-1 px-2">Cal</th>
+                                          <th className="text-right py-1 px-2">Cadence</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {allCompare.map((r, i) => {
+                                          const prev = i < allCompare.length - 1 ? allCompare[i + 1] : undefined;
+                                          const delta = (val: number | undefined, prevVal: number | undefined, decimals = 0) => {
+                                            if (val === undefined || prevVal === undefined) return null;
+                                            const d = val - prevVal;
+                                            const fmt = decimals > 0 ? d.toFixed(decimals) : String(Math.round(d));
+                                            return <span className={`ml-1 text-[9px] ${d >= 0 ? "text-green-400" : "text-red-400"}`}>({d >= 0 ? "+" : ""}{fmt})</span>;
+                                          };
+                                          return (
+                                            <tr key={r.id} className={`border-b border-[#00D9FF]/5 ${i === 0 ? "font-medium" : ""}`} style={i === 0 ? { color: hubTheme.primary } : undefined}>
+                                              <td className="py-1.5 pr-3 truncate max-w-[120px]">{i === 0 ? "Selected" : formatDate(r.start_date)}</td>
+                                              <td className="text-right py-1.5 px-2">{formatDate(r.start_date)}</td>
+                                              <td className="text-right py-1.5 px-2">{(r.distance * METERS_TO_MILES).toFixed(1)} mi{delta(r.distance * METERS_TO_MILES, prev ? prev.distance * METERS_TO_MILES : undefined, 1)}</td>
+                                              <td className="text-right py-1.5 px-2">{formatTime(r.moving_time)}</td>
+                                              <td className="text-right py-1.5 px-2">{(r.average_speed * MPS_TO_MPH).toFixed(1)}{delta(r.average_speed * MPS_TO_MPH, prev ? prev.average_speed * MPS_TO_MPH : undefined, 1)}</td>
+                                              <td className="text-right py-1.5 px-2">{r.average_watts ? `${Math.round(r.average_watts)}w` : "—"}{delta(r.average_watts, prev?.average_watts)}</td>
+                                              <td className="text-right py-1.5 px-2">{r.weighted_average_watts ? `${r.weighted_average_watts}w` : "—"}{delta(r.weighted_average_watts, prev?.weighted_average_watts)}</td>
+                                              <td className="text-right py-1.5 px-2">{r.average_heartrate ? `${Math.round(r.average_heartrate)}` : "—"}{delta(r.average_heartrate, prev?.average_heartrate)}</td>
+                                              <td className="text-right py-1.5 px-2">{Math.round(r.total_elevation_gain * METERS_TO_FEET)}{delta(r.total_elevation_gain * METERS_TO_FEET, prev ? prev.total_elevation_gain * METERS_TO_FEET : undefined)}</td>
+                                              <td className="text-right py-1.5 px-2">{r.calories ? Math.round(r.calories) : "—"}{delta(r.calories, prev?.calories)}</td>
+                                              <td className="text-right py-1.5 px-2">{r.average_cadence ? Math.round(r.average_cadence) : "—"}{delta(r.average_cadence, prev?.average_cadence)}</td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                                {/* Overlay charts */}
+                                {!loadingCompareStreams && Object.keys(compareStreams).length > 0 && (() => {
+                                  const streamList = allCompare.map((r) => compareStreams[r.id]);
+                                  const dateLabels = allCompare.map((r) => formatDate(r.start_date));
+                                  return (
+                                    <>
+                                      <div className="text-xs mb-2 font-medium" style={{ color: hubTheme.primary }}>Stream Overlays</div>
+                                      <OverlayChart
+                                        series={streamList.map((s) => s?.watts)}
+                                        labels={dateLabels} color="#FFD700" label="Power (watts)" unit="w"
+                                      />
+                                      <OverlayChart
+                                        series={streamList.map((s) => s?.heartrate)}
+                                        labels={dateLabels} color="#FF4444" label="Heart Rate (bpm)" unit="bpm"
+                                      />
+                                      <OverlayChart
+                                        series={streamList.map((s) => s?.cadence)}
+                                        labels={dateLabels} color="#00FF88" label="Cadence (rpm)" unit="rpm"
+                                      />
+                                      {hasPolyline && (
+                                        <OverlayChart
+                                          series={streamList.map((s) => s?.velocity_smooth?.map((v) => v * MPS_TO_MPH))}
+                                          labels={dateLabels} color="#67C7EB" label="Speed (mph)" unit="mph"
+                                        />
+                                      )}
+                                      {/* Zone comparisons */}
+                                      {zones && (() => {
+                                        const powerTimesAll = streamList.map((s) => s?.watts ? computeZoneTime(s.watts, zones.powerZones) : new Array(zones.powerZones.length).fill(0));
+                                        const hrTimesAll = streamList.map((s) => s?.heartrate ? computeZoneTime(s.heartrate, zones.hrZones) : new Array(zones.hrZones.length).fill(0));
+                                        const hasPower = powerTimesAll.some((t) => t.some((v) => v > 0));
+                                        const hasHR = hrTimesAll.some((t) => t.some((v) => v > 0));
+                                        return (
+                                          <>
+                                            {hasPower && (
+                                              <ZoneCompareGrouped
+                                                title="Power Zones" zones={zones.powerZones}
+                                                allTimes={powerTimesAll} dateLabels={dateLabels} colors={POWER_ZONE_COLORS}
+                                              />
+                                            )}
+                                            {hasHR && (
+                                              <ZoneCompareGrouped
+                                                title="HR Zones" zones={zones.hrZones}
+                                                allTimes={hrTimesAll} dateLabels={dateLabels} colors={HR_ZONE_COLORS}
+                                              />
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </>
+                                  );
+                                })()}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {isExpanded && (
                         <div className="hud-card rounded-lg p-4 mt-1 mb-2 border border-[#00D9FF]/20">
-                          {hasSimilar && (
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex gap-2">
+                              {allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "workout"); }}
+                                  className="px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                                >
+                                  Compare Workout
+                                </button>
+                              )}
+                              {(() => {
+                                const targetPoly = ride.map?.summary_polyline;
+                                if (!targetPoly || targetPoly.length <= 10) return null;
+                                const hasRouteMatch = allRides.some((r) => {
+                                  if (r.id === ride.id) return false;
+                                  const poly = r.map?.summary_polyline;
+                                  if (!poly || poly.length < 10) return false;
+                                  const minLen = Math.min(targetPoly.length, poly.length);
+                                  let match = 0;
+                                  for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
+                                  return match / minLen > 0.6;
+                                });
+                                if (!hasRouteMatch) return null;
+                                return (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "route"); }}
+                                    className="px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                                  >
+                                    Compare Route
+                                  </button>
+                                );
+                              })()}
+                            </div>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleCompare(ride.id); }}
-                              className="mb-3 px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                              onClick={(e) => { e.stopPropagation(); setExpandedRide(null); }}
+                              className="px-2 py-1 rounded text-xs border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF] hover:border-[#00D9FF]/50"
                             >
-                              Compare with past rides
+                              Close
                             </button>
-                          )}
+                          </div>
                           {isLoading && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading streams...</p>}
                           {!isLoading && !stream && <p className="text-xs" style={{ color: hubTheme.secondary }}>No stream data available for this ride.</p>}
                           {stream && (
@@ -1224,13 +1367,13 @@ export default function StravaPage() {
                               {zones && stream.watts && (
                                 <div className="mt-3">
                                   <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>Power Zones</div>
-                                  <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} />
+                                  <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} unit="w" />
                                 </div>
                               )}
                               {zones && stream.heartrate && (
                                 <div className="mt-3">
                                   <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>HR Zones</div>
-                                  <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} />
+                                  <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} unit="bpm" />
                                 </div>
                               )}
                             </>
@@ -1289,11 +1432,25 @@ export default function StravaPage() {
                 {/* Power zones */}
                 {zones ? (
                   <div className="hud-card rounded-lg p-6 border border-[#00D9FF]/20">
-                    <h3 className="text-lg font-semibold mb-4" style={{ color: hubTheme.primary }}>Power Zones (FTP: {zones.ftp}w)</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold" style={{ color: hubTheme.primary }}>Power Zones (FTP: {zones.ftp}w)</h3>
+                      <div className="flex gap-1">
+                        {([["week", "Week"], ["month", "Month"], ["year", "Year"]] as const).map(([key, label]) => (
+                          <button key={key} onClick={() => setZonePeriod(key)} className={`px-3 py-1 rounded text-xs transition-colors ${zonePeriod === key ? "bg-[rgba(0,217,255,0.25)] text-[#00D9FF] border border-[#00D9FF]/50" : "text-[#67C7EB] hover:text-[#00D9FF]"}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {loadingZoneStreams && (
+                      <p className="text-xs mb-2" style={{ color: hubTheme.secondary }}>Loading streams... {zoneStreamProgress}</p>
+                    )}
                     {aggregatedPowerZoneTimes ? (
-                      <ZoneBar zones={zones.powerZones} times={aggregatedPowerZoneTimes} colors={POWER_ZONE_COLORS} />
+                      <ZoneBar zones={zones.powerZones} times={aggregatedPowerZoneTimes} colors={POWER_ZONE_COLORS} unit="w" />
                     ) : (
-                      <p className="text-sm" style={{ color: hubTheme.secondary }}>View ride details to load stream data, then zone distributions will appear here.</p>
+                      <p className="text-sm" style={{ color: hubTheme.secondary }}>
+                        {loadingZoneStreams ? "Fetching ride data..." : zoneRides.length === 0 ? "No rides with power data in this period." : "No stream data available yet."}
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -1334,11 +1491,25 @@ export default function StravaPage() {
                     {/* HR zones */}
                     {zones && (
                       <div className="hud-card rounded-lg p-6 border border-[#00D9FF]/20">
-                        <h3 className="text-lg font-semibold mb-4" style={{ color: hubTheme.primary }}>HR Zones (Max: {zones.maxHR} bpm)</h3>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold" style={{ color: hubTheme.primary }}>HR Zones (Max: {zones.maxHR} bpm)</h3>
+                          <div className="flex gap-1">
+                            {([["week", "Week"], ["month", "Month"], ["year", "Year"]] as const).map(([key, label]) => (
+                              <button key={key} onClick={() => setZonePeriod(key)} className={`px-3 py-1 rounded text-xs transition-colors ${zonePeriod === key ? "bg-[rgba(0,217,255,0.25)] text-[#00D9FF] border border-[#00D9FF]/50" : "text-[#67C7EB] hover:text-[#00D9FF]"}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {loadingZoneStreams && (
+                          <p className="text-xs mb-2" style={{ color: hubTheme.secondary }}>Loading streams... {zoneStreamProgress}</p>
+                        )}
                         {aggregatedHRZoneTimes ? (
-                          <ZoneBar zones={zones.hrZones} times={aggregatedHRZoneTimes} colors={HR_ZONE_COLORS} />
+                          <ZoneBar zones={zones.hrZones} times={aggregatedHRZoneTimes} colors={HR_ZONE_COLORS} unit="bpm" />
                         ) : (
-                          <p className="text-sm" style={{ color: hubTheme.secondary }}>View ride details to load stream data, then HR zone distributions will appear here.</p>
+                          <p className="text-sm" style={{ color: hubTheme.secondary }}>
+                            {loadingZoneStreams ? "Fetching ride data..." : zoneRides.length === 0 ? "No rides with HR data in this period." : "No stream data available yet."}
+                          </p>
                         )}
                       </div>
                     )}

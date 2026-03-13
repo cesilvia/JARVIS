@@ -27,6 +27,7 @@ export interface StravaActivity {
   achievement_count?: number;
   kudos_count: number;
   map?: { summary_polyline?: string };
+  description?: string;
 }
 
 export interface StreamData {
@@ -95,6 +96,7 @@ export function loadGoals(): StravaGoal[] {
   }
 }
 
+export const STRAVA_DESCRIPTIONS_KEY = "jarvis-strava-descriptions";
 export const STRAVA_ACTIVITIES_KEY = "jarvis-strava-activities";
 export const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
 export const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";
@@ -119,6 +121,11 @@ export function formatTime(seconds: number): string {
   const m = Math.floor((seconds % 3600) / 60);
   if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
+}
+
+export function formatHours(seconds: number): string {
+  const hrs = seconds / 3600;
+  return `${hrs.toFixed(2)} hrs`;
 }
 
 export function formatDate(iso: string): string {
