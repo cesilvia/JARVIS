@@ -3,40 +3,36 @@
 ## Context
 I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi theme (primary=#00D9FF, secondary=#67C7EB, dark background). The main feature so far is a Strava cycling dashboard at `app/bike/strava/page.tsx`. Types are in `app/bike/strava/types.ts`. Charts are hand-rolled inline SVG (no charting library). The hub page is at `app/hub/page.tsx` with wedge-based navigation.
 
-## What Was Just Implemented (2026-03-13)
+## What Was Just Implemented (2026-03-14)
 
-### 1. Hub Wedge Strava Summary
-- Strava wedge now shows summary stats: Week miles, YTD miles, Elevation, TSB status
+### 1. Tire Pressure Calculator Fix
+- Original formula used linear `PSI = (wheelLoad × k) / width` with k values ~3× too low (7.0-7.8), producing results clamped to minimum PSI floors
+- Replaced with non-linear power-law model: `PSI = k × wheelLoad^0.2 / width^0.625`
+- New k values: Clincher=290, Tubeless=264, Tubular=277 — calibrated against SILCA tire pressure data
+- Sub-linear load exponent (0.2) prevents rear tire from being disproportionately high vs front
+- For 200 lbs, 32mm tubeless, smooth pavement: ~60F/65R PSI (matches SILCA)
+- Widened number inputs (w-20 → w-24), hid browser number spinners for easier data entry
+- File: `app/bike/tire-pressure/page.tsx`
+
+### 2. Hub Wedge Strava Summary (2026-03-13)
+- Strava wedge shows summary stats: Week miles, YTD miles, Elevation, TSB status
 - `WedgeSummaryCard` redesigned: removed text wrapping, added `noBullets` prop for left-label / right-value alignment
-- TSB line formatted as "TSB: -1 (Fresh)" with status right-justified
+- TSB formatted as "TSB: -1 (Fresh)" with status right-justified
 - Hub page imports Strava types and computes CTL/ATL/TSB from cached activities + zones
 
-### 2. Power Curve Auto-Build (Fixed)
-- Power curve was stuck at ~20/465 rides due to: stale React closure (`handleBuildCurve` depended on `powerCurve` state), no timeout on `getAccessToken()` token refresh, browser connection pool exhaustion from un-aborted fetches
-- Fix: two-phase build — Phase 1 processes all cached streams instantly, Phase 2 fetches uncached from API with `AbortSignal.timeout(10000)` and 3s pacing
-- Reads existing curve from localStorage (not state) to avoid closure issues
-- Server-side Strava fetches also have 12s AbortController timeout (`app/api/strava/streams/route.ts`, `app/api/strava/refresh/route.ts`)
-- Circuit breaker: stops after 5 consecutive API failures, saves progress
-- Auto-builds on first visit if no curve exists; auto-updates daily if new rides detected
-
-### 3. Fitness Chart Redesign
-- TSB zone background shading: Green (+20 to -10), Amber (-10 to -30), Red (below -30)
-- TSB line white for contrast, dashed trendlines for CTL/ATL/TSB
-- Legend moved below chart, Y-axis labels at regular intervals
-
-### 4. Previous Session Features (still in place)
-- Ride cards: 3-column grid layout with workout name, route name, metrics
-- Route names from activity descriptions (post-Feb 25) or parsed from activity name
-- Compare Workout/Route buttons with overlay charts and zone comparisons
+### 3. Previous Session Features (still in place)
+- Power curve auto-build (two-phase: cached then API, circuit breaker, daily auto-update)
+- Fitness chart with TSB zone shading, dashed trendlines, white TSB line
+- Ride cards: 3-column grid, route names from descriptions, compare buttons
 - Power & HR Zone period cards (Week/Month/Year toggle)
 
 ## Technical Notes
-- Single-file client component ("use client") — all components in page.tsx (~1700 lines)
-- Stream data: `/api/strava/streams` endpoint, cached in localStorage per activity
-- Activity detail: `/api/strava/activity-detail/?id=<activity_id>` endpoint
-- Token refresh: `/api/strava/refresh` with 10s timeout on Strava OAuth call
-- Key localStorage keys: `STRAVA_POWER_CURVE_KEY`, `STRAVA_POWER_CURVE_RIDES_KEY`, `STRAVA_POWER_CURVE_UPDATED_KEY`, `STRAVA_DESCRIPTIONS_KEY`
-- Key state: `powerCurve`, `buildingCurve`, `curveProgress`, `compareRide`, `compareMode`, `fitnessRange`
+- Strava dashboard: single-file client component ("use client") — ~1700 lines in page.tsx
+- Stream data: `/api/strava/streams`, cached in localStorage per activity
+- Activity detail: `/api/strava/activity-detail/?id=<activity_id>`
+- Token refresh: `/api/strava/refresh` with 10s timeout
+- Tire pressure: non-linear model with surface/condition multipliers, clamped to safe min/max per width
+- Hexis.live has no public API — potential data via Apple Health or Intervals.icu API
 
 ## Planned Features — Infrastructure (Priority)
 ### Docker + Mac Mini Deployment
@@ -63,6 +59,9 @@ I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi
 - **German page** — language learning/practice
 - **Journal page** — personal journal
 - **Research page** — research tool/dashboard
+
+### Nutrition Integration
+- Hexis.live has no public API — could pull data via Apple Health sync or Intervals.icu API
 
 ### Strava Enhancements
 - Improve polyline route matching (edit distance or decoded lat/lng proximity)

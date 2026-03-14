@@ -101,10 +101,13 @@ const FRONT_REAR_PRESETS: Record<string, number> = {
   Other: 0.40,
 };
 
+// Non-linear model calibrated against SILCA tire pressure data.
+// PSI = k × wheelLoad^0.2 / width^0.625. The sub-linear load exponent
+// prevents the rear tire from reading too high relative to the front.
 const TIRE_TYPE_K: Record<TireType, number> = {
-  Clincher: 7.8,
-  Tubeless: 7.0,
-  Tubular: 7.4,
+  Clincher: 290,
+  Tubeless: 264,
+  Tubular: 277,
 };
 
 const SURFACE_ADJUSTMENT: Record<Surface, number> = {
@@ -129,7 +132,7 @@ function calculatePSI(
 ): number {
   const wheelLoad = totalWeightLbs * weightFraction;
   const k = TIRE_TYPE_K[tireType];
-  let psi = (wheelLoad * k) / tireWidthMm;
+  let psi = k * Math.pow(wheelLoad, 0.2) / Math.pow(tireWidthMm, 0.625);
   psi *= SURFACE_ADJUSTMENT[surface];
   psi *= CONDITION_ADJUSTMENT[condition];
   return Math.round(psi);
@@ -414,7 +417,7 @@ export default function TirePressurePage() {
     if (bike) setFrontRearSplit(FRONT_REAR_PRESETS[bike.type] ?? 0.40);
   };
 
-  const inputSm = "w-20 px-2 py-1.5 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50 text-sm text-right";
+  const inputSm = "w-24 px-2 py-1.5 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50 text-sm text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const selectCls = "w-full px-3 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]";
   const inputCls = "w-full px-3 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50";
   const labelCls = "block text-sm font-medium text-[#67C7EB] mb-1";
