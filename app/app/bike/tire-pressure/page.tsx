@@ -15,6 +15,7 @@ const hubTheme = {
 const BIKES_STORAGE_KEY = "jarvis-bikes";
 const DEFAULTS_STORAGE_KEY = "jarvis-tire-pressure-defaults";
 const TIRES_STORAGE_KEY = "jarvis-tire-pressure-tires";
+const SELECTED_TIRES_STORAGE_KEY = "jarvis-tire-pressure-selected-tires";
 
 const COMMON_TIRE_WIDTHS = [23, 25, 28, 30, 32, 35, 38, 40, 43, 45, 50];
 const TIRE_TYPES = ["Clincher", "Tubeless", "Tubular"] as const;
@@ -61,8 +62,8 @@ interface TireRef {
 }
 
 const BUILT_IN_TIRES: TireRef[] = [
-  { id: "bontrager-r3", brand: "Bontrager", model: "R3 Hard-Case Lite", width: 32, minPSI: 55, maxPSI: 95 },
-  { id: "conti-5000st", brand: "Continental", model: "GP 5000 S TR", width: 32, minPSI: 50, maxPSI: 100 },
+  { id: "bontrager-r3", brand: "Bontrager", model: "R3 Hard-Case Lite", width: 32, minPSI: 55, maxPSI: 70 },
+  { id: "conti-5000st", brand: "Continental", model: "GP 5000 S TR", width: 32, minPSI: 50, maxPSI: 73 },
 ];
 
 const WHEEL_SET_NAMES = [
@@ -159,8 +160,9 @@ function minPSIForWidth(w: number): number {
   return 20;
 }
 
-function clampPSI(psi: number, w: number): number {
-  return Math.max(minPSIForWidth(w), Math.min(maxPSIForWidth(w), psi));
+function clampPSI(psi: number, w: number, tireMaxPSI?: number): number {
+  const ceiling = tireMaxPSI != null ? Math.min(maxPSIForWidth(w), tireMaxPSI) : maxPSIForWidth(w);
+  return Math.max(minPSIForWidth(w), Math.min(ceiling, psi));
 }
 
 type DefaultField = "helmet" | "shoes" | "frontLight" | "rearLight" | "computer" | "bike";
@@ -217,6 +219,8 @@ export default function TirePressurePage() {
   const [selectedBikeId, setSelectedBikeId] = useState<string>("");
   const [customFrontWidth, setCustomFrontWidth] = useState("");
   const [customRearWidth, setCustomRearWidth] = useState("");
+  const [selectedFrontTireId, setSelectedFrontTireId] = useState<string>("");
+  const [selectedRearTireId, setSelectedRearTireId] = useState<string>("");
 
   useEffect(() => {
     const bikesStored = localStorage.getItem(BIKES_STORAGE_KEY);
@@ -259,6 +263,14 @@ export default function TirePressurePage() {
     if (tiresStored) {
       try { setCustomTires(JSON.parse(tiresStored)); } catch { /* ignore */ }
     }
+    const selectedTiresStored = localStorage.getItem(SELECTED_TIRES_STORAGE_KEY);
+    if (selectedTiresStored) {
+      try {
+        const sel = JSON.parse(selectedTiresStored);
+        if (sel.front) setSelectedFrontTireId(sel.front);
+        if (sel.rear) setSelectedRearTireId(sel.rear);
+      } catch { /* ignore */ }
+    }
     setIsLoaded(true);
   }, []);
 
@@ -266,6 +278,11 @@ export default function TirePressurePage() {
     if (!isLoaded) return;
     localStorage.setItem(TIRES_STORAGE_KEY, JSON.stringify(customTires));
   }, [customTires, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    localStorage.setItem(SELECTED_TIRES_STORAGE_KEY, JSON.stringify({ front: selectedFrontTireId, rear: selectedRearTireId }));
+  }, [selectedFrontTireId, selectedRearTireId, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded || selectedBikeId) return;
@@ -376,21 +393,26 @@ export default function TirePressurePage() {
       saddleKit, tubeKit, repairKitWeights]);
 
   const effectiveRearWidth = sameFrontRear ? frontWidth : rearWidth;
+  const allTires = [...BUILT_IN_TIRES, ...customTires];
+  const selectedFrontTire = allTires.find((t) => t.id === selectedFrontTireId);
+  const selectedRearTire = sameFrontRear ? selectedFrontTire : allTires.find((t) => t.id === selectedRearTireId);
 
-  const frontPSI = useMemo(
-    () => clampPSI(calculatePSI(totalWeightLbs, frontWidth, tireType, surface, condition, frontRearSplit), frontWidth),
+  const frontRawPSI = useMemo(
+    () => calculatePSI(totalWeightLbs, frontWidth, tireType, surface, condition, frontRearSplit),
     [totalWeightLbs, frontWidth, tireType, surface, condition, frontRearSplit]
   );
-
-  const rearPSI = useMemo(
-    () => clampPSI(calculatePSI(totalWeightLbs, effectiveRearWidth, tireType, surface, condition, 1 - frontRearSplit), effectiveRearWidth),
+  const rearRawPSI = useMemo(
+    () => calculatePSI(totalWeightLbs, effectiveRearWidth, tireType, surface, condition, 1 - frontRearSplit),
     [totalWeightLbs, effectiveRearWidth, tireType, surface, condition, frontRearSplit]
   );
 
+  const frontPSI = clampPSI(frontRawPSI, frontWidth, selectedFrontTire?.maxPSI);
+  const rearPSI = clampPSI(rearRawPSI, effectiveRearWidth, selectedRearTire?.maxPSI);
+  const frontCapped = selectedFrontTire != null && frontRawPSI > selectedFrontTire.maxPSI;
+  const rearCapped = selectedRearTire != null && rearRawPSI > selectedRearTire.maxPSI;
+
   const frontRange = psiRange(frontPSI);
   const rearRange = psiRange(rearPSI);
-
-  const allTires = [...BUILT_IN_TIRES, ...customTires];
 
   const addTire = () => {
     const brand = newTire.brand.trim();
@@ -415,6 +437,28 @@ export default function TirePressurePage() {
     setSelectedBikeId(bikeId);
     const bike = bikes.find((b) => b.id === bikeId);
     if (bike) setFrontRearSplit(FRONT_REAR_PRESETS[bike.type] ?? 0.40);
+  };
+
+  const handleTireSelect = (tireId: string, position: "front" | "rear") => {
+    const setId = position === "front" ? setSelectedFrontTireId : setSelectedRearTireId;
+    setId(tireId);
+    if (tireId) {
+      const tire = allTires.find((t) => t.id === tireId);
+      if (tire) {
+        if (position === "front") {
+          setFrontWidth(tire.width);
+          setCustomFrontWidth("");
+          if (sameFrontRear) {
+            setRearWidth(tire.width);
+            setCustomRearWidth("");
+            setSelectedRearTireId(tireId);
+          }
+        } else {
+          setRearWidth(tire.width);
+          setCustomRearWidth("");
+        }
+      }
+    }
   };
 
   const inputSm = "w-24 px-2 py-1.5 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50 text-sm text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -480,17 +524,23 @@ export default function TirePressurePage() {
           <div className="grid grid-cols-2 gap-6">
             <div className="text-center">
               <div className="text-xs font-semibold text-[#67C7EB] uppercase tracking-wide mb-2">Front</div>
-              <div className="text-5xl font-bold text-[#00D9FF]">{frontPSI}</div>
+              <div className={`text-5xl font-bold ${frontCapped ? "text-yellow-400" : "text-[#00D9FF]"}`}>{frontPSI}</div>
               <div className="text-sm text-[#67C7EB] mt-1">PSI</div>
               <div className="text-xs text-[#67C7EB]/70 mt-1">{frontRange.min}&ndash;{frontRange.max} range</div>
               <div className="text-xs text-[#67C7EB]/50 mt-0.5">{frontWidth}mm {tireType.toLowerCase()}</div>
+              {frontCapped && (
+                <div className="text-xs text-yellow-400 mt-1">Capped at {selectedFrontTire!.maxPSI} PSI max</div>
+              )}
             </div>
             <div className="text-center">
               <div className="text-xs font-semibold text-[#67C7EB] uppercase tracking-wide mb-2">Rear</div>
-              <div className="text-5xl font-bold text-[#00D9FF]">{rearPSI}</div>
+              <div className={`text-5xl font-bold ${rearCapped ? "text-yellow-400" : "text-[#00D9FF]"}`}>{rearPSI}</div>
               <div className="text-sm text-[#67C7EB] mt-1">PSI</div>
               <div className="text-xs text-[#67C7EB]/70 mt-1">{rearRange.min}&ndash;{rearRange.max} range</div>
               <div className="text-xs text-[#67C7EB]/50 mt-0.5">{effectiveRearWidth}mm {tireType.toLowerCase()}</div>
+              {rearCapped && (
+                <div className="text-xs text-yellow-400 mt-1">Capped at {selectedRearTire!.maxPSI} PSI max</div>
+              )}
             </div>
           </div>
           <div className="text-center mt-4">
@@ -689,13 +739,49 @@ export default function TirePressurePage() {
             </div>
           )}
 
+          {/* Tire make/model */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-[#67C7EB]">Tire</span>
+              {!sameFrontRear && <span className="text-xs text-[#67C7EB]/60">Front &amp; rear set independently</span>}
+            </div>
+            <div className={sameFrontRear ? "" : "grid grid-cols-2 gap-3"}>
+              <div>
+                {!sameFrontRear && <label className="block text-xs text-[#67C7EB]/80 mb-1">Front</label>}
+                <select value={selectedFrontTireId} onChange={(e) => handleTireSelect(e.target.value, "front")} className={selectCls}>
+                  <option value="">Manual width</option>
+                  {allTires.map((t) => (
+                    <option key={t.id} value={t.id}>{t.brand} {t.model} ({t.width}mm)</option>
+                  ))}
+                </select>
+              </div>
+              {!sameFrontRear && (
+                <div>
+                  <label className="block text-xs text-[#67C7EB]/80 mb-1">Rear</label>
+                  <select value={selectedRearTireId} onChange={(e) => handleTireSelect(e.target.value, "rear")} className={selectCls}>
+                    <option value="">Manual width</option>
+                    {allTires.map((t) => (
+                      <option key={t.id} value={t.id}>{t.brand} {t.model} ({t.width}mm)</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Tire width */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-[#67C7EB]">Tire width (mm)</span>
               <label className="flex items-center gap-2 text-xs text-[#67C7EB]/80">
                 <input type="checkbox" checked={sameFrontRear}
-                  onChange={(e) => { setSameFrontRear(e.target.checked); if (e.target.checked) setRearWidth(frontWidth); }}
+                  onChange={(e) => {
+                    setSameFrontRear(e.target.checked);
+                    if (e.target.checked) {
+                      setRearWidth(frontWidth);
+                      setSelectedRearTireId(selectedFrontTireId);
+                    }
+                  }}
                   className="rounded border-[#00D9FF]/50" />
                 Same front &amp; rear
               </label>
