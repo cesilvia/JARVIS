@@ -7,12 +7,12 @@ import CircuitBackground from "./CircuitBackground";
 import WedgeSummaryCard from "./WedgeSummaryCard";
 import {
   StravaActivity,
-  STRAVA_ACTIVITIES_KEY,
   METERS_TO_MILES,
   METERS_TO_FEET,
   getWeekStart,
   getYearStart,
 } from "../bike/strava/types";
+import * as api from "../lib/api-client";
 
 interface Module {
   id: string;
@@ -472,20 +472,15 @@ const currentTheme = {
 const ALERT_ICON_ORANGE = "#FF6600";
 
 // Same logic as alerts page: backup overdue + helmet reminders
-const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
-const JARVIS_LAST_FULL_BACKUP_KEY = "jarvis-last-full-backup";
 const BACKUP_REMINDER_DAYS = 7;
 const FULL_BACKUP_REMINDER_DAYS = 1;
-const GEAR_STORAGE_KEY = "jarvis-gear-inventory";
-const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
 
-function hubGetAlertSummaries(): string[] {
+async function hubGetAlertSummaries(): Promise<string[]> {
   const lines: string[] = [];
-  if (typeof window === "undefined") return lines;
   // Daily full JARVIS backup check
-  const lastFullBackup = localStorage.getItem(JARVIS_LAST_FULL_BACKUP_KEY);
+  const lastFullBackup = await api.getKV<string>("last-full-backup");
   if (!lastFullBackup) {
     lines.push("Back up JARVIS to iCloud");
   } else {
@@ -495,7 +490,7 @@ function hubGetAlertSummaries(): string[] {
     }
   }
   // Weekly nutrition backup check
-  const lastBackup = localStorage.getItem(JARVIS_LAST_BACKUP_KEY);
+  const lastBackup = await api.getKV<string>("last-nutrition-backup");
   if (!lastBackup) {
     lines.push("Back up nutrition data");
   } else {
@@ -504,37 +499,31 @@ function hubGetAlertSummaries(): string[] {
       lines.push("Back up nutrition data");
     }
   }
-  const raw = localStorage.getItem(GEAR_STORAGE_KEY);
-  if (raw) {
-    try {
-      const items: { name: string; category: string; purchaseDate?: string; replaceReminderYears?: number }[] = JSON.parse(raw);
-      const cutoff = Date.now() + HELMET_REMINDER_DAYS * 24 * 60 * 60 * 1000;
-      for (const item of items) {
-        if (item.category !== "Helmets" || !item.purchaseDate || !item.replaceReminderYears) continue;
-        const d = new Date(item.purchaseDate);
-        if (isNaN(d.getTime())) continue;
-        d.setFullYear(d.getFullYear() + item.replaceReminderYears);
-        if (d.getTime() <= cutoff) {
-          lines.push(`Helmet: ${item.name} — replace by ${d.toLocaleDateString()}`);
-        }
+  try {
+    const items = (await api.getGearItems()) as { name: string; category: string; purchaseDate?: string; replaceReminderYears?: number }[];
+    const cutoff = Date.now() + HELMET_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+    for (const item of items) {
+      if (item.category !== "Helmets" || !item.purchaseDate || !item.replaceReminderYears) continue;
+      const d = new Date(item.purchaseDate);
+      if (isNaN(d.getTime())) continue;
+      d.setFullYear(d.getFullYear() + item.replaceReminderYears);
+      if (d.getTime() <= cutoff) {
+        lines.push(`Helmet: ${item.name} — replace by ${d.toLocaleDateString()}`);
       }
-    } catch {
-      // ignore
     }
+  } catch {
+    // ignore
   }
-  const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
-  if (zonesRaw) {
-    try {
-      const zones = JSON.parse(zonesRaw);
-      if (zones.zonesUpdatedAt) {
-        const zoneDays = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
-        if (zoneDays >= ZONE_REVIEW_DAYS) {
-          lines.push(`Review training zones (${Math.floor(zoneDays)} days old)`);
-        }
+  try {
+    const zones = await api.getKV<{ zonesUpdatedAt?: string; ftp?: number }>("strava-zones");
+    if (zones?.zonesUpdatedAt) {
+      const zoneDays = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (zoneDays >= ZONE_REVIEW_DAYS) {
+        lines.push(`Review training zones (${Math.floor(zoneDays)} days old)`);
       }
-    } catch {
-      // ignore
     }
+  } catch {
+    // ignore
   }
   return lines;
 }
@@ -552,47 +541,42 @@ export default function HubPage() {
 
   // Load nutrition stats
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const recipes = localStorage.getItem("jarvis-recipes");
-      const ingredients = localStorage.getItem("jarvis-saved-ingredients");
-      if (recipes) {
-        try {
-          const parsed = JSON.parse(recipes);
-          const ingCount = ingredients ? JSON.parse(ingredients).length : 0;
-          setNutritionStats({ recipes: parsed.length, ingredients: ingCount });
-        } catch (e) {
-          // Ignore
-        }
+    async function loadNutritionStats() {
+      try {
+        const [recipes, ingredients] = await Promise.all([
+          api.getRecipes(),
+          api.getIngredients(),
+        ]);
+        setNutritionStats({ recipes: recipes.length, ingredients: ingredients.length });
+      } catch {
+        // Ignore
       }
     }
+    loadNutritionStats();
   }, []);
 
-  // Load Strava summary stats from localStorage
+  // Load Strava summary stats from SQLite
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
-      if (!raw) { setStravaSummary(["No ride data"]); return; }
-      const activities: StravaActivity[] = JSON.parse(raw);
-      if (activities.length === 0) { setStravaSummary(["No rides yet"]); return; }
+    async function loadStravaSummary() {
+      try {
+        const activities = (await api.getActivities()) as StravaActivity[];
+        if (activities.length === 0) { setStravaSummary(["No rides yet"]); return; }
 
-      const now = new Date();
-      const yearStart = getYearStart();
-      const weekStart = getWeekStart(now);
-      const ytd = activities.filter((a) => new Date(a.start_date) >= yearStart);
-      const thisWeek = activities.filter((a) => new Date(a.start_date) >= weekStart);
+        const now = new Date();
+        const yearStart = getYearStart();
+        const weekStart = getWeekStart(now);
+        const ytd = activities.filter((a) => new Date(a.start_date) >= yearStart);
+        const thisWeek = activities.filter((a) => new Date(a.start_date) >= weekStart);
 
-      const weekMiles = Math.round(thisWeek.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
-      const ytdMiles = Math.round(ytd.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
-      const ytdElev = Math.round(ytd.reduce((s, a) => s + a.total_elevation_gain * METERS_TO_FEET, 0));
+        const weekMiles = Math.round(thisWeek.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
+        const ytdMiles = Math.round(ytd.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
+        const ytdElev = Math.round(ytd.reduce((s, a) => s + a.total_elevation_gain * METERS_TO_FEET, 0));
 
-      // CTL/ATL/TSB
-      const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
-      let tsbLabel = "";
-      if (zonesRaw) {
+        // CTL/ATL/TSB
+        let tsbLabel = "";
         try {
-          const zones = JSON.parse(zonesRaw);
-          const ftp = zones.ftp;
+          const zones = await api.getKV<{ ftp?: number }>("strava-zones");
+          const ftp = zones?.ftp;
           if (ftp) {
             let ctl = 0, atl = 0;
             const dailyTSS = new Map<string, number>();
@@ -619,30 +603,30 @@ export default function HubPage() {
             }
           }
         } catch { /* ignore */ }
+
+        const lines: string[] = [];
+        lines.push(`Week: ${weekMiles} mi`);
+        lines.push(`YTD: ${ytdMiles.toLocaleString()} mi`);
+        lines.push(`Elev: ${ytdElev.toLocaleString()} ft`);
+        if (tsbLabel) lines.push(tsbLabel);
+
+        setStravaSummary(lines);
+      } catch {
+        setStravaSummary(["Data error"]);
       }
-
-      const lines: string[] = [];
-      lines.push(`Week: ${weekMiles} mi`);
-      lines.push(`YTD: ${ytdMiles.toLocaleString()} mi`);
-      lines.push(`Elev: ${ytdElev.toLocaleString()} ft`);
-      if (tsbLabel) lines.push(tsbLabel);
-
-      setStravaSummary(lines);
-    } catch {
-      setStravaSummary(["Data error"]);
     }
+    loadStravaSummary();
   }, []);
 
   // Check for alerts (same conditions as alerts page: backup overdue, helmet reminders)
   useEffect(() => {
-    const summaries = hubGetAlertSummaries();
-    setAlertSummaries(summaries);
-    setHasAlerts(summaries.length > 0);
-    const interval = setInterval(() => {
-      const s = hubGetAlertSummaries();
-      setAlertSummaries(s);
-      setHasAlerts(s.length > 0);
-    }, 60 * 1000);
+    async function loadAlerts() {
+      const summaries = await hubGetAlertSummaries();
+      setAlertSummaries(summaries);
+      setHasAlerts(summaries.length > 0);
+    }
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

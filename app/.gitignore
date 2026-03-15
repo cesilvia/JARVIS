@@ -32,6 +32,9 @@ yarn-error.log*
 # auth data (webauthn credentials)
 /.data
 
+# SQLite database
+/data
+
 # vercel
 .vercel
 

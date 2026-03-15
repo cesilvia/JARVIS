@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import * as api from "../../lib/api-client";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 
@@ -24,17 +25,18 @@ export default function NutritionSettingsPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setLastBackup(localStorage.getItem(JARVIS_LAST_BACKUP_KEY));
-    }
+    (async () => {
+      const val = await api.getKV<string>("last-nutrition-backup");
+      setLastBackup(val);
+    })();
   }, []);
 
-  const handleExport = () => {
-    const recipes = localStorage.getItem("jarvis-recipes");
-    const ingredients = localStorage.getItem("jarvis-saved-ingredients");
+  const handleExport = async () => {
+    const recipes = await api.getRecipes();
+    const ingredients = await api.getIngredients();
     const data = {
-      recipes: recipes ? JSON.parse(recipes) : [],
-      ingredients: ingredients ? JSON.parse(ingredients) : [],
+      recipes: recipes ?? [],
+      ingredients: ingredients ?? [],
       exportedAt: new Date().toISOString(),
     };
     const dataStr = JSON.stringify(data, null, 2);
@@ -47,8 +49,9 @@ export default function NutritionSettingsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    localStorage.setItem(JARVIS_LAST_BACKUP_KEY, new Date().toISOString());
-    setLastBackup(new Date().toISOString());
+    const now = new Date().toISOString();
+    api.setKV("last-nutrition-backup", now);
+    setLastBackup(now);
     alert("Backup exported successfully!");
   };
 
@@ -56,21 +59,19 @@ export default function NutritionSettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const imported = JSON.parse(event.target?.result as string);
         let importedCount = 0;
-        const recipes = localStorage.getItem("jarvis-recipes");
-        const ingredients = localStorage.getItem("jarvis-saved-ingredients");
-        const existingRecipes = recipes ? JSON.parse(recipes) : [];
-        const existingIngredients = ingredients ? JSON.parse(ingredients) : [];
+        const existingRecipes = (await api.getRecipes()) as { id?: string }[];
+        const existingIngredients = (await api.getIngredients()) as { name?: string }[];
 
         if (imported.recipes && Array.isArray(imported.recipes)) {
           const existingIds = new Set(existingRecipes.map((r: { id?: string }) => r.id));
           const newRecipes = imported.recipes.filter((r: { id?: string }) => !r.id || !existingIds.has(r.id));
           if (newRecipes.length > 0 && confirm(`Import ${newRecipes.length} recipe(s)?`)) {
             const mergedRecipes = [...existingRecipes, ...newRecipes];
-            localStorage.setItem("jarvis-recipes", JSON.stringify(mergedRecipes));
+            await api.saveRecipes(mergedRecipes);
             importedCount += newRecipes.length;
           }
         }
@@ -81,7 +82,7 @@ export default function NutritionSettingsPage() {
           );
           if (newIngredients.length > 0 && confirm(`Import ${newIngredients.length} ingredient(s)?`)) {
             const mergedIngredients = [...existingIngredients, ...newIngredients];
-            localStorage.setItem("jarvis-saved-ingredients", JSON.stringify(mergedIngredients));
+            await api.saveIngredients(mergedIngredients);
             importedCount += newIngredients.length;
           }
         }

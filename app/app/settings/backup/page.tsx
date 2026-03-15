@@ -3,38 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
-
-// All jarvis- prefixed localStorage keys to back up
-const JARVIS_KEYS = [
-  // German
-  "jarvis-german-vocab",
-  "jarvis-german-quiz-stats",
-  // Nutrition / Recipes
-  "jarvis-recipes",
-  "jarvis-saved-ingredients",
-  "jarvis-last-nutrition-backup",
-  // Strava / Cycling
-  "jarvis-strava-activities",
-  "jarvis-strava-descriptions",
-  "jarvis-strava-tokens",
-  "jarvis-strava-last-sync",
-  "jarvis-strava-zones",
-  "jarvis-strava-goals",
-  "jarvis-strava-power-curve",
-  "jarvis-strava-power-curve-rides",
-  "jarvis-strava-power-curve-updated",
-  "jarvis-strava-gear",
-  // Bike management
-  "jarvis-bikes",
-  "jarvis-gear-inventory",
-  "jarvis-tire-pressure-defaults",
-  "jarvis-tire-pressure-tires",
-  // Profile / Session
-  "jarvis-owner",
-  "jarvis-session",
-  "jarvis-bike-sync",
-  "jarvis-last-full-backup",
-];
+import * as api from "../../lib/api-client";
 
 type BackupInfo = {
   name: string;
@@ -84,33 +53,44 @@ export default function BackupSettingsPage() {
     fetchBackups();
   }, []);
 
-  const gatherData = (): Record<string, unknown> => {
+  const gatherData = async (): Promise<Record<string, unknown>> => {
+    const [
+      activities,
+      bikes,
+      gearItems,
+      recipes,
+      ingredients,
+      vocab,
+      tireRefs,
+      kvEntries,
+    ] = await Promise.all([
+      api.getActivities(),
+      api.getBikes(),
+      api.getGearItems(),
+      api.getRecipes(),
+      api.getIngredients(),
+      api.getVocab(),
+      api.getTireRefs(),
+      api.getAllKV(),
+    ]);
+
+    // Build backup data keyed with jarvis- prefix for backward compatibility
     const data: Record<string, unknown> = {};
-    // Grab all known keys
-    for (const key of JARVIS_KEYS) {
-      const val = localStorage.getItem(key);
-      if (val !== null) {
-        try {
-          data[key] = JSON.parse(val);
-        } catch {
-          data[key] = val;
-        }
-      }
+
+    // Domain tables
+    if (activities.length > 0) data["jarvis-strava-activities"] = activities;
+    if (bikes.length > 0) data["jarvis-bikes"] = bikes;
+    if (gearItems.length > 0) data["jarvis-gear-inventory"] = gearItems;
+    if (recipes.length > 0) data["jarvis-recipes"] = recipes;
+    if (ingredients.length > 0) data["jarvis-saved-ingredients"] = ingredients;
+    if (vocab.length > 0) data["jarvis-german-vocab"] = vocab;
+    if (tireRefs.length > 0) data["jarvis-tire-pressure-tires"] = tireRefs;
+
+    // KV entries — re-add the jarvis- prefix for backward compatibility
+    for (const [key, value] of Object.entries(kvEntries)) {
+      data[`jarvis-${key}`] = value;
     }
-    // Also grab any jarvis- keys we might have missed
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("jarvis-") && !(key in data)) {
-        const val = localStorage.getItem(key);
-        if (val !== null) {
-          try {
-            data[key] = JSON.parse(val);
-          } catch {
-            data[key] = val;
-          }
-        }
-      }
-    }
+
     return data;
   };
 
@@ -118,7 +98,7 @@ export default function BackupSettingsPage() {
     setLoading(true);
     setStatus(null);
     try {
-      const data = gatherData();
+      const data = await gatherData();
       const keyCount = Object.keys(data).length;
 
       const res = await fetch("/api/backup", {
@@ -129,7 +109,7 @@ export default function BackupSettingsPage() {
 
       const json = await res.json();
       if (json.success) {
-        localStorage.setItem("jarvis-last-full-backup", new Date().toISOString());
+        await api.setKV("last-full-backup", new Date().toISOString());
         setStatus({
           type: "success",
           message: `Backed up ${keyCount} keys to iCloud (${formatBytes(json.size)})`,
@@ -168,17 +148,57 @@ export default function BackupSettingsPage() {
         return;
       }
 
-      let restored = 0;
+      // Restore domain-specific data via api-client
+      const promises: Promise<void>[] = [];
+
+      if (data["jarvis-strava-activities"]) {
+        promises.push(api.saveActivities(data["jarvis-strava-activities"] as unknown[]));
+      }
+      if (data["jarvis-bikes"]) {
+        promises.push(api.saveBikes(data["jarvis-bikes"] as unknown[]));
+      }
+      if (data["jarvis-gear-inventory"]) {
+        promises.push(api.saveGearItems(data["jarvis-gear-inventory"] as unknown[]));
+      }
+      if (data["jarvis-recipes"]) {
+        promises.push(api.saveRecipes(data["jarvis-recipes"] as unknown[]));
+      }
+      if (data["jarvis-saved-ingredients"]) {
+        promises.push(api.saveIngredients(data["jarvis-saved-ingredients"] as unknown[]));
+      }
+      if (data["jarvis-german-vocab"]) {
+        promises.push(api.saveVocab(data["jarvis-german-vocab"] as unknown[]));
+      }
+      if (data["jarvis-tire-pressure-tires"]) {
+        promises.push(api.saveTireRefs(data["jarvis-tire-pressure-tires"] as unknown[]));
+      }
+
+      // Domain keys that are handled by dedicated tables (not KV)
+      const domainKeys = new Set([
+        "jarvis-strava-activities",
+        "jarvis-bikes",
+        "jarvis-gear-inventory",
+        "jarvis-recipes",
+        "jarvis-saved-ingredients",
+        "jarvis-german-vocab",
+        "jarvis-tire-pressure-tires",
+      ]);
+
+      // Restore remaining jarvis- keys as KV entries (strip the jarvis- prefix)
+      let restored = domainKeys.size;
       for (const [key, value] of Object.entries(data)) {
-        if (key.startsWith("jarvis-")) {
-          localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+        if (key.startsWith("jarvis-") && !domainKeys.has(key)) {
+          const kvKey = key.replace(/^jarvis-/, "");
+          promises.push(api.setKV(kvKey, value));
           restored++;
         }
       }
 
+      await Promise.all(promises);
+
       setStatus({
         type: "success",
-        message: `Restored ${restored} keys from ${fileName}. Reload the page to see changes.`,
+        message: `Restored ${restored} keys from ${fileName}.`,
       });
     } catch (err) {
       setStatus({

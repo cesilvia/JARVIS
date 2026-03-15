@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import * as api from "../lib/api-client";
 import Navigation from "../components/Navigation";
 import NutritionBackIcon from "../components/NutritionBackIcon";
 import CircuitBackground from "../hub/CircuitBackground";
@@ -164,27 +165,21 @@ function RecipesPageInner() {
     return decimalToMixedFraction(amount);
   };
 
-  // Load recipes from localStorage on mount
+  // Load recipes from SQLite on mount
   useEffect(() => {
-    const loadRecipes = () => {
-      const savedRecipes = localStorage.getItem("jarvis-recipes");
-      if (savedRecipes) {
-        try {
-          const parsed = JSON.parse(savedRecipes);
-          console.log("Loaded recipes from localStorage:", parsed.length, "recipes", parsed);
-          if (Array.isArray(parsed)) {
-            setRecipes(parsed);
-            setFilteredRecipes(parsed);
-          }
-        } catch (e) {
-          console.error("Failed to load recipes:", e);
+    const loadRecipes = async () => {
+      try {
+        const loaded = (await api.getRecipes()) as Recipe[];
+        if (Array.isArray(loaded)) {
+          setRecipes(loaded);
+          setFilteredRecipes(loaded);
         }
-      } else {
-        console.log("No recipes found in localStorage");
+      } catch (e) {
+        console.error("Failed to load recipes:", e);
       }
       setIsInitialLoad(false); // Mark initial load as complete
     };
-    
+
     loadRecipes();
     
     // Also listen for storage events (from other tabs)
@@ -206,15 +201,15 @@ function RecipesPageInner() {
     }
   }, [searchParams, isInitialLoad, recipes]);
 
-  // Save recipes to localStorage whenever recipes change (backup to explicit save)
+  // Save recipes to SQLite whenever recipes change
   // BUT: Don't save on initial load when recipes is empty - that would overwrite existing data
   useEffect(() => {
     if (!isInitialLoad) { // Only save after initial load is complete
       try {
-        localStorage.setItem("jarvis-recipes", JSON.stringify(recipes));
-        console.log("Recipes auto-saved to localStorage:", recipes.length, "recipes");
+        api.saveRecipes(recipes);
+        console.log("Recipes auto-saved to SQLite:", recipes.length, "recipes");
       } catch (error) {
-        console.error("Failed to save recipes to localStorage:", error);
+        console.error("Failed to save recipes to SQLite:", error);
       }
     }
   }, [recipes, isInitialLoad]);
@@ -427,12 +422,12 @@ function RecipesPageInner() {
     // Update state
     setRecipes(updatedRecipes);
     
-    // Explicitly save to localStorage immediately
+    // Explicitly save to SQLite immediately
     try {
-      localStorage.setItem("jarvis-recipes", JSON.stringify(updatedRecipes));
+      api.saveRecipes(updatedRecipes);
       console.log("Recipe saved successfully:", recipe.name);
     } catch (error) {
-      console.error("Failed to save recipe to localStorage:", error);
+      console.error("Failed to save recipe to SQLite:", error);
       alert("Failed to save recipe. Please try again.");
       return;
     }
@@ -450,7 +445,7 @@ function RecipesPageInner() {
     setRecipes(updatedRecipes);
     setFilteredRecipes((prev) => prev.filter((r) => r.id !== recipeId));
     try {
-      localStorage.setItem("jarvis-recipes", JSON.stringify(updatedRecipes));
+      api.saveRecipes(updatedRecipes);
     } catch (error) {
       console.error("Failed to save after delete:", error);
     }
@@ -507,7 +502,7 @@ function RecipesPageInner() {
           
           setRecipes(mergedRecipes);
           try {
-            localStorage.setItem("jarvis-recipes", JSON.stringify(mergedRecipes));
+            api.saveRecipes(mergedRecipes);
             alert(`Successfully imported ${newRecipes.length} recipe(s)!`);
           } catch (error) {
             console.error("Failed to save imported recipes:", error);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navigation from "../../components/Navigation";
 import NutritionBackIcon from "../../components/NutritionBackIcon";
 import CircuitBackground from "../../hub/CircuitBackground";
+import * as api from "../../lib/api-client";
 
 const hubTheme = {
   primary: "#00D9FF",
@@ -88,10 +89,9 @@ export default function BrowseRecipesPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem("jarvis-recipes");
-    if (raw) {
+    (async () => {
       try {
-        const parsed = JSON.parse(raw);
+        const parsed = await api.getRecipes() as Recipe[];
         if (Array.isArray(parsed)) {
           const sorted = [...parsed].sort((a, b) =>
             (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
@@ -101,7 +101,7 @@ export default function BrowseRecipesPage() {
       } catch (e) {
         console.error("Failed to load recipes", e);
       }
-    }
+    })();
   }, []);
 
   const byLetter = recipes.reduce<Record<string, Recipe[]>>((acc, recipe) => {
@@ -259,7 +259,7 @@ export default function BrowseRecipesPage() {
                           confirm("This cannot be undone. Click OK to permanently delete this recipe.")
                         ) {
                           const updated = recipes.filter((r) => r !== selectedRecipe);
-                          localStorage.setItem("jarvis-recipes", JSON.stringify(updated));
+                          api.saveRecipes(updated);
                           setRecipes(updated);
                           setSelectedRecipe(null);
                         }

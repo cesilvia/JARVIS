@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
+import * as api from "../lib/api-client";
 
 // ─── Theme ───────────────────────────────────────────────────────
 const theme = { primary: "#00D9FF", secondary: "#67C7EB", bg: "#000000" };
@@ -41,9 +42,7 @@ interface QuizQuestion {
   explanation: string;
 }
 
-// ─── LocalStorage Keys ──────────────────────────────────────────
-const VOCAB_KEY = "jarvis-german-vocab";
-const QUIZ_STATS_KEY = "jarvis-german-quiz-stats";
+// ─── Storage Keys (used by migration endpoint) ─────────────────
 
 // ─── Built-in Vocabulary ────────────────────────────────────────
 // Common German nouns with articles
@@ -572,29 +571,34 @@ export default function GermanPage() {
   const [vocab, setVocab] = useState<VocabWord[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // Load vocab from localStorage, merging with builtins
+  // Load vocab from SQLite, merging with builtins
   useEffect(() => {
-    const stored = localStorage.getItem(VOCAB_KEY);
-    let saved: VocabWord[] = [];
-    if (stored) {
-      try { saved = JSON.parse(stored); } catch { /* ignore */ }
-    }
-    // Merge: keep saved state for known words, add any new builtins
-    const savedKeys = new Set(saved.map((w) => `${w.german}|${w.partOfSpeech}`));
-    const merged = [...saved];
-    for (const b of ALL_BUILTIN) {
-      const key = `${b.german}|${b.partOfSpeech}`;
-      if (!savedKeys.has(key)) {
-        merged.push(initWord(b, "builtin"));
+    async function load() {
+      let saved: VocabWord[] = [];
+      try {
+        saved = (await api.getVocab()) as VocabWord[];
+      } catch { /* ignore */ }
+      // Merge: keep saved state for known words, add any new builtins
+      const savedKeys = new Set(saved.map((w) => `${w.german}|${w.partOfSpeech}`));
+      const merged = [...saved];
+      for (const b of ALL_BUILTIN) {
+        const key = `${b.german}|${b.partOfSpeech}`;
+        if (!savedKeys.has(key)) {
+          merged.push(initWord(b, "builtin"));
+        }
       }
+      setVocab(merged);
+      setLoaded(true);
     }
-    setVocab(merged);
-    setLoaded(true);
+    load();
   }, []);
 
   // Persist vocab
+  const prevVocabRef = useRef(vocab);
   useEffect(() => {
-    if (loaded) localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
+    if (!loaded || prevVocabRef.current === vocab) return;
+    prevVocabRef.current = vocab;
+    api.saveVocab(vocab);
   }, [vocab, loaded]);
 
   const saveVocab = useCallback((updater: (prev: VocabWord[]) => VocabWord[]) => {
@@ -1041,6 +1045,13 @@ function QuizTab({ vocab }: { vocab: VocabWord[] }) {
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [quizType, setQuizType] = useState<"mixed" | "articles" | "cases" | "conjugation" | "translation">("mixed");
+  const [quizHistory, setQuizHistory] = useState<{ date: string; type: string; score: number; total: number }[]>([]);
+
+  useEffect(() => {
+    api.getKV<{ date: string; type: string; score: number; total: number }[]>("german-quiz-stats").then((stats) => {
+      if (stats) setQuizHistory(stats);
+    });
+  }, []);
 
   const startQuiz = (type: typeof quizType) => {
     setQuizType(type);
@@ -1078,12 +1089,13 @@ function QuizTab({ vocab }: { vocab: VocabWord[] }) {
     if (currentQ + 1 >= questions.length) {
       setFinished(true);
       // Save quiz stats
-      try {
-        const raw = localStorage.getItem(QUIZ_STATS_KEY);
-        const stats = raw ? JSON.parse(raw) : [];
-        stats.push({ date: new Date().toISOString(), type: quizType, score, total: questions.length });
-        localStorage.setItem(QUIZ_STATS_KEY, JSON.stringify(stats.slice(-100)));
-      } catch { /* ignore */ }
+      (async () => {
+        try {
+          const stats = ((await api.getKV<unknown[]>("german-quiz-stats")) ?? []) as unknown[];
+          stats.push({ date: new Date().toISOString(), type: quizType, score, total: questions.length });
+          await api.setKV("german-quiz-stats", stats.slice(-100));
+        } catch { /* ignore */ }
+      })();
     } else {
       setCurrentQ((q) => q + 1);
       setSelected(null);
@@ -1116,31 +1128,22 @@ function QuizTab({ vocab }: { vocab: VocabWord[] }) {
         </div>
 
         {/* Quiz history */}
-        {(() => {
-          try {
-            const raw = localStorage.getItem(QUIZ_STATS_KEY);
-            if (!raw) return null;
-            const stats: { date: string; type: string; score: number; total: number }[] = JSON.parse(raw);
-            const recent = stats.slice(-5).reverse();
-            if (recent.length === 0) return null;
-            return (
-              <div className="mt-6">
-                <p className="text-xs uppercase tracking-wider mb-2" style={{ color: theme.secondary }}>Recent quizzes</p>
-                <div className="space-y-1">
-                  {recent.map((s, i) => (
-                    <div key={i} className="flex gap-4 px-3 py-2 text-xs font-mono" style={{ background: `${theme.primary}05`, border: `1px solid ${theme.primary}15` }}>
-                      <span style={{ color: theme.secondary }}>{new Date(s.date).toLocaleDateString()}</span>
-                      <span style={{ color: theme.primary }}>{s.type}</span>
-                      <span style={{ color: s.score / s.total >= 0.8 ? "#4AFF88" : s.score / s.total >= 0.5 ? "#FFB84A" : "#FF4A6A" }}>
-                        {s.score}/{s.total} ({Math.round(s.score / s.total * 100)}%)
-                      </span>
-                    </div>
-                  ))}
+        {quizHistory.length > 0 && (
+          <div className="mt-6">
+            <p className="text-xs uppercase tracking-wider mb-2" style={{ color: theme.secondary }}>Recent quizzes</p>
+            <div className="space-y-1">
+              {quizHistory.slice(-5).reverse().map((s, i) => (
+                <div key={i} className="flex gap-4 px-3 py-2 text-xs font-mono" style={{ background: `${theme.primary}05`, border: `1px solid ${theme.primary}15` }}>
+                  <span style={{ color: theme.secondary }}>{new Date(s.date).toLocaleDateString()}</span>
+                  <span style={{ color: theme.primary }}>{s.type}</span>
+                  <span style={{ color: s.score / s.total >= 0.8 ? "#4AFF88" : s.score / s.total >= 0.5 ? "#FFB84A" : "#FF4A6A" }}>
+                    {s.score}/{s.total} ({Math.round(s.score / s.total * 100)}%)
+                  </span>
                 </div>
-              </div>
-            );
-          } catch { return null; }
-        })()}
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1240,12 +1243,12 @@ function BackupTab({ vocab, setVocab }: { vocab: VocabWord[]; setVocab: (v: Voca
   const [importStatus, setImportStatus] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = {
       version: 1,
       exportedAt: new Date().toISOString(),
       vocab,
-      quizStats: (() => { try { return JSON.parse(localStorage.getItem(QUIZ_STATS_KEY) || "[]"); } catch { return []; } })(),
+      quizStats: (await api.getKV("german-quiz-stats")) ?? [],
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1266,7 +1269,7 @@ function BackupTab({ vocab, setVocab }: { vocab: VocabWord[]; setVocab: (v: Voca
         if (!data.vocab || !Array.isArray(data.vocab)) throw new Error("Invalid backup file");
         setVocab(data.vocab);
         if (data.quizStats) {
-          localStorage.setItem(QUIZ_STATS_KEY, JSON.stringify(data.quizStats));
+          api.setKV("german-quiz-stats", data.quizStats);
         }
         setImportStatus(`Restored ${data.vocab.length} words from ${data.exportedAt ? new Date(data.exportedAt).toLocaleDateString() : "backup"}.`);
       } catch {

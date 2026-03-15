@@ -3,17 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import * as api from "../../lib/api-client";
 import {
-  STRAVA_ZONES_KEY, ZoneConfig, ZoneBand,
-  buildDefaultPowerZones, buildDefaultHRZones, loadZones,
-  StravaGoal, STRAVA_GOALS_KEY, DEFAULT_GOALS, loadGoals,
+  ZoneConfig, ZoneBand,
+  buildDefaultPowerZones, buildDefaultHRZones,
+  StravaGoal, DEFAULT_GOALS,
 } from "../../bike/strava/types";
 
-const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
-const STRAVA_ACTIVITIES_KEY = "jarvis-strava-activities";
-const STRAVA_GEAR_KEY = "jarvis-strava-gear";
-const BIKES_STORAGE_KEY = "jarvis-bikes";
-const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";
 const METERS_TO_MILES = 1 / 1609.34;
 
 // Strava wordmark
@@ -55,19 +51,22 @@ export default function CyclingSettingsPage() {
   const [goalsSaved, setGoalsSaved] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const tokens = localStorage.getItem(STRAVA_TOKENS_KEY);
+    async function loadData() {
+      const tokens = await api.getKV("strava-tokens");
       setStravaConnected(!!tokens);
-      setStravaLastSync(localStorage.getItem(STRAVA_LAST_SYNC_KEY));
-      const existingZones = loadZones();
+      const lastSync = await api.getKV<string>("strava-last-sync");
+      setStravaLastSync(lastSync);
+      const existingZones = await api.getKV<ZoneConfig>("strava-zones");
       if (existingZones) {
         setFtp(String(existingZones.ftp));
         setMaxHR(String(existingZones.maxHR));
         setPowerZones(existingZones.powerZones);
         setHRZones(existingZones.hrZones);
       }
-      setGoals(loadGoals());
+      const savedGoals = await api.getKV<StravaGoal[]>("strava-goals");
+      if (savedGoals) setGoals(savedGoals);
     }
+    loadData();
   }, []);
 
   // Handle Strava OAuth callback hash
@@ -80,7 +79,7 @@ export default function CyclingSettingsPage() {
     const expiresAt = params.get("strava_expires_at");
     if (accessToken && refreshToken && expiresAt) {
       const tokens = { accessToken, refreshToken, expiresAt: parseInt(expiresAt, 10) };
-      localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify(tokens));
+      api.setKV("strava-tokens", tokens);
       setStravaConnected(true);
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
@@ -96,25 +95,24 @@ export default function CyclingSettingsPage() {
   }, []);
 
   const handleStravaSync = async () => {
-    const stored = localStorage.getItem(STRAVA_TOKENS_KEY);
+    const stored = await api.getKV<{ accessToken: string; refreshToken: string; expiresAt: number }>("strava-tokens");
     if (!stored) return;
     setStravaSyncing(true);
     setStravaError("");
     try {
-      const tokens = JSON.parse(stored);
-      let accessToken = tokens.accessToken;
-      const expiresIn = tokens.expiresAt - Math.floor(Date.now() / 1000);
+      let accessToken = stored.accessToken;
+      const expiresIn = stored.expiresAt - Math.floor(Date.now() / 1000);
       if (expiresIn < 3600) {
         const refreshRes = await fetch("/api/strava/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+          body: JSON.stringify({ refreshToken: stored.refreshToken }),
         });
         if (refreshRes.ok) {
           const data = await refreshRes.json();
           accessToken = data.accessToken;
           const newTokens = { accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt };
-          localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify(newTokens));
+          await api.setKV("strava-tokens", newTokens);
         }
       }
       const [activitiesRes, gearRes] = await Promise.all([
@@ -135,10 +133,10 @@ export default function CyclingSettingsPage() {
       const { activities } = await activitiesRes.json();
       const { gear } = await gearRes.json();
 
-      localStorage.setItem(STRAVA_ACTIVITIES_KEY, JSON.stringify(activities));
+      await api.saveActivities(activities);
 
       const gearList = (gear || []).map((g: { id: string; name: string }) => ({ id: g.id, name: g.name }));
-      localStorage.setItem(STRAVA_GEAR_KEY, JSON.stringify(gearList));
+      await api.setKV("strava-gear", gearList);
 
       const byGear: Record<string, { total: number; indoor: number; road: number }> = {};
       for (const a of activities) {
@@ -151,16 +149,15 @@ export default function CyclingSettingsPage() {
       }
 
       const now = new Date().toISOString();
-      const bikesRaw = localStorage.getItem(BIKES_STORAGE_KEY);
-      let currentBikes = bikesRaw ? JSON.parse(bikesRaw) : [];
-      currentBikes = currentBikes.map((b: { stravaGearId?: string; [key: string]: unknown }) => {
+      let currentBikes = (await api.getBikes()) as { stravaGearId?: string; [key: string]: unknown }[];
+      currentBikes = currentBikes.map((b) => {
         const gearId = b.stravaGearId;
         if (!gearId || !byGear[gearId]) return b;
         const { total, indoor, road } = byGear[gearId];
         return { ...b, totalMiles: Math.round(total * 10) / 10, indoorMiles: Math.round(indoor * 10) / 10, roadMiles: Math.round(road * 10) / 10, lastSyncAt: now };
       });
-      localStorage.setItem(BIKES_STORAGE_KEY, JSON.stringify(currentBikes));
-      localStorage.setItem(STRAVA_LAST_SYNC_KEY, now);
+      await api.saveBikes(currentBikes);
+      await api.setKV("strava-last-sync", now);
       setStravaLastSync(now);
     } catch (err) {
       setStravaError(err instanceof Error ? err.message : "Sync failed");
@@ -169,9 +166,9 @@ export default function CyclingSettingsPage() {
     }
   };
 
-  const handleStravaDisconnect = () => {
+  const handleStravaDisconnect = async () => {
     if (confirm("Disconnect Strava? Mileage data will remain but you won't be able to sync.")) {
-      localStorage.removeItem(STRAVA_TOKENS_KEY);
+      await api.deleteKV("strava-tokens");
       setStravaConnected(false);
     }
   };
@@ -202,25 +199,25 @@ export default function CyclingSettingsPage() {
     setGoals((prev) => prev.map((g, i) => i === index ? { ...g, target: parseInt(value, 10) || 0 } : g));
   };
 
-  const handleSaveGoals = () => {
-    localStorage.setItem(STRAVA_GOALS_KEY, JSON.stringify(goals));
+  const handleSaveGoals = async () => {
+    await api.setKV("strava-goals", goals);
     setGoalsSaved(true);
     setTimeout(() => setGoalsSaved(false), 3000);
   };
 
-  const handleResetGoals = () => {
+  const handleResetGoals = async () => {
     setGoals(DEFAULT_GOALS);
-    localStorage.setItem(STRAVA_GOALS_KEY, JSON.stringify(DEFAULT_GOALS));
+    await api.setKV("strava-goals", DEFAULT_GOALS);
     setGoalsSaved(true);
     setTimeout(() => setGoalsSaved(false), 3000);
   };
 
-  const handleSaveZones = () => {
+  const handleSaveZones = async () => {
     const ftpNum = parseInt(ftp, 10);
     const maxHRNum = parseInt(maxHR, 10);
     if (!ftpNum || !maxHRNum) return;
     const config: ZoneConfig = { ftp: ftpNum, maxHR: maxHRNum, zonesUpdatedAt: new Date().toISOString(), powerZones, hrZones };
-    localStorage.setItem(STRAVA_ZONES_KEY, JSON.stringify(config));
+    await api.setKV("strava-zones", config);
     setZonesSaved(true);
     setTimeout(() => setZonesSaved(false), 3000);
   };

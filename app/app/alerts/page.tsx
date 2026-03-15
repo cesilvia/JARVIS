@@ -3,11 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../components/Navigation";
-import { GEAR_STORAGE_KEY } from "../bike/inventory/page";
+import * as api from "../lib/api-client";
 
-const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
-const JARVIS_LAST_FULL_BACKUP_KEY = "jarvis-last-full-backup";
-const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const BACKUP_REMINDER_DAYS = 7;
 const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
@@ -39,59 +36,47 @@ export default function AlertsPage() {
   const [zoneReviewDays, setZoneReviewDays] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(JARVIS_LAST_BACKUP_KEY);
-    setLastBackup(stored);
-    if (!stored) {
-      setBackupOverdue(true);
-      return;
-    }
-    const then = new Date(stored).getTime();
-    const now = Date.now();
-    const daysSince = (now - then) / (1000 * 60 * 60 * 24);
-    setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
-  }, []);
+    async function loadAlerts() {
+      // Load all data in parallel
+      const [nutritionBackup, fullBackup, zones, gearItems] = await Promise.all([
+        api.getKV<string>("last-nutrition-backup"),
+        api.getKV<string>("last-full-backup"),
+        api.getKV<{ zonesUpdatedAt?: string }>("strava-zones"),
+        api.getGearItems() as Promise<GearItem[]>,
+      ]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(JARVIS_LAST_FULL_BACKUP_KEY);
-    setLastFullBackup(stored);
-    if (!stored) {
-      setFullBackupOverdue(true);
-      return;
-    }
-    const daysSince = (Date.now() - new Date(stored).getTime()) / (1000 * 60 * 60 * 24);
-    setFullBackupOverdue(daysSince >= FULL_BACKUP_REMINDER_DAYS);
-  }, []);
+      // Nutrition backup
+      setLastBackup(nutritionBackup);
+      if (!nutritionBackup) {
+        setBackupOverdue(true);
+      } else {
+        const then = new Date(nutritionBackup).getTime();
+        const now = Date.now();
+        const daysSince = (now - then) / (1000 * 60 * 60 * 24);
+        setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
+      }
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const zonesRaw = localStorage.getItem(STRAVA_ZONES_KEY);
-    if (zonesRaw) {
-      try {
-        const zones = JSON.parse(zonesRaw);
-        if (zones.zonesUpdatedAt) {
-          const days = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
-          setZoneReviewDays(Math.floor(days));
-          setZoneReviewDue(days >= ZONE_REVIEW_DAYS);
-        }
-      } catch { /* ignore */ }
-    }
-  }, []);
+      // Full backup
+      setLastFullBackup(fullBackup);
+      if (!fullBackup) {
+        setFullBackupOverdue(true);
+      } else {
+        const daysSince = (Date.now() - new Date(fullBackup).getTime()) / (1000 * 60 * 60 * 24);
+        setFullBackupOverdue(daysSince >= FULL_BACKUP_REMINDER_DAYS);
+      }
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = localStorage.getItem(GEAR_STORAGE_KEY);
-    if (!raw) {
-      setHelmetReminders([]);
-      return;
-    }
-    try {
-      const items: GearItem[] = JSON.parse(raw);
+      // Zone review
+      if (zones?.zonesUpdatedAt) {
+        const days = (Date.now() - new Date(zones.zonesUpdatedAt).getTime()) / (1000 * 60 * 60 * 24);
+        setZoneReviewDays(Math.floor(days));
+        setZoneReviewDue(days >= ZONE_REVIEW_DAYS);
+      }
+
+      // Helmet reminders
       const now = Date.now();
       const cutoff = now + HELMET_REMINDER_DAYS * 24 * 60 * 60 * 1000;
       const reminders: { item: GearItem; replaceDate: Date }[] = [];
-      for (const item of items) {
+      for (const item of gearItems) {
         if (item.category !== "Helmets") continue;
         const replaceDate = getReplaceDate(item);
         if (!replaceDate) continue;
@@ -101,9 +86,9 @@ export default function AlertsPage() {
       }
       reminders.sort((a, b) => a.replaceDate.getTime() - b.replaceDate.getTime());
       setHelmetReminders(reminders);
-    } catch {
-      setHelmetReminders([]);
     }
+
+    loadAlerts();
   }, []);
 
   return (
@@ -150,7 +135,7 @@ export default function AlertsPage() {
             <p className="text-slate-400 font-mono text-sm mb-4">
               {lastBackup
                 ? `Your last backup was ${new Date(lastBackup).toLocaleDateString()}. Back up your recipes and saved ingredients at least weekly.`
-                : "You haven’t backed up your nutrition data yet. Export a backup from Settings so you don’t lose your recipes and ingredients."}
+                : "You haven't backed up your nutrition data yet. Export a backup from Settings so you don't lose your recipes and ingredients."}
             </p>
             <Link
               href="/settings"

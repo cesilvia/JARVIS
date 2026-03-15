@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
+import * as api from "../../lib/api-client";
 
 const hubTheme = {
   primary: "#00D9FF",
@@ -55,9 +56,7 @@ interface Bike {
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-const STORAGE_KEY = "jarvis-bikes";
 const OLD_STORAGE_KEY = "jarvis-bike-components";
-const STRAVA_GEAR_KEY = "jarvis-strava-gear";
 
 interface StravaGearOption {
   id: string;
@@ -321,26 +320,40 @@ export default function ComponentListPage() {
     size: "",
   });
 
+  const prevBikesRef = useRef<string>("");
+
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    async function loadBikes() {
       try {
-        const parsed = JSON.parse(stored) as Bike[];
-        setBikes(parsed.map((b) => ({ ...b, attachments: b.attachments || [] })));
+        const apiBikes = await api.getBikes();
+        if (apiBikes && apiBikes.length > 0) {
+          const normalized = (apiBikes as Bike[]).map((b) => ({ ...b, attachments: b.attachments || [] }));
+          setBikes(normalized);
+          prevBikesRef.current = JSON.stringify(normalized);
+        } else {
+          // One-time fallback: migrate from old localStorage format
+          const migrated = migrateFromOldFormat();
+          if (migrated.length > 0) {
+            setBikes(migrated);
+            await api.saveBikes(migrated);
+          }
+        }
       } catch {
+        // Fallback to localStorage migration on API error
         const migrated = migrateFromOldFormat();
-        setBikes(migrated);
+        if (migrated.length > 0) setBikes(migrated);
       }
-    } else {
-      const migrated = migrateFromOldFormat();
-      if (migrated.length > 0) setBikes(migrated);
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
+    loadBikes();
   }, []);
 
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bikes));
+    const serialized = JSON.stringify(bikes);
+    if (serialized === prevBikesRef.current) return;
+    prevBikesRef.current = serialized;
+    api.saveBikes(bikes);
   }, [bikes, isLoaded]);
 
   const addBike = () => {
@@ -370,12 +383,13 @@ export default function ComponentListPage() {
   const [stravaGearOptions, setStravaGearOptions] = useState<StravaGearOption[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STRAVA_GEAR_KEY);
-    if (stored) {
+    async function loadStravaGear() {
       try {
-        setStravaGearOptions(JSON.parse(stored));
+        const gear = await api.getKV<{id: string; name: string}[]>("strava-gear");
+        if (gear) setStravaGearOptions(gear);
       } catch { /* ignore */ }
     }
+    loadStravaGear();
   }, []);
 
   const addAttachment = (bikeId: string, file: File) => {

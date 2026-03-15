@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
+import * as api from "../lib/api-client";
 
 const hubTheme = {
   primary: "#00D9FF",
@@ -78,49 +79,41 @@ export default function Home() {
     }
   }, [pathname]);
 
-  // Load recipes and saved ingredients from localStorage (same list used by "Search by ingredient name")
+  // Load recipes and saved ingredients from SQLite API
   useEffect(() => {
-    const savedRecipes = localStorage.getItem("jarvis-recipes");
-    if (savedRecipes) {
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(savedRecipes);
-        setRecipes(parsed);
+        const recipes = await api.getRecipes() as Recipe[];
+        setRecipes(recipes);
       } catch (e) {
         console.error("Failed to load recipes:", e);
       }
-    }
 
-    const savedIngs = localStorage.getItem("jarvis-saved-ingredients");
-    if (savedIngs) {
       try {
-        const parsed = JSON.parse(savedIngs);
-        setSavedIngredients(parsed);
+        const ingredients = await api.getIngredients() as NutritionData[];
+        setSavedIngredients(ingredients);
       } catch (e) {
         console.error("Failed to load saved ingredients:", e);
       }
-    }
+    };
+    loadData();
   }, []);
 
   // Listen for recipe updates (when recipes are saved/updated)
   useEffect(() => {
-    const handleStorageChange = () => {
-      const savedRecipes = localStorage.getItem("jarvis-recipes");
-      if (savedRecipes) {
-        try {
-          const parsed = JSON.parse(savedRecipes);
-          setRecipes(parsed);
-        } catch (e) {
-          console.error("Failed to load recipes:", e);
-        }
+    const handleStorageChange = async () => {
+      try {
+        const recipes = await api.getRecipes() as Recipe[];
+        setRecipes(recipes);
+      } catch (e) {
+        console.error("Failed to load recipes:", e);
       }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    // Also check periodically for same-tab updates
-    const interval = setInterval(handleStorageChange, 1000);
-    
+    // Check periodically for updates from other tabs/pages
+    const interval = setInterval(handleStorageChange, 2000);
+
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);
     };
   }, []);
@@ -436,11 +429,11 @@ export default function Home() {
       source: "Manual Entry",
     };
 
-    // Add to searchable "database" (savedIngredients + localStorage) — used by "Search by ingredient name" autocomplete
+    // Add to searchable "database" (savedIngredients + SQLite) — used by "Search by ingredient name" autocomplete
     const existingIngredients = savedIngredients.filter((ing) => ing.name.toLowerCase() !== data.name.toLowerCase());
     const updatedIngredients = [...existingIngredients, data];
     setSavedIngredients(updatedIngredients);
-    localStorage.setItem("jarvis-saved-ingredients", JSON.stringify(updatedIngredients));
+    api.saveIngredients(updatedIngredients);
 
     setNutritionData(data);
     setCustomAmount(null);

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
+import * as api from "../../lib/api-client";
 
 const hubTheme = {
   primary: "#00D9FF",
@@ -73,30 +74,42 @@ export default function GearInventoryPage() {
     weather: "",
   });
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as (GearItem & { color?: string })[];
-        const migrated = parsed.map((i) => {
-          if (i.color != null && !(i.colors && i.colors.length)) {
-            const { color, ...rest } = i;
-            return { ...rest, colors: [color] } as GearItem;
-          }
-          return i;
-        });
-        setItems(migrated);
-      } catch {
-        setItems([]);
-      }
+  const persistItems = useCallback(async (updated: GearItem[]) => {
+    try {
+      await api.saveGearItems(updated);
+    } catch (e) {
+      console.error("Failed to save gear items", e);
     }
-    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getGearItems();
+        if (!cancelled) {
+          // Migrate legacy `color` field to `colors` array
+          const migrated = (data as (GearItem & { color?: string })[]).map((i) => {
+            if (i.color != null && !(i.colors && i.colors.length)) {
+              const { color, ...rest } = i;
+              return { ...rest, colors: [color] } as GearItem;
+            }
+            return i as GearItem;
+          });
+          setItems(migrated);
+        }
+      } catch {
+        if (!cancelled) setItems([]);
+      }
+      if (!cancelled) setIsLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items, isLoaded]);
+    persistItems(items);
+  }, [items, isLoaded, persistItems]);
 
   const addItem = () => {
     let name = newItem.name.trim();

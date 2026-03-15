@@ -7,24 +7,21 @@ import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
 import {
   StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal,
-  STRAVA_ACTIVITIES_KEY, STRAVA_DESCRIPTIONS_KEY, STRAVA_TOKENS_KEY, STRAVA_LAST_SYNC_KEY,
-  STRAVA_ZONES_KEY, STRAVA_POWER_CURVE_KEY, STRAVA_POWER_CURVE_RIDES_KEY, STRAVA_POWER_CURVE_UPDATED_KEY, BIKES_STORAGE_KEY,
+  DEFAULT_GOALS,
   METERS_TO_MILES, METERS_TO_FEET, MPS_TO_MPH, AUTO_SYNC_INTERVAL_MS,
   POWER_ZONE_COLORS, HR_ZONE_COLORS,
   formatTime, formatHours, formatDate, getWeekStart, getMonthStart, getYearStart,
-  loadZones, loadGoals,
 } from "./types";
+import * as api from "../../lib/api-client";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB", background: "#000000" };
-const STRAVA_GEAR_KEY = "jarvis-strava-gear";
 type Tab = "overview" | "rides" | "power" | "fitness";
 
 // ─── Sync helper ────────────────────────────────────────────────
 
 async function getAccessToken(): Promise<string | null> {
-  const stored = localStorage.getItem(STRAVA_TOKENS_KEY);
-  if (!stored) return null;
-  const tokens = JSON.parse(stored);
+  const tokens = await api.getKV<{ accessToken: string; refreshToken: string; expiresAt: number }>("strava-tokens");
+  if (!tokens) return null;
   let accessToken = tokens.accessToken;
   const expiresIn = tokens.expiresAt - Math.floor(Date.now() / 1000);
   if (expiresIn < 3600) {
@@ -38,9 +35,9 @@ async function getAccessToken(): Promise<string | null> {
       if (res.ok) {
         const data = await res.json();
         accessToken = data.accessToken;
-        localStorage.setItem(STRAVA_TOKENS_KEY, JSON.stringify({
+        await api.setKV("strava-tokens", {
           accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt,
-        }));
+        });
       }
     } catch (err) {
       console.warn("Token refresh failed:", err);
@@ -61,16 +58,16 @@ async function syncActivities(): Promise<StravaActivity[]> {
   const { activities } = await actRes.json();
   if (!Array.isArray(activities) || activities.length === 0) {
     // Don't overwrite stored rides with empty results — return what we already have
-    const stored = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
-    if (stored) { try { return JSON.parse(stored); } catch { /* fall through */ } }
+    const stored = await api.getActivities();
+    if (stored.length > 0) return stored as StravaActivity[];
     return [];
   }
-  localStorage.setItem(STRAVA_ACTIVITIES_KEY, JSON.stringify(activities));
-  localStorage.setItem(STRAVA_LAST_SYNC_KEY, new Date().toISOString());
+  await api.saveActivities(activities);
+  await api.setKV("strava-last-sync", new Date().toISOString());
   if (gearRes.ok) {
     const { gear } = await gearRes.json();
     const gearList = (gear || []).map((g: { id: string; name: string }) => ({ id: g.id, name: g.name }));
-    localStorage.setItem(STRAVA_GEAR_KEY, JSON.stringify(gearList));
+    await api.setKV("strava-gear", gearList);
     const byGear: Record<string, { total: number; indoor: number; road: number }> = {};
     for (const a of activities) {
       const gid = a.gear_id || "unassigned";
@@ -81,16 +78,16 @@ async function syncActivities(): Promise<StravaActivity[]> {
       else byGear[gid].road += mi;
     }
     const now = new Date().toISOString();
-    const bikesRaw = localStorage.getItem(BIKES_STORAGE_KEY);
-    if (bikesRaw) {
-      let bikes = JSON.parse(bikesRaw);
-      bikes = bikes.map((b: { stravaGearId?: string; [k: string]: unknown }) => {
+    const bikesArr = await api.getBikes();
+    if (bikesArr.length > 0) {
+      let bikes = bikesArr as { stravaGearId?: string; [k: string]: unknown }[];
+      bikes = bikes.map((b) => {
         const gid = b.stravaGearId;
         if (!gid || !byGear[gid]) return b;
         const { total, indoor, road } = byGear[gid];
         return { ...b, totalMiles: Math.round(total * 10) / 10, indoorMiles: Math.round(indoor * 10) / 10, roadMiles: Math.round(road * 10) / 10, lastSyncAt: now };
       });
-      localStorage.setItem(BIKES_STORAGE_KEY, JSON.stringify(bikes));
+      await api.saveBikes(bikes);
     }
   }
   return activities;
@@ -98,11 +95,9 @@ async function syncActivities(): Promise<StravaActivity[]> {
 
 // ─── Stream fetching ────────────────────────────────────────────
 
-function getStreamCacheKey(id: number) { return `jarvis-strava-stream-${id}`; }
-
 async function fetchStream(activityId: number): Promise<StreamData | null> {
-  const cached = localStorage.getItem(getStreamCacheKey(activityId));
-  if (cached) { try { return JSON.parse(cached); } catch { /* fall through */ } }
+  const cached = await api.getStream(activityId);
+  if (cached) return cached as StreamData;
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
   const res = await fetch("/api/strava/streams", {
@@ -111,24 +106,23 @@ async function fetchStream(activityId: number): Promise<StreamData | null> {
   });
   if (!res.ok) return null;
   const { streams } = await res.json();
-  localStorage.setItem(getStreamCacheKey(activityId), JSON.stringify(streams));
+  await api.saveStream(activityId, streams);
   return streams as StreamData;
 }
 
 // ─── Description fetching ────────────────────────────────────────
 
-function loadDescriptionCache(): Record<number, string> {
-  const raw = localStorage.getItem(STRAVA_DESCRIPTIONS_KEY);
-  if (!raw) return {};
-  try { return JSON.parse(raw); } catch { return {}; }
+async function loadDescriptionCache(): Promise<Record<number, string>> {
+  const raw = await api.getKV<Record<number, string>>("strava-descriptions");
+  return raw || {};
 }
 
-function saveDescriptionCache(cache: Record<number, string>) {
-  localStorage.setItem(STRAVA_DESCRIPTIONS_KEY, JSON.stringify(cache));
+async function saveDescriptionCache(cache: Record<number, string>) {
+  await api.setKV("strava-descriptions", cache);
 }
 
 async function fetchDescription(activityId: number): Promise<string | null> {
-  const cache = loadDescriptionCache();
+  const cache = await loadDescriptionCache();
   if (cache[activityId] !== undefined) return cache[activityId];
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
@@ -140,7 +134,7 @@ async function fetchDescription(activityId: number): Promise<string | null> {
   const { activity } = await res.json();
   const desc = activity.description || "";
   cache[activityId] = desc;
-  saveDescriptionCache(cache);
+  await saveDescriptionCache(cache);
   return desc;
 }
 
@@ -797,38 +791,53 @@ export default function StravaPage() {
   const [compareStreams, setCompareStreams] = useState<Record<number, StreamData>>({});
   const [loadingCompareStreams, setLoadingCompareStreams] = useState(false);
 
-  // Load from localStorage
+  // Load from SQLite
   useEffect(() => {
-    const stored = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
-    if (stored) { try { setActivities(JSON.parse(stored)); } catch { /* ignore */ } }
-    setConnected(!!localStorage.getItem(STRAVA_TOKENS_KEY));
-    const bikeStored = localStorage.getItem(BIKES_STORAGE_KEY);
-    if (bikeStored) { try { setBikes(JSON.parse(bikeStored)); } catch { /* ignore */ } }
-    setZones(loadZones());
-    const curveStored = localStorage.getItem(STRAVA_POWER_CURVE_KEY);
-    if (curveStored) { try { setPowerCurve(JSON.parse(curveStored)); } catch { /* ignore */ } }
-    setGoals(loadGoals());
+    async function loadData() {
+      const [storedActivities, tokens, storedBikes, storedZones, curveStored, storedGoals] = await Promise.all([
+        api.getActivities(),
+        api.getKV("strava-tokens"),
+        api.getBikes(),
+        api.getKV<ZoneConfig>("strava-zones"),
+        api.getKV<Record<number, number>>("strava-power-curve"),
+        api.getKV<StravaGoal[]>("strava-goals"),
+      ]);
+      if ((storedActivities as StravaActivity[]).length > 0) setActivities(storedActivities as StravaActivity[]);
+      setConnected(!!tokens);
+      if ((storedBikes as Bike[]).length > 0) setBikes(storedBikes as Bike[]);
+      setZones(storedZones || null);
+      if (curveStored) setPowerCurve(curveStored);
+      setGoals(storedGoals || DEFAULT_GOALS);
+    }
+    loadData();
   }, []);
 
   // Auto-sync on page visit
   useEffect(() => {
     if (!connected) return;
-    const lastSync = localStorage.getItem(STRAVA_LAST_SYNC_KEY);
-    const stale = !lastSync || (Date.now() - new Date(lastSync).getTime()) > AUTO_SYNC_INTERVAL_MS;
-    if (!stale) return;
-    setSyncing(true);
-    setSyncMsg("Auto-syncing...");
-    syncActivities()
-      .then((acts) => { setActivities(acts); setSyncMsg(`Synced ${acts.length} rides`); setTimeout(() => setSyncMsg(""), 3000); })
-      .catch((err) => {
+    async function autoSync() {
+      const lastSync = await api.getKV<string>("strava-last-sync");
+      const stale = !lastSync || (Date.now() - new Date(lastSync).getTime()) > AUTO_SYNC_INTERVAL_MS;
+      if (!stale) return;
+      setSyncing(true);
+      setSyncMsg("Auto-syncing...");
+      try {
+        const acts = await syncActivities();
+        setActivities(acts);
+        setSyncMsg(`Synced ${acts.length} rides`);
+        setTimeout(() => setSyncMsg(""), 3000);
+      } catch (err) {
         console.error("Strava auto-sync failed:", err);
         setSyncMsg("Sync failed — showing cached rides");
         setTimeout(() => setSyncMsg(""), 5000);
-        // Fall back to localStorage so we don't show empty state
-        const stored = localStorage.getItem(STRAVA_ACTIVITIES_KEY);
-        if (stored) { try { setActivities(JSON.parse(stored)); } catch { /* ignore */ } }
-      })
-      .finally(() => setSyncing(false));
+        // Fall back to SQLite so we don't show empty state
+        const stored = await api.getActivities();
+        if (stored.length > 0) setActivities(stored as StravaActivity[]);
+      } finally {
+        setSyncing(false);
+      }
+    }
+    autoSync();
   }, [connected]);
 
   // Ride detail stream loading
@@ -848,15 +857,15 @@ export default function StravaPage() {
     const powerRides = activities.filter((a) => a.device_watts || a.average_watts);
     let processedIds: Set<number> = new Set();
     try {
-      const stored = localStorage.getItem(STRAVA_POWER_CURVE_RIDES_KEY);
-      if (stored) processedIds = new Set(JSON.parse(stored));
+      const stored = await api.getKV<number[]>("strava-power-curve-rides");
+      if (stored) processedIds = new Set(stored);
     } catch { /* ignore */ }
     const remaining = powerRides.filter((r) => !processedIds.has(r.id));
-    // Read existing curve from localStorage (not state) to avoid stale closure issues
+    // Read existing curve from SQLite (not state) to avoid stale closure issues
     let bestAll: Record<number, number> = {};
     try {
-      const curveStored = localStorage.getItem(STRAVA_POWER_CURVE_KEY);
-      if (curveStored) bestAll = JSON.parse(curveStored);
+      const curveStored = await api.getKV<Record<number, number>>("strava-power-curve");
+      if (curveStored) bestAll = curveStored;
     } catch { /* ignore */ }
     let done = powerRides.length - remaining.length;
     const total = powerRides.length;
@@ -870,10 +879,10 @@ export default function StravaPage() {
       }
     };
 
-    const saveProgress = () => {
+    const saveProgress = async () => {
       setPowerCurve({ ...bestAll });
-      localStorage.setItem(STRAVA_POWER_CURVE_KEY, JSON.stringify(bestAll));
-      localStorage.setItem(STRAVA_POWER_CURVE_RIDES_KEY, JSON.stringify([...processedIds]));
+      await api.setKV("strava-power-curve", bestAll);
+      await api.setKV("strava-power-curve-rides", [...processedIds]);
     };
 
     // Phase 1: Process all rides with cached streams (no API calls)
@@ -881,16 +890,16 @@ export default function StravaPage() {
     setCurveProgress(`${done}/${total} (scanning cache...)`);
     await new Promise((r) => setTimeout(r, 0)); // yield for UI
     for (const ride of remaining) {
-      const cached = localStorage.getItem(getStreamCacheKey(ride.id));
+      const cached = await api.getStream(ride.id);
       if (cached) {
-        try { addStream(JSON.parse(cached)); } catch { /* ignore */ }
+        try { addStream(cached as StreamData); } catch { /* ignore */ }
         processedIds.add(ride.id);
         done++;
       } else {
         uncached.push(ride);
       }
     }
-    saveProgress();
+    await saveProgress();
     setCurveProgress(`${done}/${total} (${uncached.length} need fetching)`);
     await new Promise((r) => setTimeout(r, 100)); // yield for UI
 
@@ -915,7 +924,7 @@ export default function StravaPage() {
             signal: AbortSignal.timeout(10000),
           });
           if (res.status === 429) {
-            saveProgress();
+            await saveProgress();
             setCurveProgress(`${done}/${total} (rate limited, pausing 90s...)`);
             await new Promise((r) => setTimeout(r, 90000));
             accessToken = await getAccessToken() || accessToken;
@@ -940,7 +949,7 @@ export default function StravaPage() {
         }
 
         if (stream) {
-          localStorage.setItem(getStreamCacheKey(ride.id), JSON.stringify(stream));
+          await api.saveStream(ride.id, stream);
           addStream(stream);
           consecutiveFailures = 0;
         } else {
@@ -949,10 +958,10 @@ export default function StravaPage() {
         processedIds.add(ride.id);
         done++;
 
-        if (done % 10 === 0) saveProgress();
+        if (done % 10 === 0) await saveProgress();
 
         if (consecutiveFailures >= 5) {
-          saveProgress();
+          await saveProgress();
           setCurveProgress(`${done}/${total} (stopped — ${consecutiveFailures} failures in a row)`);
           setBuildingCurve(false);
           return;
@@ -963,8 +972,8 @@ export default function StravaPage() {
       }
     }
 
-    saveProgress();
-    localStorage.setItem(STRAVA_POWER_CURVE_UPDATED_KEY, new Date().toISOString());
+    await saveProgress();
+    await api.setKV("strava-power-curve-updated", new Date().toISOString());
     setBuildingCurve(false);
     setCurveProgress("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -976,27 +985,27 @@ export default function StravaPage() {
     const powerRides = activities.filter((a) => a.device_watts || a.average_watts);
     if (powerRides.length === 0) return;
 
-    const lastUpdated = localStorage.getItem(STRAVA_POWER_CURVE_UPDATED_KEY);
-    const hasExistingCurve = Object.keys(powerCurve).length > 0;
+    async function checkAndBuild() {
+      const [lastUpdated, storedRides] = await Promise.all([
+        api.getKV<string>("strava-power-curve-updated"),
+        api.getKV<number[]>("strava-power-curve-rides"),
+      ]);
+      const hasExistingCurve = Object.keys(powerCurve).length > 0;
+      const processedIds = new Set(storedRides || []);
+      const hasNewRides = powerRides.some((r) => !processedIds.has(r.id));
 
-    // Check if there are unprocessed rides
-    let processedIds: Set<number> = new Set();
-    try {
-      const stored = localStorage.getItem(STRAVA_POWER_CURVE_RIDES_KEY);
-      if (stored) processedIds = new Set(JSON.parse(stored));
-    } catch { /* ignore */ }
-    const hasNewRides = powerRides.some((r) => !processedIds.has(r.id));
-
-    if (!hasExistingCurve) {
-      // Never built — start building automatically
-      handleBuildCurve();
-    } else if (hasNewRides && lastUpdated) {
-      // Has new rides — update if last update was >24h ago
-      const hoursSinceUpdate = (Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60);
-      if (hoursSinceUpdate >= 24) {
+      if (!hasExistingCurve) {
+        // Never built — start building automatically
         handleBuildCurve();
+      } else if (hasNewRides && lastUpdated) {
+        // Has new rides — update if last update was >24h ago
+        const hoursSinceUpdate = (Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceUpdate >= 24) {
+          handleBuildCurve();
+        }
       }
     }
+    checkAndBuild();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, activities]);
 
@@ -1048,21 +1057,22 @@ export default function StravaPage() {
   // Fetch descriptions for visible rides on the rides tab
   useEffect(() => {
     if (tab !== "rides" || visibleRides.length === 0) return;
-    const cache = loadDescriptionCache();
-    const missing = visibleRides.filter((r) => rideDescriptions[r.id] === undefined && cache[r.id] === undefined);
-    // Load already-cached descriptions into state
-    const fromCache: Record<number, string> = {};
-    for (const r of visibleRides) {
-      if (cache[r.id] !== undefined && rideDescriptions[r.id] === undefined) {
-        fromCache[r.id] = cache[r.id];
-      }
-    }
-    if (Object.keys(fromCache).length > 0) {
-      setRideDescriptions((prev) => ({ ...prev, ...fromCache }));
-    }
-    if (missing.length === 0) return;
     let cancelled = false;
     (async () => {
+      const cache = await loadDescriptionCache();
+      if (cancelled) return;
+      const missing = visibleRides.filter((r) => rideDescriptions[r.id] === undefined && cache[r.id] === undefined);
+      // Load already-cached descriptions into state
+      const fromCache: Record<number, string> = {};
+      for (const r of visibleRides) {
+        if (cache[r.id] !== undefined && rideDescriptions[r.id] === undefined) {
+          fromCache[r.id] = cache[r.id];
+        }
+      }
+      if (Object.keys(fromCache).length > 0) {
+        setRideDescriptions((prev) => ({ ...prev, ...fromCache }));
+      }
+      if (missing.length === 0) return;
       for (const ride of missing) {
         if (cancelled) break;
         const desc = await fetchDescription(ride.id);

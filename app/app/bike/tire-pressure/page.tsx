@@ -1,21 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
+import * as api from "../../lib/api-client";
 
 const hubTheme = {
   primary: "#00D9FF",
   secondary: "#67C7EB",
   background: "#000000",
 };
-
-const BIKES_STORAGE_KEY = "jarvis-bikes";
-const DEFAULTS_STORAGE_KEY = "jarvis-tire-pressure-defaults";
-const TIRES_STORAGE_KEY = "jarvis-tire-pressure-tires";
-const SELECTED_TIRES_STORAGE_KEY = "jarvis-tire-pressure-selected-tires";
 
 const COMMON_TIRE_WIDTHS = [23, 25, 28, 30, 32, 35, 38, 40, 43, 45, 50];
 const TIRE_TYPES = ["Clincher", "Tubeless", "Tubular"] as const;
@@ -223,65 +219,68 @@ export default function TirePressurePage() {
   const [selectedRearTireId, setSelectedRearTireId] = useState<string>("");
 
   useEffect(() => {
-    const bikesStored = localStorage.getItem(BIKES_STORAGE_KEY);
-    if (bikesStored) {
-      try { setBikes(JSON.parse(bikesStored)); } catch { /* ignore */ }
-    }
-    const stored = localStorage.getItem(DEFAULTS_STORAGE_KEY);
-    if (stored) {
+    async function load() {
       try {
-        const p = JSON.parse(stored) as SavedDefaults;
-        setDefaults(p);
-        if (p.lastRiderAndKit) setRiderAndKit(String(p.lastRiderAndKit));
-        if (p.helmet) setHelmet(String(p.helmet));
-        if (p.shoes) setShoes(String(p.shoes));
-        if (p.bike) setBikeWt(String(p.bike));
-        if (p.frontLight) setFrontLightWt(String(p.frontLight));
-        if (p.rearLight) setRearLightWt(String(p.rearLight));
-        if (p.computer) setComputerWt(String(p.computer));
-        if (p.wheelSets?.length) {
-          setWheelWeights(WHEEL_SET_NAMES.map((_, i) => {
-            const w = p.wheelSets[i]?.weight;
-            return w ? String(w) : "";
-          }));
+        const [bikesData, defaultsData, tiresData, selectedTiresData] = await Promise.all([
+          api.getBikes(),
+          api.getKV<SavedDefaults>("tire-pressure-defaults"),
+          api.getTireRefs(),
+          api.getKV<{ front: string; rear: string }>("tire-pressure-selected-tires"),
+        ]);
+        if (bikesData.length) setBikes(bikesData as Bike[]);
+        if (defaultsData) {
+          const p = defaultsData;
+          setDefaults(p);
+          if (p.lastRiderAndKit) setRiderAndKit(String(p.lastRiderAndKit));
+          if (p.helmet) setHelmet(String(p.helmet));
+          if (p.shoes) setShoes(String(p.shoes));
+          if (p.bike) setBikeWt(String(p.bike));
+          if (p.frontLight) setFrontLightWt(String(p.frontLight));
+          if (p.rearLight) setRearLightWt(String(p.rearLight));
+          if (p.computer) setComputerWt(String(p.computer));
+          if (p.wheelSets?.length) {
+            setWheelWeights(WHEEL_SET_NAMES.map((_, i) => {
+              const w = p.wheelSets[i]?.weight;
+              return w ? String(w) : "";
+            }));
+          }
+          if (p.bottles?.length) {
+            setBottleWeights(BOTTLE_NAMES.map((_, i) => {
+              const w = p.bottles[i]?.weight;
+              return w ? String(w) : "";
+            }));
+          }
+          if (p.repairKits?.length) {
+            setRepairKitWeights(REPAIR_KIT_NAMES.map((_, i) => {
+              const w = p.repairKits[i]?.weight;
+              return w ? String(w) : "";
+            }));
+          }
         }
-        if (p.bottles?.length) {
-          setBottleWeights(BOTTLE_NAMES.map((_, i) => {
-            const w = p.bottles[i]?.weight;
-            return w ? String(w) : "";
-          }));
+        if (tiresData.length) setCustomTires(tiresData as TireRef[]);
+        if (selectedTiresData) {
+          if (selectedTiresData.front) setSelectedFrontTireId(selectedTiresData.front);
+          if (selectedTiresData.rear) setSelectedRearTireId(selectedTiresData.rear);
         }
-        if (p.repairKits?.length) {
-          setRepairKitWeights(REPAIR_KIT_NAMES.map((_, i) => {
-            const w = p.repairKits[i]?.weight;
-            return w ? String(w) : "";
-          }));
-        }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.warn("Failed to load from API:", err);
+      }
+      setIsLoaded(true);
     }
-    const tiresStored = localStorage.getItem(TIRES_STORAGE_KEY);
-    if (tiresStored) {
-      try { setCustomTires(JSON.parse(tiresStored)); } catch { /* ignore */ }
-    }
-    const selectedTiresStored = localStorage.getItem(SELECTED_TIRES_STORAGE_KEY);
-    if (selectedTiresStored) {
-      try {
-        const sel = JSON.parse(selectedTiresStored);
-        if (sel.front) setSelectedFrontTireId(sel.front);
-        if (sel.rear) setSelectedRearTireId(sel.rear);
-      } catch { /* ignore */ }
-    }
-    setIsLoaded(true);
+    load();
   }, []);
 
+  const prevTiresRef = useRef(customTires);
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(TIRES_STORAGE_KEY, JSON.stringify(customTires));
+    if (prevTiresRef.current === customTires) return;
+    prevTiresRef.current = customTires;
+    api.saveTireRefs(customTires);
   }, [customTires, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(SELECTED_TIRES_STORAGE_KEY, JSON.stringify({ front: selectedFrontTireId, rear: selectedRearTireId }));
+    api.setKV("tire-pressure-selected-tires", { front: selectedFrontTireId, rear: selectedRearTireId });
   }, [selectedFrontTireId, selectedRearTireId, isLoaded]);
 
   useEffect(() => {
@@ -295,7 +294,7 @@ export default function TirePressurePage() {
 
   const saveDefaults = useCallback((updated: SavedDefaults) => {
     setDefaults(updated);
-    localStorage.setItem(DEFAULTS_STORAGE_KEY, JSON.stringify(updated));
+    api.setKV("tire-pressure-defaults", updated);
   }, []);
 
   const fieldValue = (field: DefaultField): string => {
