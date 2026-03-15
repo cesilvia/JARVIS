@@ -225,13 +225,13 @@ const JarvisAlertIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }
   </svg>
 );
 
-// JARVIS-style notes icon: clipboard (Craft)
+// JARVIS-style notes icon: document with lines + pencil (based on Wikimedia Aufgabe-schreiben)
 const JarvisNotesIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
   <svg
     viewBox="0 0 48 48"
     fill="none"
     stroke={strokeColor ?? "currentColor"}
-    strokeWidth="2.25"
+    strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
@@ -239,12 +239,18 @@ const JarvisNotesIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }
     aria-hidden
   >
     <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    {/* Clipboard: top bar (clip) + main board + list lines */}
-    <rect x="18" y="10" width="12" height="4" rx="1" strokeWidth="2.25" fill="none" />
-    <rect x="14" y="14" width="20" height="22" rx="1" strokeWidth="2.25" fill="none" />
-    <line x1="18" y1="20" x2="30" y2="20" strokeWidth="2.25" />
-    <line x1="18" y1="26" x2="30" y2="26" strokeWidth="2.25" />
-    <line x1="18" y1="32" x2="26" y2="32" strokeWidth="2.25" />
+    {/* Document body — right edge stops before pencil area */}
+    <path d="M14 10h14l6 6v8" strokeLinecap="butt" />
+    <path d="M34 31v5a1 1 0 01-1 1H14a1 1 0 01-1-1V11a1 1 0 011-1" />
+    <path d="M28 10v6h6" />
+    {/* Lines on document */}
+    <line x1="17" y1="20" x2="27" y2="20" />
+    <line x1="17" y1="24" x2="29" y2="24" />
+    <line x1="17" y1="28" x2="25" y2="28" />
+    <line x1="17" y1="32" x2="23" y2="32" />
+    {/* Pencil overlapping bottom-right */}
+    <path d="M29 28l6-6 3 3-6 6-3.5.5z" strokeWidth="1.8" />
+    <line x1="33.5" y1="23.5" x2="36.5" y2="26.5" strokeWidth="1.2" />
   </svg>
 );
 
@@ -325,7 +331,7 @@ const JarvisCalendarIcon = ({ className = "w-12 h-12", style, stroke: strokeColo
       <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
         <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
       </svg>
-      <div className="relative w-[62%] h-[62%] flex flex-col items-center justify-center">
+      <div className="relative w-[52%] h-[52%] flex flex-col items-center justify-center">
         <img
           src="/assets/calendar-frame.svg"
           alt=""
@@ -337,14 +343,14 @@ const JarvisCalendarIcon = ({ className = "w-12 h-12", style, stroke: strokeColo
         {/* Month text on red header area */}
         <span
           className="relative z-10 font-black leading-none"
-          style={{ fontSize: "28%", marginTop: "10%", color: "#000" }}
+          style={{ fontSize: "105%", marginTop: "24%", color: "#0d3d52" }}
         >
           {month}
         </span>
         {/* Day number on white body area */}
         <span
           className="relative z-10 font-black leading-none"
-          style={{ fontSize: "55%", marginTop: "1%", color: "#000" }}
+          style={{ fontSize: "105%", marginTop: "4%", color: "#0d3d52" }}
         >
           {day}
         </span>
