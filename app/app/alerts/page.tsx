@@ -6,8 +6,10 @@ import Navigation from "../components/Navigation";
 import { GEAR_STORAGE_KEY } from "../bike/inventory/page";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
+const JARVIS_LAST_FULL_BACKUP_KEY = "jarvis-last-full-backup";
 const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const BACKUP_REMINDER_DAYS = 7;
+const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
 
@@ -30,6 +32,8 @@ function getReplaceDate(item: GearItem): Date | null {
 export default function AlertsPage() {
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [backupOverdue, setBackupOverdue] = useState(false);
+  const [lastFullBackup, setLastFullBackup] = useState<string | null>(null);
+  const [fullBackupOverdue, setFullBackupOverdue] = useState(false);
   const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
   const [zoneReviewDue, setZoneReviewDue] = useState(false);
   const [zoneReviewDays, setZoneReviewDays] = useState(0);
@@ -46,6 +50,18 @@ export default function AlertsPage() {
     const now = Date.now();
     const daysSince = (now - then) / (1000 * 60 * 60 * 24);
     setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(JARVIS_LAST_FULL_BACKUP_KEY);
+    setLastFullBackup(stored);
+    if (!stored) {
+      setFullBackupOverdue(true);
+      return;
+    }
+    const daysSince = (Date.now() - new Date(stored).getTime()) / (1000 * 60 * 60 * 24);
+    setFullBackupOverdue(daysSince >= FULL_BACKUP_REMINDER_DAYS);
   }, []);
 
   useEffect(() => {
@@ -98,6 +114,33 @@ export default function AlertsPage() {
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Notifications and reminders.
         </p>
+
+        {fullBackupOverdue && (
+          <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
+            <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
+              Daily reminder: Back up JARVIS to iCloud
+            </h2>
+            <p className="text-slate-400 font-mono text-sm mb-4">
+              {lastFullBackup
+                ? `Your last full backup was ${new Date(lastFullBackup).toLocaleDateString()}. Back up daily until N8N automates this.`
+                : "You haven't done a full JARVIS backup yet. Back up all your data to iCloud Drive."}
+            </p>
+            <Link
+              href="/settings/backup"
+              className="inline-block px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Open Settings → Backup
+            </Link>
+          </section>
+        )}
+
+        {!fullBackupOverdue && lastFullBackup && (
+          <section className="border border-slate-700 rounded-lg p-6 mb-6">
+            <p className="text-slate-400 font-mono text-sm">
+              JARVIS backup is up to date. Last backup: {new Date(lastFullBackup).toLocaleDateString()}. You can manage backups in <Link href="/settings/backup" className="text-slate-300 underline hover:text-white">Settings → Backup</Link>.
+            </p>
+          </section>
+        )}
 
         {backupOverdue && (
           <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">

@@ -473,7 +473,9 @@ const ALERT_ICON_ORANGE = "#FF6600";
 
 // Same logic as alerts page: backup overdue + helmet reminders
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
+const JARVIS_LAST_FULL_BACKUP_KEY = "jarvis-last-full-backup";
 const BACKUP_REMINDER_DAYS = 7;
+const FULL_BACKUP_REMINDER_DAYS = 1;
 const GEAR_STORAGE_KEY = "jarvis-gear-inventory";
 const STRAVA_ZONES_KEY = "jarvis-strava-zones";
 const HELMET_REMINDER_DAYS = 30;
@@ -482,14 +484,25 @@ const ZONE_REVIEW_DAYS = 28;
 function hubGetAlertSummaries(): string[] {
   const lines: string[] = [];
   if (typeof window === "undefined") return lines;
+  // Daily full JARVIS backup check
+  const lastFullBackup = localStorage.getItem(JARVIS_LAST_FULL_BACKUP_KEY);
+  if (!lastFullBackup) {
+    lines.push("Back up JARVIS to iCloud");
+  } else {
+    const fullDays = (Date.now() - new Date(lastFullBackup).getTime()) / (1000 * 60 * 60 * 24);
+    if (fullDays >= FULL_BACKUP_REMINDER_DAYS) {
+      lines.push("Back up JARVIS to iCloud");
+    }
+  }
+  // Weekly nutrition backup check
   const lastBackup = localStorage.getItem(JARVIS_LAST_BACKUP_KEY);
   if (!lastBackup) {
     lines.push("Back up nutrition data");
-    return lines;
-  }
-  const daysSince = (Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24);
-  if (daysSince >= BACKUP_REMINDER_DAYS) {
-    lines.push("Back up nutrition data");
+  } else {
+    const daysSince = (Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSince >= BACKUP_REMINDER_DAYS) {
+      lines.push("Back up nutrition data");
+    }
   }
   const raw = localStorage.getItem(GEAR_STORAGE_KEY);
   if (raw) {

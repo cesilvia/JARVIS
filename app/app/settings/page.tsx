@@ -47,6 +47,15 @@ const SecurityIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
   </svg>
 );
 
+const BackupIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    <path d="M16 28 L16 20 C16 17 18 15 21 15 L27 15 C30 15 32 17 32 20 L32 28" strokeWidth="2.25" fill="none" />
+    <polyline points="20,24 24,28 28,24" strokeWidth="2.25" fill="none" />
+    <line x1="16" y1="32" x2="32" y2="32" strokeWidth="2.25" />
+  </svg>
+);
+
 const ExtrasIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
   <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
     <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
@@ -74,6 +83,15 @@ const categories = [
     color: "text-green-400",
     borderColor: "border-green-400/20",
     hoverBg: "hover:bg-green-400/5",
+  },
+  {
+    name: "Backup",
+    description: "Full JARVIS backup to iCloud Drive",
+    href: "/settings/backup",
+    icon: BackupIcon,
+    color: "text-cyan-400",
+    borderColor: "border-cyan-400/20",
+    hoverBg: "hover:bg-cyan-400/5",
   },
   {
     name: "Security",
