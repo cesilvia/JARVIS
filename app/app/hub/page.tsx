@@ -294,80 +294,84 @@ const JarvisWeatherIcon = ({ className = "w-12 h-12", style, stroke: strokeColor
   </svg>
 );
 
-// JARVIS-style task manager icon: checklist with empty circles (task2)
-const JarvisTaskManagerIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
-  <svg
-    viewBox="0 0 48 48"
-    fill="none"
-    stroke={strokeColor ?? "currentColor"}
-    strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-    aria-hidden
-  >
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    {/* Checklist: circles + horizontal lines */}
-    <circle cx="16" cy="18" r="2.5" strokeWidth="2.25" fill="none" />
-    <line x1="22" y1="18" x2="34" y2="18" strokeWidth="2.25" />
-    <circle cx="16" cy="24" r="2.5" strokeWidth="2.25" fill="none" />
-    <line x1="22" y1="24" x2="34" y2="24" strokeWidth="2.25" />
-    <circle cx="16" cy="30" r="2.5" strokeWidth="2.25" fill="none" />
-    <line x1="22" y1="30" x2="30" y2="30" strokeWidth="2.25" />
-  </svg>
-);
+// JARVIS-style task manager icon: Wikimedia Checklist Noun Project inside circle
+const JarvisTaskManagerIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
+  const color = strokeColor ?? "currentColor";
+  return (
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/checklist.png"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
+  );
+};
 
-// JARVIS-style calendar icon: calendar page with grid
-const JarvisCalendarIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
-  <svg
-    viewBox="0 0 48 48"
-    fill="none"
-    stroke={strokeColor ?? "currentColor"}
-    strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-    aria-hidden
-  >
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    {/* Calendar: rectangle with top bar + grid lines */}
-    <rect x="14" y="12" width="20" height="24" rx="1" strokeWidth="2.25" fill="none" />
-    <line x1="14" y1="18" x2="34" y2="18" strokeWidth="2.25" />
-    <line x1="20" y1="18" x2="20" y2="36" strokeWidth="1.5" opacity="0.8" />
-    <line x1="28" y1="18" x2="28" y2="36" strokeWidth="1.5" opacity="0.8" />
-    <line x1="14" y1="24" x2="34" y2="24" strokeWidth="1.5" opacity="0.8" />
-    <line x1="14" y1="30" x2="34" y2="30" strokeWidth="1.5" opacity="0.8" />
-  </svg>
-);
+// JARVIS-style calendar icon: freesvg.org calendar frame with dynamic month/day
+const JarvisCalendarIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
+  const color = strokeColor ?? "currentColor";
+  const now = new Date();
+  const month = now.toLocaleString("en-US", { month: "short" }).toUpperCase();
+  const day = now.getDate();
+  return (
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <div className="relative w-[62%] h-[62%] flex flex-col items-center justify-center">
+        <img
+          src="/assets/calendar-frame.svg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{
+            filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+          }}
+        />
+        {/* Month text on red header area */}
+        <span
+          className="relative z-10 font-black leading-none"
+          style={{ fontSize: "28%", marginTop: "10%", color: "#000" }}
+        >
+          {month}
+        </span>
+        {/* Day number on white body area */}
+        <span
+          className="relative z-10 font-black leading-none"
+          style={{ fontSize: "55%", marginTop: "1%", color: "#000" }}
+        >
+          {day}
+        </span>
+      </div>
+    </div>
+  );
+};
 
-// JARVIS-style nutrition icon: plate with fork (left) and knife (right)
-const JarvisNutritionIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => (
-  <svg
-    viewBox="0 0 48 48"
-    fill="none"
-    stroke={strokeColor ?? "currentColor"}
-    strokeWidth="2.25"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={style}
-    aria-hidden
-  >
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    {/* Plate (inner circle) */}
-    <circle cx="24" cy="24" r="9" strokeWidth="2.25" fill="none" />
-    {/* Fork (left): handle + 3 tines, inside r=18 */}
-    <line x1="11" y1="15" x2="11" y2="33" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="9" y2="20" strokeWidth="2.25" />
-    <line x1="11" y1="15" x2="11" y2="20" strokeWidth="2.25" />
-    <line x1="13" y1="15" x2="13" y2="20" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="13" y2="15" strokeWidth="2.25" />
-    {/* Knife (right): straight vertical line */}
-    <line x1="37" y1="15" x2="37" y2="33" strokeWidth="2.25" />
-  </svg>
-);
+// JARVIS-style nutrition icon: freesvg.org fork silhouette inside circle
+const JarvisNutritionIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
+  const color = strokeColor ?? "currentColor";
+  return (
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/fork-silhouette.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
+  );
+};
 
 // JARVIS-style German Bundesadler — actual coat of arms eagle paths from Wikimedia
 const JarvisGermanIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
