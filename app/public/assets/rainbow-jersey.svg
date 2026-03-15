@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="200">
+<!-- jersey interior -->
+<path d="m10,47.4 15,40 40-25 10,125 100,0 10-125 40,25 15-40-50-35-27.5,0c-24.5,15.5-50,15-75,0l-27.5,0-50,35z" fill="white"/>
+<!-- blue -->
+<path d="m65,75  l1,10  h118  l1,-10  h-120z" fill="#0078c8"/>
+<path d="m65,77  l1,6   h118  l1,-6   h-120z" fill="white"/>
+<!-- red -->
+<path d="m66,85  l1,10  h116  l1,-10  h-118z" fill="#c8143c"/>
+<path d="m66,87  l1,6   h116  l1,-6   h-118z" fill="white"/>
+<!-- black -->
+<path d="m67,95  l1,10  h115  l1,-10  h-117z" fill="#000"/>
+<path d="m67,97  l1,6   h114  l1,-6   h-117z" fill="white"/>
+<!-- yellow -->
+<path d="m68,105 l1,10  h113  l1,-10  h-115z" fill="#fae100"/>
+<path d="m68,107 l1,6   h112  l1,-6   h-115z" fill="white"/>
+<!-- green -->
+<path d="m68,115 l1,10  h112  l1,-10  h-113z" fill="#32b432"/>
+<path d="m68,117 l1,6   h112  l1,-6   h-113z" fill="white"/>
+<!-- jersey outline -->
+<path style="fill:none;stroke:black;stroke-width:3" d="m10,47 15,40 40-25 10,125h100l10-125 40,25 15-40-50-35H162a64,64 0 0,1-74,0H60z"/>
+</svg>

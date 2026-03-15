@@ -76,29 +76,23 @@ function BikeComponentListIcon({ className = "w-12 h-12", style, stroke: strokeC
 }
 
 // Gear inventory: simple t-shirt (crew neck, short sleeves, body)
+// Gear inventory: Wikimedia Rainbow Jersey Masters SVG inside circle
 function GearInventoryIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
-  const s = strokeColor ?? "currentColor";
+  const color = strokeColor ?? "currentColor";
   return (
-    <svg viewBox="0 0 48 48" fill="none" stroke={s} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
-      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      {/* T-shirt outline: shorter shoulder-to-armpit, longer sleeve from armpit to hem */}
-      <path
-        d="M 24 12
-           L 18 12 L 12 14 L 12 21 L 16 21 L 16 28 L 16 35 L 18 37
-           L 30 37 L 32 35 L 32 28 L 32 21 L 36 21 L 36 14 L 30 12 L 24 12"
-        strokeWidth="2.25"
-        fill="none"
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/rainbow-jersey.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
       />
-      {/* Sleeves (orange); lowest vertical not sleeve (electric blue) */}
-      <path d="M 18 12 L 12 14 L 12 21 L 16 21" strokeWidth="2.25" stroke="#00BFFF" fill="none" />
-      <path d="M 16 21 L 16 28" strokeWidth="2.25" stroke="#00BFFF" fill="none" />
-      <path d="M 32 21 L 36 21 L 36 14 L 30 12" strokeWidth="2.25" stroke="#00BFFF" fill="none" />
-      <path d="M 32 28 L 32 21" strokeWidth="2.25" stroke="#00BFFF" fill="none" />
-      {/* Neck opening */}
-      <path d="M 20 14 Q 24 16 28 14" strokeWidth="2.25" fill="none" />
-      {/* Zipper from collar to bottom */}
-      <line x1="24" y1="16" x2="24" y2="37" strokeWidth="2.25" stroke={s} />
-    </svg>
+    </div>
   );
 }
 
@@ -152,69 +146,46 @@ function SizingFitIcon({ className = "w-12 h-12", style, stroke: strokeColor }: 
   );
 }
 
-// Ride checklist: bicycle side view – inside circle; saddle higher than bars; drop handlebars; single down tube
+// Ride checklist: Wikimedia Bike-next.svg inside circle, flipped to face right
 function RideChecklistIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
+  const color = strokeColor ?? "currentColor";
   return (
-    <svg viewBox="0 0 48 48" fill="none" stroke={strokeColor ?? "currentColor"} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
-      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      <g transform="translate(24,24) scale(0.82) translate(-24,-24)">
-        <circle cx="13" cy="30" r="5.5" strokeWidth="2.25" fill="none" />
-        <circle cx="35" cy="30" r="5.5" strokeWidth="2.25" fill="none" />
-        <line x1="22" y1="30" x2="20" y2="20" strokeWidth="2.25" />
-        <line x1="20" y1="20" x2="32" y2="20" strokeWidth="2.25" />
-        <line x1="20" y1="20" x2="13" y2="30" strokeWidth="2.25" />
-        <line x1="22" y1="30" x2="13" y2="30" strokeWidth="2.25" />
-        <line x1="32" y1="20" x2="32" y2="23" strokeWidth="2.25" />
-        <line x1="32" y1="23" x2="35" y2="30" strokeWidth="2.25" />
-        <line x1="32" y1="23" x2="22" y2="30" strokeWidth="2.25" />
-        <line x1="20" y1="20" x2="20" y2="16" strokeWidth="2.25" />
-        <path d="M18 16 L22 16" strokeWidth="2.25" />
-        <line x1="32" y1="20" x2="34" y2="19" strokeWidth="2.25" />
-        <line x1="32" y1="19" x2="36" y2="19" strokeWidth="2.25" />
-        <path d="M32 19 L31 22" strokeWidth="2.25" />
-        <path d="M36 19 L36 22" strokeWidth="2.25" />
-      </g>
-    </svg>
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      {/* Outer circle matching other icons */}
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      {/* Bike image: flipped to face right, tinted to match theme */}
+      <img
+        src="/assets/bike-next.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          transform: "scaleX(-1)",
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
   );
 }
 
-// Two gears with chain: small gear left, large gear right, chain loops from top of large around small and back
+// Component list: Wikimedia Derailleur Bicycle Drivetrain SVG inside circle
 function ChainGearsIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
-  const stroke = strokeColor ?? "currentColor";
-  const smallCx = 15;
-  const smallCy = 24;
-  const smallR = 3;
-  const largeCx = 32;
-  const largeCy = 24;
-  const largeR = 6;
-  const smallTeeth = 6;
-  const largeTeeth = 10;
+  const color = strokeColor ?? "currentColor";
   return (
-    <svg viewBox="0 0 48 48" fill="none" stroke={stroke} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
-      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      {/* Chain: top of large → top run → wrap small gear → bottom run → wrap large gear */}
-      <path d={`M ${largeCx} ${largeCy - largeR} L ${smallCx} ${smallCy - smallR} A ${smallR} ${smallR} 0 0 1 ${smallCx} ${smallCy + smallR} L ${largeCx} ${largeCy + largeR} A ${largeR} ${largeR} 0 0 1 ${largeCx} ${largeCy - largeR}`} strokeWidth="2.25" fill="none" />
-      {/* Small gear (left) */}
-      <circle cx={smallCx} cy={smallCy} r={smallR} strokeWidth="2.25" fill="none" />
-      {Array.from({ length: smallTeeth }).map((_, i) => {
-        const a = (i / smallTeeth) * 2 * Math.PI - Math.PI / 2;
-        const x1 = smallCx + (smallR - 0.35) * Math.cos(a);
-        const y1 = smallCy - (smallR - 0.35) * Math.sin(a);
-        const x2 = smallCx + (smallR + 0.35) * Math.cos(a);
-        const y2 = smallCy - (smallR + 0.35) * Math.sin(a);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="2.25" />;
-      })}
-      {/* Large gear (right) */}
-      <circle cx={largeCx} cy={largeCy} r={largeR} strokeWidth="2.25" fill="none" />
-      {Array.from({ length: largeTeeth }).map((_, i) => {
-        const a = (i / largeTeeth) * 2 * Math.PI - Math.PI / 2;
-        const x1 = largeCx + (largeR - 0.5) * Math.cos(a);
-        const y1 = largeCy - (largeR - 0.5) * Math.sin(a);
-        const x2 = largeCx + (largeR + 0.5) * Math.cos(a);
-        const y2 = largeCy - (largeR + 0.5) * Math.sin(a);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="2.25" />;
-      })}
-    </svg>
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/derailleur-drivetrain.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
   );
 }
 
@@ -229,15 +200,23 @@ function PackingChecklistIcon({ className = "w-12 h-12", style, stroke: strokeCo
   );
 }
 
-// Strava icon: upward chevron (Strava's distinctive arrow mark)
+// Strava icon: official Strava logo SVG inside circle
 function StravaIcon({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) {
+  const color = strokeColor ?? "currentColor";
   return (
-    <svg viewBox="0 0 48 48" fill="none" stroke={strokeColor ?? "currentColor"} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden>
-      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      <polyline points="16,33 24,13 32,33" strokeWidth="2.5" fill="none" />
-      <polyline points="24,21 29,33" strokeWidth="2" fill="none" opacity="0.55" />
-      <polyline points="24,21 19,33" strokeWidth="2" fill="none" opacity="0.55" />
-    </svg>
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/strava-logo.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
   );
 }
 

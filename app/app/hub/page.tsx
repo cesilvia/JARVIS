@@ -154,47 +154,23 @@ const JarvisSettingsIcon = ({ className = "w-8 h-8", style, stroke: strokeColor 
   </svg>
 );
 
-// JARVIS-style bike wheel icon (HUD: deep-section rim, small hub, thin crossed spokes)
+// JARVIS-style bike wheel icon: freesvg.org bike wheel inside circle
 const JarvisBikeWheelIcon = ({ className = "w-12 h-12", style, stroke: strokeColor }: { className?: string; style?: React.CSSProperties; stroke?: string }) => {
-  const hubR = 2.5;
-  const rimR = 14;
-  const n = 16;
-  const cross = 4; // 2-cross lacing: each spoke goes to rim 4 positions over
-  const spokes = Array.from({ length: n }, (_, i) => {
-    const a1 = (i * 2 * Math.PI) / n;
-    const a2 = ((i + cross) * 2 * Math.PI) / n;
-    return (
-      <line
-        key={i}
-        x1={24 + hubR * Math.cos(a1)}
-        y1={24 - hubR * Math.sin(a1)}
-        x2={24 + rimR * Math.cos(a2)}
-        y2={24 - rimR * Math.sin(a2)}
-        strokeWidth="1.25"
-        strokeLinecap="butt"
-      />
-    );
-  });
+  const color = strokeColor ?? "currentColor";
   return (
-    <svg
-      viewBox="0 0 48 48"
-      fill="none"
-      stroke={strokeColor ?? "currentColor"}
-      strokeWidth="2.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      style={style}
-      aria-hidden
-    >
-      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      {/* Rim (single circle where spokes meet) */}
-      <circle cx="24" cy="24" r={rimR} strokeWidth="2.25" />
-      {/* Small hub */}
-      <circle cx="24" cy="24" r={hubR} strokeWidth="2.25" opacity="0.9" />
-      {/* Crossed spokes (2-cross lacing, thin) */}
-      {spokes}
-    </svg>
+    <div className={`${className} relative flex items-center justify-center`} style={style}>
+      <svg viewBox="0 0 48 48" fill="none" stroke={color} className="absolute inset-0 w-full h-full" aria-hidden>
+        <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+      </svg>
+      <img
+        src="/assets/bike-wheel.svg"
+        alt=""
+        className="w-[62%] h-[62%] object-contain"
+        style={{
+          filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+        }}
+      />
+    </div>
   );
 };
 
