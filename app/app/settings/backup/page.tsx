@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
-import * as api from "../../lib/api-client";
 
 type BackupInfo = {
   name: string;
@@ -53,66 +52,16 @@ export default function BackupSettingsPage() {
     fetchBackups();
   }, []);
 
-  const gatherData = async (): Promise<Record<string, unknown>> => {
-    const [
-      activities,
-      bikes,
-      gearItems,
-      recipes,
-      ingredients,
-      vocab,
-      tireRefs,
-      kvEntries,
-    ] = await Promise.all([
-      api.getActivities(),
-      api.getBikes(),
-      api.getGearItems(),
-      api.getRecipes(),
-      api.getIngredients(),
-      api.getVocab(),
-      api.getTireRefs(),
-      api.getAllKV(),
-    ]);
-
-    // Build backup data keyed with jarvis- prefix for backward compatibility
-    const data: Record<string, unknown> = {};
-
-    // Domain tables
-    if (activities.length > 0) data["jarvis-strava-activities"] = activities;
-    if (bikes.length > 0) data["jarvis-bikes"] = bikes;
-    if (gearItems.length > 0) data["jarvis-gear-inventory"] = gearItems;
-    if (recipes.length > 0) data["jarvis-recipes"] = recipes;
-    if (ingredients.length > 0) data["jarvis-saved-ingredients"] = ingredients;
-    if (vocab.length > 0) data["jarvis-german-vocab"] = vocab;
-    if (tireRefs.length > 0) data["jarvis-tire-pressure-tires"] = tireRefs;
-
-    // KV entries — re-add the jarvis- prefix for backward compatibility
-    for (const [key, value] of Object.entries(kvEntries)) {
-      data[`jarvis-${key}`] = value;
-    }
-
-    return data;
-  };
-
   const handleBackup = async () => {
     setLoading(true);
     setStatus(null);
     try {
-      const data = await gatherData();
-      const keyCount = Object.keys(data).length;
-
-      const res = await fetch("/api/backup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data }),
-      });
-
+      const res = await fetch("/api/backup", { method: "POST" });
       const json = await res.json();
       if (json.success) {
-        await api.setKV("last-full-backup", new Date().toISOString());
         setStatus({
           type: "success",
-          message: `Backed up ${keyCount} keys to iCloud (${formatBytes(json.size)})`,
+          message: `Backed up ${json.keys} keys to iCloud (${formatBytes(json.size)})`,
         });
         fetchBackups();
       } else {
@@ -134,72 +83,22 @@ export default function BackupSettingsPage() {
     setRestoring(fileName);
     setStatus(null);
     try {
-      const res = await fetch(`/api/backup?file=${encodeURIComponent(fileName)}`);
+      const res = await fetch(`/api/backup?file=${encodeURIComponent(fileName)}`, {
+        method: "PUT",
+      });
       const json = await res.json();
 
-      if (json.error) {
-        setStatus({ type: "error", message: json.error });
-        return;
+      if (json.success) {
+        const summary = Object.entries(json.results as Record<string, string>)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ");
+        setStatus({
+          type: "success",
+          message: `Restored from ${fileName} (${summary})`,
+        });
+      } else {
+        setStatus({ type: "error", message: json.error || "Restore failed" });
       }
-
-      const data = json.data;
-      if (!data || typeof data !== "object") {
-        setStatus({ type: "error", message: "Invalid backup format" });
-        return;
-      }
-
-      // Restore domain-specific data via api-client
-      const promises: Promise<void>[] = [];
-
-      if (data["jarvis-strava-activities"]) {
-        promises.push(api.saveActivities(data["jarvis-strava-activities"] as unknown[]));
-      }
-      if (data["jarvis-bikes"]) {
-        promises.push(api.saveBikes(data["jarvis-bikes"] as unknown[]));
-      }
-      if (data["jarvis-gear-inventory"]) {
-        promises.push(api.saveGearItems(data["jarvis-gear-inventory"] as unknown[]));
-      }
-      if (data["jarvis-recipes"]) {
-        promises.push(api.saveRecipes(data["jarvis-recipes"] as unknown[]));
-      }
-      if (data["jarvis-saved-ingredients"]) {
-        promises.push(api.saveIngredients(data["jarvis-saved-ingredients"] as unknown[]));
-      }
-      if (data["jarvis-german-vocab"]) {
-        promises.push(api.saveVocab(data["jarvis-german-vocab"] as unknown[]));
-      }
-      if (data["jarvis-tire-pressure-tires"]) {
-        promises.push(api.saveTireRefs(data["jarvis-tire-pressure-tires"] as unknown[]));
-      }
-
-      // Domain keys that are handled by dedicated tables (not KV)
-      const domainKeys = new Set([
-        "jarvis-strava-activities",
-        "jarvis-bikes",
-        "jarvis-gear-inventory",
-        "jarvis-recipes",
-        "jarvis-saved-ingredients",
-        "jarvis-german-vocab",
-        "jarvis-tire-pressure-tires",
-      ]);
-
-      // Restore remaining jarvis- keys as KV entries (strip the jarvis- prefix)
-      let restored = domainKeys.size;
-      for (const [key, value] of Object.entries(data)) {
-        if (key.startsWith("jarvis-") && !domainKeys.has(key)) {
-          const kvKey = key.replace(/^jarvis-/, "");
-          promises.push(api.setKV(kvKey, value));
-          restored++;
-        }
-      }
-
-      await Promise.all(promises);
-
-      setStatus({
-        type: "success",
-        message: `Restored ${restored} keys from ${fileName}.`,
-      });
     } catch (err) {
       setStatus({
         type: "error",
