@@ -1,0 +1,12 @@
+node_modules
+.next
+data
+.env
+.env.local
+.git
+.DS_Store
+cookies.txt
+*.tsbuildinfo
+next-env.d.ts
+docs
+cursor-prompt-*.md

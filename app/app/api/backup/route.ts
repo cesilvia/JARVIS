@@ -4,7 +4,7 @@ import path from "path";
 import os from "os";
 import { exportAll, kvSet, kvGetAll, upsertActivities, setStream, upsertVocab, upsertRecipes, upsertIngredients, upsertBikes, upsertGearItems, upsertTireRefs } from "@/app/lib/db";
 
-const BACKUP_DIR = path.join(
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(
   os.homedir(),
   "Library",
   "Mobile Documents",

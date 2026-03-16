@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySessionEdge, SESSION_COOKIE } from "./app/lib/session-edge";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/", "/api/strava/"];
+const PUBLIC_PATHS = ["/login", "/api/auth/", "/api/strava/", "/api/backup"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
