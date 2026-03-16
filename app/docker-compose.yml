@@ -3,8 +3,8 @@ services:
     build: .
     container_name: jarvis
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     volumes:
       - jarvis-data:/app/data
       - ${BACKUP_HOST_DIR:-~/Library/Mobile Documents/com~apple~CloudDocs/JARVIS-backups}:/backups
@@ -27,6 +27,14 @@ services:
       - WEBHOOK_URL=http://n8n:5678/
       - GENERIC_TIMEZONE=America/Los_Angeles
       - N8N_SECURE_COOKIE=false
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - jarvis
 
 volumes:
   jarvis-data:
