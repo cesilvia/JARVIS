@@ -5,8 +5,8 @@ import Link from "next/link";
 
 const ANIMATION_MS = 200;
 const LINE_HEIGHT = 26;
-const TEXT_LEFT_X = 0.1; /* label left margin */
-const TEXT_RIGHT_X = 0.9; /* value right margin */
+const TEXT_LEFT_X = 0.08; /* label left margin */
+const TEXT_RIGHT_X = 0.95; /* value right margin */
 const MAX_DISPLAY_LINES = 8;
 
 interface WedgeSummaryCardProps {
@@ -84,7 +84,7 @@ export default function WedgeSummaryCard({
       <Link
         href={moduleHref}
         data-wedge
-        className="wedge-summary-card-link pointer-events-auto block absolute"
+        className="wedge-summary-card-link pointer-events-auto block absolute overflow-visible"
         style={{
           left: originX,
           top: originY,
@@ -92,6 +92,7 @@ export default function WedgeSummaryCard({
           height: length * 2,
           marginLeft: -length,
           marginTop: -length,
+          overflow: "visible",
         }}
         onClick={(e) => {
           e.preventDefault();
@@ -105,12 +106,14 @@ export default function WedgeSummaryCard({
             width: length * 2,
             height: length * 2,
             position: "relative",
+            overflow: "visible",
           }}
         >
           <svg
             width={length * 2}
             height={length * 2}
             viewBox={`${-length} ${-length} ${length * 2} ${length * 2}`}
+            overflow="visible"
             className="wedge-svg"
             style={{
               transformOrigin: "center center",
@@ -142,7 +145,7 @@ export default function WedgeSummaryCard({
             filter="url(#wedgeGlow)"
           />
           {hasSummary && lineCount > 0 && (
-            <g clipPath="url(#wedgeClip)" transform={`rotate(${-rotation}, ${L * 0.5}, 0)`}>
+            <g transform={`rotate(${-rotation}, ${L * 0.55}, 0)`}>
               <text
                 fill="#ffffff"
                 fontSize={fontSize}
@@ -161,9 +164,8 @@ export default function WedgeSummaryCard({
                       </React.Fragment>
                     );
                   }
-                  const x = skipBullets ? L * 0.5 : L * TEXT_LEFT_X;
                   return (
-                    <tspan key={i} x={x} y={y} textAnchor={skipBullets ? "middle" : "start"}>
+                    <tspan key={i} x={L * 0.55} y={y} textAnchor="middle">
                       {row.label}
                     </tspan>
                   );

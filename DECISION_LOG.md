@@ -490,3 +490,23 @@
   - **Shared types:** Extracted to `bike/strava/types.ts` for consistency between page, settings, and alerts.
   - **Migrated middleware.ts to proxy.ts** for Next.js 16 compatibility.
 - **Status:** Implemented
+
+## 2026-03-16
+
+### Infrastructure: Cloudflare Tunnel Migration
+
+**Decision:** Migrate hosting from Vercel to Mac Mini via Cloudflare Tunnel
+- **Rationale:** SQLite requires persistent disk. Vercel serverless can't do this. Mac Mini already runs Docker Compose with JARVIS + N8N. Cloudflare Tunnel provides free HTTPS with no exposed ports.
+- **Implementation:** Added cloudflared service to Docker Compose. Created tunnel jarvis-mini in Cloudflare Zero Trust. Published route jarvis.chrissilvia.com to http://jarvis:3000. Changed JARVIS from ports to expose (internal only). Disconnected Vercel Git integration. Tunnel token in .env file, password hash uses $$ escaping for Docker Compose.
+- **Status:** Implemented
+
+**Decision:** Keep N8N Tailscale-only (no public URL)
+- **Rationale:** N8N has no auth by default. Public access would be a security risk.
+- **Status:** Implemented
+
+### Hub: Fix Wedge Text Clipping
+
+**Decision:** Remove SVG clipPath from wedge summary text and add overflow-visible to parent chain
+- **Rationale:** Text was clipped because clipPath operated in un-rotated coordinate space while text was counter-rotated. Parent container overflow also contributed.
+- **Implementation:** Removed clipPath from text group. Added overflow visible to SVG, Link, rotating div, and parent containers. Centered bullet text at L*0.55 with textAnchor middle.
+- **Status:** Implemented

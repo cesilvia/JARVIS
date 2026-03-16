@@ -750,8 +750,8 @@ export default function HubPage() {
       color: currentTheme.primary
     }}>
       <CircuitBackground />
-      <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10">
-        <div ref={contentAreaRef} className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6 relative">
+      <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10 overflow-visible">
+        <div ref={contentAreaRef} className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6 relative overflow-visible">
             {/* Top Module Frames - z-30 so icons stay clickable above wedge overlay */}
             <div className="flex-shrink-0 mb-4 relative z-30">
               <div className="flex items-center justify-center gap-2">
@@ -809,10 +809,10 @@ export default function HubPage() {
             </div>
 
             {/* Main Content Area - Center Frame Only (no left panel) */}
-            <div className="flex-1 flex items-center justify-center min-h-0 relative">
+            <div className="flex-1 flex items-center justify-center min-h-0 relative overflow-visible">
               <div
                 ref={centerRef}
-                className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center flex-shrink-0"
+                className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center flex-shrink-0 overflow-visible"
                 style={{ background: "transparent" }}
               >
                 <img
@@ -832,7 +832,7 @@ export default function HubPage() {
               const themeColor = wedgeModule === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary;
               return (
                 <div className="absolute inset-0 overflow-visible" style={{ zIndex: 20, pointerEvents: "none" }}>
-                  <div style={{ pointerEvents: "auto" }}>
+                  <div style={{ pointerEvents: "auto", overflow: "visible" }}>
                     <WedgeSummaryCard
                       originX={wedgeProps.originX}
                       originY={wedgeProps.originY}
