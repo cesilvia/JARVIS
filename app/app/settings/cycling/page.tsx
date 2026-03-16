@@ -19,23 +19,28 @@ const StravaIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
-// Bike wheel icon for quick-nav
-const BikeWheelIcon = ({ className = "w-6 h-6" }: { className?: string }) => {
-  const hubR = 2.5, rimR = 14, n = 16, cross = 4;
-  const spokes = Array.from({ length: n }, (_, i) => {
-    const a1 = (i * 2 * Math.PI) / n;
-    const a2 = ((i + cross) * 2 * Math.PI) / n;
-    return <line key={i} x1={24 + hubR * Math.cos(a1)} y1={24 - hubR * Math.sin(a1)} x2={24 + rimR * Math.cos(a2)} y2={24 - rimR * Math.sin(a2)} strokeWidth="1.25" strokeLinecap="butt" />;
-  });
-  return (
-    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+// Bike wheel icon for quick-nav — matches hub JarvisBikeWheelIcon
+const BikeWheelIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <div className={`${className} relative flex items-center justify-center`}>
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" className="absolute inset-0 w-full h-full" aria-hidden>
       <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      <circle cx="24" cy="24" r={rimR} strokeWidth="2.25" />
-      <circle cx="24" cy="24" r={hubR} strokeWidth="2.25" opacity="0.9" />
-      {spokes}
     </svg>
-  );
-};
+    <div
+      className="w-[62%] h-[62%]"
+      style={{
+        backgroundColor: "currentColor",
+        WebkitMaskImage: "url('/assets/bike-wheel.svg')",
+        maskImage: "url('/assets/bike-wheel.svg')",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  </div>
+);
 
 export default function CyclingSettingsPage() {
   const [stravaConnected, setStravaConnected] = useState(false);
@@ -149,7 +154,7 @@ export default function CyclingSettingsPage() {
       }
 
       const now = new Date().toISOString();
-      let currentBikes = (await api.getBikes()) as { stravaGearId?: string; [key: string]: unknown }[];
+      let currentBikes = await api.getBikes<{ stravaGearId?: string; [key: string]: unknown }>();
       currentBikes = currentBikes.map((b) => {
         const gearId = b.stravaGearId;
         if (!gearId || !byGear[gearId]) return b;

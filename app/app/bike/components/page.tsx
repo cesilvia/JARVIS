@@ -56,7 +56,6 @@ interface Bike {
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-const OLD_STORAGE_KEY = "jarvis-bike-components";
 
 interface StravaGearOption {
   id: string;
@@ -266,36 +265,6 @@ function ComponentEditForm({
   );
 }
 
-function migrateFromOldFormat(): Bike[] {
-  if (typeof window === "undefined") return [];
-  const old = localStorage.getItem(OLD_STORAGE_KEY);
-  if (!old) return [];
-  try {
-    const parsed = JSON.parse(old);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const bike: Bike = {
-        id: crypto.randomUUID(),
-        name: "My bike",
-        type: "Road",
-        attachments: [],
-        components: parsed.map((c: { id?: string; name: string; category: string; brand?: string; model?: string; notes?: string }) => ({
-          id: c.id || crypto.randomUUID(),
-          name: c.name,
-          category: c.category,
-          brand: c.brand,
-          model: c.model,
-          notes: c.notes,
-        })),
-      };
-      localStorage.removeItem(OLD_STORAGE_KEY);
-      return [bike];
-    }
-  } catch {
-    localStorage.removeItem(OLD_STORAGE_KEY);
-  }
-  return [];
-}
-
 export default function ComponentListPage() {
   const [bikes, setBikes] = useState<Bike[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -325,23 +294,14 @@ export default function ComponentListPage() {
   useEffect(() => {
     async function loadBikes() {
       try {
-        const apiBikes = await api.getBikes();
+        const apiBikes = await api.getBikes<Bike>();
         if (apiBikes && apiBikes.length > 0) {
-          const normalized = (apiBikes as Bike[]).map((b) => ({ ...b, attachments: b.attachments || [] }));
+          const normalized = apiBikes.map((b) => ({ ...b, attachments: b.attachments || [] }));
           setBikes(normalized);
           prevBikesRef.current = JSON.stringify(normalized);
-        } else {
-          // One-time fallback: migrate from old localStorage format
-          const migrated = migrateFromOldFormat();
-          if (migrated.length > 0) {
-            setBikes(migrated);
-            await api.saveBikes(migrated);
-          }
         }
       } catch {
-        // Fallback to localStorage migration on API error
-        const migrated = migrateFromOldFormat();
-        if (migrated.length > 0) setBikes(migrated);
+        // API error — bikes will remain empty
       }
       setIsLoaded(true);
     }

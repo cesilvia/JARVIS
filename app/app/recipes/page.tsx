@@ -169,7 +169,7 @@ function RecipesPageInner() {
   useEffect(() => {
     const loadRecipes = async () => {
       try {
-        const loaded = (await api.getRecipes()) as Recipe[];
+        const loaded = await api.getRecipes<Recipe>();
         if (Array.isArray(loaded)) {
           setRecipes(loaded);
           setFilteredRecipes(loaded);

@@ -76,35 +76,12 @@ export interface StravaGoal {
   period: "weekly" | "yearly";
 }
 
-export const STRAVA_GOALS_KEY = "jarvis-strava-goals";
-
 export const DEFAULT_GOALS: StravaGoal[] = [
   { key: "weekly-miles", label: "Weekly Miles", target: 100, unit: "mi", period: "weekly" },
   { key: "yearly-miles", label: "Yearly Miles", target: 5000, unit: "mi", period: "yearly" },
   { key: "yearly-elevation", label: "Yearly Climbing", target: 130000, unit: "ft", period: "yearly" },
   { key: "yearly-rides", label: "Yearly Rides", target: 183, unit: "rides", period: "yearly" },
 ];
-
-export function loadGoals(): StravaGoal[] {
-  if (typeof window === "undefined") return DEFAULT_GOALS;
-  const raw = localStorage.getItem(STRAVA_GOALS_KEY);
-  if (!raw) return DEFAULT_GOALS;
-  try {
-    return JSON.parse(raw) as StravaGoal[];
-  } catch {
-    return DEFAULT_GOALS;
-  }
-}
-
-export const STRAVA_DESCRIPTIONS_KEY = "jarvis-strava-descriptions";
-export const STRAVA_ACTIVITIES_KEY = "jarvis-strava-activities";
-export const STRAVA_TOKENS_KEY = "jarvis-strava-tokens";
-export const STRAVA_LAST_SYNC_KEY = "jarvis-strava-last-sync";
-export const STRAVA_ZONES_KEY = "jarvis-strava-zones";
-export const STRAVA_POWER_CURVE_KEY = "jarvis-strava-power-curve";
-export const STRAVA_POWER_CURVE_RIDES_KEY = "jarvis-strava-power-curve-rides";
-export const STRAVA_POWER_CURVE_UPDATED_KEY = "jarvis-strava-power-curve-updated";
-export const BIKES_STORAGE_KEY = "jarvis-bikes";
 
 export const METERS_TO_MILES = 1 / 1609.34;
 export const METERS_TO_FEET = 3.28084;
@@ -189,13 +166,3 @@ export function buildDefaultHRZones(maxHR: number): ZoneBand[] {
   }));
 }
 
-export function loadZones(): ZoneConfig | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(STRAVA_ZONES_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as ZoneConfig;
-  } catch {
-    return null;
-  }
-}

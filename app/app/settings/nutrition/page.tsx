@@ -7,18 +7,27 @@ import * as api from "../../lib/api-client";
 
 const JARVIS_LAST_BACKUP_KEY = "jarvis-last-nutrition-backup";
 
-// Nutrition icon for quick-nav
+// Nutrition icon for quick-nav — matches hub JarvisNutritionIcon
 const NutritionIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    <circle cx="24" cy="24" r="9" strokeWidth="2.25" fill="none" />
-    <line x1="11" y1="15" x2="11" y2="33" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="9" y2="20" strokeWidth="2.25" />
-    <line x1="11" y1="15" x2="11" y2="20" strokeWidth="2.25" />
-    <line x1="13" y1="15" x2="13" y2="20" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="13" y2="15" strokeWidth="2.25" />
-    <line x1="37" y1="15" x2="37" y2="33" strokeWidth="2.25" />
-  </svg>
+  <div className={`${className} relative flex items-center justify-center`}>
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" className="absolute inset-0 w-full h-full" aria-hidden>
+      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    </svg>
+    <div
+      className="w-[62%] h-[62%]"
+      style={{
+        backgroundColor: "currentColor",
+        WebkitMaskImage: "url('/assets/fork-silhouette.svg')",
+        maskImage: "url('/assets/fork-silhouette.svg')",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  </div>
 );
 
 export default function NutritionSettingsPage() {

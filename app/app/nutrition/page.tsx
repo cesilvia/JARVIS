@@ -83,14 +83,14 @@ export default function Home() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const recipes = await api.getRecipes() as Recipe[];
+        const recipes = await api.getRecipes<Recipe>();
         setRecipes(recipes);
       } catch (e) {
         console.error("Failed to load recipes:", e);
       }
 
       try {
-        const ingredients = await api.getIngredients() as NutritionData[];
+        const ingredients = await api.getIngredients<NutritionData>();
         setSavedIngredients(ingredients);
       } catch (e) {
         console.error("Failed to load saved ingredients:", e);
@@ -103,7 +103,7 @@ export default function Home() {
   useEffect(() => {
     const handleStorageChange = async () => {
       try {
-        const recipes = await api.getRecipes() as Recipe[];
+        const recipes = await api.getRecipes<Recipe>();
         setRecipes(recipes);
       } catch (e) {
         console.error("Failed to load recipes:", e);

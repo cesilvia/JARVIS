@@ -222,12 +222,12 @@ export default function TirePressurePage() {
     async function load() {
       try {
         const [bikesData, defaultsData, tiresData, selectedTiresData] = await Promise.all([
-          api.getBikes(),
+          api.getBikes<Bike>(),
           api.getKV<SavedDefaults>("tire-pressure-defaults"),
-          api.getTireRefs(),
+          api.getTireRefs<TireRef>(),
           api.getKV<{ front: string; rear: string }>("tire-pressure-selected-tires"),
         ]);
-        if (bikesData.length) setBikes(bikesData as Bike[]);
+        if (bikesData.length) setBikes(bikesData);
         if (defaultsData) {
           const p = defaultsData;
           setDefaults(p);
@@ -257,7 +257,7 @@ export default function TirePressurePage() {
             }));
           }
         }
-        if (tiresData.length) setCustomTires(tiresData as TireRef[]);
+        if (tiresData.length) setCustomTires(tiresData);
         if (selectedTiresData) {
           if (selectedTiresData.front) setSelectedFrontTireId(selectedTiresData.front);
           if (selectedTiresData.rear) setSelectedRearTireId(selectedTiresData.rear);

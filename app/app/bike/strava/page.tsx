@@ -58,8 +58,8 @@ async function syncActivities(): Promise<StravaActivity[]> {
   const { activities } = await actRes.json();
   if (!Array.isArray(activities) || activities.length === 0) {
     // Don't overwrite stored rides with empty results — return what we already have
-    const stored = await api.getActivities();
-    if (stored.length > 0) return stored as StravaActivity[];
+    const stored = await api.getActivities<StravaActivity>();
+    if (stored.length > 0) return stored;
     return [];
   }
   await api.saveActivities(activities);
@@ -795,16 +795,16 @@ export default function StravaPage() {
   useEffect(() => {
     async function loadData() {
       const [storedActivities, tokens, storedBikes, storedZones, curveStored, storedGoals] = await Promise.all([
-        api.getActivities(),
+        api.getActivities<StravaActivity>(),
         api.getKV("strava-tokens"),
-        api.getBikes(),
+        api.getBikes<Bike>(),
         api.getKV<ZoneConfig>("strava-zones"),
         api.getKV<Record<number, number>>("strava-power-curve"),
         api.getKV<StravaGoal[]>("strava-goals"),
       ]);
-      if ((storedActivities as StravaActivity[]).length > 0) setActivities(storedActivities as StravaActivity[]);
+      if (storedActivities.length > 0) setActivities(storedActivities);
       setConnected(!!tokens);
-      if ((storedBikes as Bike[]).length > 0) setBikes(storedBikes as Bike[]);
+      if (storedBikes.length > 0) setBikes(storedBikes);
       setZones(storedZones || null);
       if (curveStored) setPowerCurve(curveStored);
       setGoals(storedGoals || DEFAULT_GOALS);
@@ -831,8 +831,8 @@ export default function StravaPage() {
         setSyncMsg("Sync failed — showing cached rides");
         setTimeout(() => setSyncMsg(""), 5000);
         // Fall back to SQLite so we don't show empty state
-        const stored = await api.getActivities();
-        if (stored.length > 0) setActivities(stored as StravaActivity[]);
+        const stored = await api.getActivities<StravaActivity>();
+        if (stored.length > 0) setActivities(stored);
       } finally {
         setSyncing(false);
       }

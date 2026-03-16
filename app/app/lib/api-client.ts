@@ -31,11 +31,11 @@ export async function deleteKV(key: string): Promise<void> {
 
 // ─── Strava Activities ──────────────────────────────────────────
 
-export async function getActivities(): Promise<unknown[]> {
+export async function getActivities<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/strava/activities");
   if (!res.ok) return [];
   const { activities } = await res.json();
-  return activities ?? [];
+  return (activities ?? []) as T[];
 }
 
 export async function saveActivities(activities: unknown[]): Promise<void> {
@@ -48,11 +48,11 @@ export async function saveActivities(activities: unknown[]): Promise<void> {
 
 // ─── Strava Streams ─────────────────────────────────────────────
 
-export async function getStream(activityId: number): Promise<unknown | null> {
+export async function getStream<T = unknown>(activityId: number): Promise<T | null> {
   const res = await fetch(`/api/db/strava/streams/${activityId}`);
   if (!res.ok) return null;
   const { data } = await res.json();
-  return data ?? null;
+  return (data ?? null) as T | null;
 }
 
 export async function saveStream(activityId: number, data: unknown): Promise<void> {
@@ -65,11 +65,11 @@ export async function saveStream(activityId: number, data: unknown): Promise<voi
 
 // ─── German Vocab ───────────────────────────────────────────────
 
-export async function getVocab(): Promise<unknown[]> {
+export async function getVocab<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/german/vocab");
   if (!res.ok) return [];
   const { vocab } = await res.json();
-  return vocab ?? [];
+  return (vocab ?? []) as T[];
 }
 
 export async function saveVocab(words: unknown[]): Promise<void> {
@@ -88,11 +88,11 @@ export async function deleteVocabWord(german: string, english: string): Promise<
 
 // ─── Recipes ────────────────────────────────────────────────────
 
-export async function getRecipes(): Promise<unknown[]> {
+export async function getRecipes<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/nutrition/recipes");
   if (!res.ok) return [];
   const { recipes } = await res.json();
-  return recipes ?? [];
+  return (recipes ?? []) as T[];
 }
 
 export async function saveRecipes(recipes: unknown[]): Promise<void> {
@@ -109,11 +109,11 @@ export async function deleteRecipeById(id: string): Promise<void> {
 
 // ─── Saved Ingredients ──────────────────────────────────────────
 
-export async function getIngredients(): Promise<unknown[]> {
+export async function getIngredients<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/nutrition/ingredients");
   if (!res.ok) return [];
   const { ingredients } = await res.json();
-  return ingredients ?? [];
+  return (ingredients ?? []) as T[];
 }
 
 export async function saveIngredients(ingredients: unknown[]): Promise<void> {
@@ -130,11 +130,11 @@ export async function deleteIngredientByName(name: string): Promise<void> {
 
 // ─── Bikes ──────────────────────────────────────────────────────
 
-export async function getBikes(): Promise<unknown[]> {
+export async function getBikes<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/bikes");
   if (!res.ok) return [];
   const { bikes } = await res.json();
-  return bikes ?? [];
+  return (bikes ?? []) as T[];
 }
 
 export async function saveBikes(bikes: unknown[]): Promise<void> {
@@ -151,11 +151,11 @@ export async function deleteBikeById(id: string): Promise<void> {
 
 // ─── Gear Inventory ─────────────────────────────────────────────
 
-export async function getGearItems(): Promise<unknown[]> {
+export async function getGearItems<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/gear");
   if (!res.ok) return [];
   const { items } = await res.json();
-  return items ?? [];
+  return (items ?? []) as T[];
 }
 
 export async function saveGearItems(items: unknown[]): Promise<void> {
@@ -172,11 +172,11 @@ export async function deleteGearItemById(id: string): Promise<void> {
 
 // ─── Tire Refs ──────────────────────────────────────────────────
 
-export async function getTireRefs(): Promise<unknown[]> {
+export async function getTireRefs<T = unknown>(): Promise<T[]> {
   const res = await fetch("/api/db/tires");
   if (!res.ok) return [];
   const { tires } = await res.json();
-  return tires ?? [];
+  return (tires ?? []) as T[];
 }
 
 export async function saveTireRefs(tires: unknown[]): Promise<void> {

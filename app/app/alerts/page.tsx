@@ -35,14 +35,40 @@ export default function AlertsPage() {
   const [zoneReviewDue, setZoneReviewDue] = useState(false);
   const [zoneReviewDays, setZoneReviewDays] = useState(0);
 
+  // Migration state
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [migrationResults, setMigrationResults] = useState<Record<string, string> | null>(null);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
+  const [localKeyCount, setLocalKeyCount] = useState(0);
+
   useEffect(() => {
     async function loadAlerts() {
+      // Check localStorage migration
+      const jarvisKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("jarvis-")) jarvisKeys.push(key);
+      }
+      if (jarvisKeys.length > 0) {
+        try {
+          const kvData = await api.getAllKV();
+          if (Object.keys(kvData).length === 0) {
+            setLocalKeyCount(jarvisKeys.length);
+            setMigrationNeeded(true);
+          }
+        } catch {
+          setLocalKeyCount(jarvisKeys.length);
+          setMigrationNeeded(true);
+        }
+      }
+
       // Load all data in parallel
       const [nutritionBackup, fullBackup, zones, gearItems] = await Promise.all([
         api.getKV<string>("last-nutrition-backup"),
         api.getKV<string>("last-full-backup"),
         api.getKV<{ zonesUpdatedAt?: string }>("strava-zones"),
-        api.getGearItems() as Promise<GearItem[]>,
+        api.getGearItems<GearItem>(),
       ]);
 
       // Nutrition backup
@@ -91,6 +117,41 @@ export default function AlertsPage() {
     loadAlerts();
   }, []);
 
+  async function handleMigrate() {
+    setMigrationStatus("running");
+    setMigrationError(null);
+    const data: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("jarvis-")) {
+        data[key] = localStorage.getItem(key) ?? "";
+      }
+    }
+    try {
+      const result = await api.migrateFromLocalStorage(data);
+      if (result.success) {
+        setMigrationStatus("done");
+        setMigrationResults((result as { success: boolean; results?: Record<string, string> }).results ?? null);
+      } else {
+        setMigrationStatus("error");
+        setMigrationError(result.error ?? "Unknown error");
+      }
+    } catch (err) {
+      setMigrationStatus("error");
+      setMigrationError(err instanceof Error ? err.message : "Migration request failed");
+    }
+  }
+
+  function handleClearLocalStorage() {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("jarvis-")) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    setMigrationNeeded(false);
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
@@ -99,6 +160,69 @@ export default function AlertsPage() {
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Notifications and reminders.
         </p>
+
+        {migrationNeeded && (
+          <section className="border border-red-600/50 rounded-lg p-6 bg-red-950/20 mb-6">
+            <h2 className="text-lg font-semibold font-mono text-red-200 mb-2">
+              Database migration required
+            </h2>
+            {migrationStatus === "idle" && (
+              <>
+                <p className="text-slate-400 font-mono text-sm mb-4">
+                  Found {localKeyCount} localStorage keys to migrate to SQLite. This is a one-time operation.
+                </p>
+                <button
+                  onClick={handleMigrate}
+                  className="inline-block px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-slate-100 font-mono text-sm transition-colors"
+                >
+                  Migrate Now
+                </button>
+              </>
+            )}
+            {migrationStatus === "running" && (
+              <p className="text-slate-400 font-mono text-sm animate-pulse">
+                Migrating data to SQLite...
+              </p>
+            )}
+            {migrationStatus === "done" && (
+              <>
+                <p className="text-green-400 font-mono text-sm mb-3">Migration complete.</p>
+                {migrationResults && (
+                  <ul className="text-slate-400 font-mono text-sm mb-4 space-y-0.5">
+                    {Object.entries(migrationResults).map(([key, val]) => (
+                      <li key={key}>{key}: {val}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleClearLocalStorage}
+                    className="inline-block px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 text-slate-100 font-mono text-sm transition-colors"
+                  >
+                    Clear localStorage &amp; Dismiss
+                  </button>
+                  <button
+                    onClick={() => setMigrationNeeded(false)}
+                    className="inline-block px-4 py-2 rounded-lg border border-slate-600 hover:bg-slate-800 text-slate-300 font-mono text-sm transition-colors"
+                  >
+                    Keep localStorage
+                  </button>
+                </div>
+              </>
+            )}
+            {migrationStatus === "error" && (
+              <>
+                <p className="text-red-400 font-mono text-sm mb-3">{migrationError}</p>
+                <button
+                  onClick={handleMigrate}
+                  className="inline-block px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-slate-100 font-mono text-sm transition-colors"
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </section>
+        )}
 
         {fullBackupOverdue && (
           <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">

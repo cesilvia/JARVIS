@@ -3,39 +3,48 @@
 import Link from "next/link";
 import Navigation from "../components/Navigation";
 
-const BikeWheelIcon = ({ className = "w-10 h-10" }: { className?: string }) => {
-  const hubR = 2.5;
-  const rimR = 14;
-  const n = 16;
-  const cross = 4;
-  const spokes = Array.from({ length: n }, (_, i) => {
-    const a1 = (i * 2 * Math.PI) / n;
-    const a2 = ((i + cross) * 2 * Math.PI) / n;
-    return (
-      <line key={i} x1={24 + hubR * Math.cos(a1)} y1={24 - hubR * Math.sin(a1)} x2={24 + rimR * Math.cos(a2)} y2={24 - rimR * Math.sin(a2)} strokeWidth="1.25" strokeLinecap="butt" />
-    );
-  });
-  return (
-    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+const BikeWheelIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <div className={`${className} relative flex items-center justify-center`}>
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" className="absolute inset-0 w-full h-full" aria-hidden>
       <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-      <circle cx="24" cy="24" r={rimR} strokeWidth="2.25" />
-      <circle cx="24" cy="24" r={hubR} strokeWidth="2.25" opacity="0.9" />
-      {spokes}
     </svg>
-  );
-};
+    <div
+      className="w-[62%] h-[62%]"
+      style={{
+        backgroundColor: "currentColor",
+        WebkitMaskImage: "url('/assets/bike-wheel.svg')",
+        maskImage: "url('/assets/bike-wheel.svg')",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  </div>
+);
 
 const NutritionIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
-  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
-    <circle cx="24" cy="24" r="9" strokeWidth="2.25" fill="none" />
-    <line x1="11" y1="15" x2="11" y2="33" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="9" y2="20" strokeWidth="2.25" />
-    <line x1="11" y1="15" x2="11" y2="20" strokeWidth="2.25" />
-    <line x1="13" y1="15" x2="13" y2="20" strokeWidth="2.25" />
-    <line x1="9" y1="15" x2="13" y2="15" strokeWidth="2.25" />
-    <line x1="37" y1="15" x2="37" y2="33" strokeWidth="2.25" />
-  </svg>
+  <div className={`${className} relative flex items-center justify-center`}>
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" className="absolute inset-0 w-full h-full" aria-hidden>
+      <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    </svg>
+    <div
+      className="w-[62%] h-[62%]"
+      style={{
+        backgroundColor: "currentColor",
+        WebkitMaskImage: "url('/assets/fork-silhouette.svg')",
+        maskImage: "url('/assets/fork-silhouette.svg')",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  </div>
 );
 
 const SecurityIcon = ({ className = "w-10 h-10" }: { className?: string }) => (

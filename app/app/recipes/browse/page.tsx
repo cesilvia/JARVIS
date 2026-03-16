@@ -91,7 +91,7 @@ export default function BrowseRecipesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const parsed = await api.getRecipes() as Recipe[];
+        const parsed = await api.getRecipes<Recipe>();
         if (Array.isArray(parsed)) {
           const sorted = [...parsed].sort((a, b) =>
             (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })

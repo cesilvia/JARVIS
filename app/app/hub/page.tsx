@@ -479,6 +479,21 @@ const ZONE_REVIEW_DAYS = 28;
 
 async function hubGetAlertSummaries(): Promise<string[]> {
   const lines: string[] = [];
+  // localStorage → SQLite migration check
+  let jarvisKeyCount = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    if (localStorage.key(i)?.startsWith("jarvis-")) jarvisKeyCount++;
+  }
+  if (jarvisKeyCount > 0) {
+    try {
+      const kvData = await api.getAllKV();
+      if (Object.keys(kvData).length === 0) {
+        lines.push("Migrate localStorage to SQLite");
+      }
+    } catch {
+      lines.push("Migrate localStorage to SQLite");
+    }
+  }
   // Daily full JARVIS backup check
   const lastFullBackup = await api.getKV<string>("last-full-backup");
   if (!lastFullBackup) {
@@ -539,76 +554,6 @@ export default function HubPage() {
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  // ─── Migration banner state ────────────────────────────────────
-  const [migrationNeeded, setMigrationNeeded] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<"idle" | "running" | "done" | "error">("idle");
-  const [migrationResults, setMigrationResults] = useState<Record<string, string> | null>(null);
-  const [migrationError, setMigrationError] = useState<string | null>(null);
-  const [localKeyCount, setLocalKeyCount] = useState(0);
-
-  // Check if localStorage has jarvis-* data and SQLite is empty
-  useEffect(() => {
-    async function checkMigration() {
-      // Count jarvis-* keys in localStorage
-      const jarvisKeys: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith("jarvis-")) jarvisKeys.push(key);
-      }
-      if (jarvisKeys.length === 0) return;
-
-      // Check if SQLite already has data (if KV has entries, migration already ran)
-      try {
-        const kvData = await api.getAllKV();
-        if (Object.keys(kvData).length > 0) return;
-      } catch {
-        // If API fails, still show banner — migration endpoint might fix things
-      }
-
-      setLocalKeyCount(jarvisKeys.length);
-      setMigrationNeeded(true);
-    }
-    checkMigration();
-  }, []);
-
-  async function handleMigrate() {
-    setMigrationStatus("running");
-    setMigrationError(null);
-
-    // Gather all jarvis-* localStorage entries
-    const data: Record<string, string> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("jarvis-")) {
-        data[key] = localStorage.getItem(key) ?? "";
-      }
-    }
-
-    try {
-      const result = await api.migrateFromLocalStorage(data);
-      if (result.success) {
-        setMigrationStatus("done");
-        setMigrationResults((result as { success: boolean; results?: Record<string, string> }).results ?? null);
-      } else {
-        setMigrationStatus("error");
-        setMigrationError(result.error ?? "Unknown error");
-      }
-    } catch (err) {
-      setMigrationStatus("error");
-      setMigrationError(err instanceof Error ? err.message : "Migration request failed");
-    }
-  }
-
-  function handleClearLocalStorage() {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("jarvis-")) keysToRemove.push(key);
-    }
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
-    setMigrationNeeded(false);
-  }
-
   // Load nutrition stats
   useEffect(() => {
     async function loadNutritionStats() {
@@ -629,7 +574,7 @@ export default function HubPage() {
   useEffect(() => {
     async function loadStravaSummary() {
       try {
-        const activities = (await api.getActivities()) as StravaActivity[];
+        const activities = await api.getActivities<StravaActivity>();
         if (activities.length === 0) { setStravaSummary(["No rides yet"]); return; }
 
         const now = new Date();
@@ -806,108 +751,6 @@ export default function HubPage() {
     }}>
       <CircuitBackground />
       <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10">
-        {/* Migration Banner */}
-        {migrationNeeded && (
-          <div
-            className="w-full max-w-2xl mx-auto mb-4 rounded-lg px-5 py-4 relative z-40"
-            style={{
-              backgroundColor: "rgba(0, 217, 255, 0.08)",
-              border: `1px solid ${currentTheme.primary}`,
-              boxShadow: `0 0 12px ${currentTheme.primary}40`,
-            }}
-          >
-            {migrationStatus === "idle" && (
-              <>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-lg font-bold" style={{ color: currentTheme.primary }}>
-                    Database Migration Available
-                  </span>
-                </div>
-                <p className="text-sm mb-3" style={{ color: currentTheme.textSecondary }}>
-                  Found {localKeyCount} localStorage keys to migrate to SQLite. This is a one-time operation.
-                </p>
-                <button
-                  onClick={handleMigrate}
-                  className="px-4 py-2 rounded font-bold text-sm transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: currentTheme.primary,
-                    color: currentTheme.background,
-                  }}
-                >
-                  Migrate Now
-                </button>
-              </>
-            )}
-            {migrationStatus === "running" && (
-              <div className="flex items-center gap-3">
-                <span className="animate-pulse" style={{ color: currentTheme.primary }}>
-                  Migrating data to SQLite...
-                </span>
-              </div>
-            )}
-            {migrationStatus === "done" && (
-              <>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-lg font-bold" style={{ color: currentTheme.accent }}>
-                    Migration Complete
-                  </span>
-                </div>
-                {migrationResults && (
-                  <ul className="text-sm mb-3 space-y-0.5" style={{ color: currentTheme.textSecondary }}>
-                    {Object.entries(migrationResults).map(([key, val]) => (
-                      <li key={key}>{key}: {val}</li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleClearLocalStorage}
-                    className="px-4 py-2 rounded font-bold text-sm transition-all hover:scale-105"
-                    style={{
-                      backgroundColor: currentTheme.primary,
-                      color: currentTheme.background,
-                    }}
-                  >
-                    Clear localStorage &amp; Dismiss
-                  </button>
-                  <button
-                    onClick={() => setMigrationNeeded(false)}
-                    className="px-4 py-2 rounded font-bold text-sm transition-all hover:scale-105"
-                    style={{
-                      border: `1px solid ${currentTheme.primary}`,
-                      color: currentTheme.primary,
-                      backgroundColor: "transparent",
-                    }}
-                  >
-                    Keep localStorage
-                  </button>
-                </div>
-              </>
-            )}
-            {migrationStatus === "error" && (
-              <>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-lg font-bold" style={{ color: "#FF4444" }}>
-                    Migration Failed
-                  </span>
-                </div>
-                <p className="text-sm mb-3" style={{ color: "#FF6666" }}>
-                  {migrationError}
-                </p>
-                <button
-                  onClick={handleMigrate}
-                  className="px-4 py-2 rounded font-bold text-sm transition-all hover:scale-105"
-                  style={{
-                    backgroundColor: currentTheme.primary,
-                    color: currentTheme.background,
-                  }}
-                >
-                  Retry
-                </button>
-              </>
-            )}
-          </div>
-        )}
         <div ref={contentAreaRef} className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6 relative">
             {/* Top Module Frames - z-30 so icons stay clickable above wedge overlay */}
             <div className="flex-shrink-0 mb-4 relative z-30">
