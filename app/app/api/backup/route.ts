@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 import { exportAll, kvSet, kvGetAll, upsertActivities, setStream, upsertVocab, upsertRecipes, upsertIngredients, upsertBikes, upsertGearItems, upsertTireRefs } from "@/app/lib/db";
 
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(
@@ -11,6 +12,93 @@ const BACKUP_DIR = process.env.BACKUP_DIR || path.join(
   "com~apple~CloudDocs",
   "JARVIS-backups"
 );
+
+// --- R2 upload via S3-compatible API (AWS Signature V4) ---
+
+function hmacSha256(key: Buffer | string, data: string): Buffer {
+  return crypto.createHmac("sha256", key).update(data).digest();
+}
+
+function sha256(data: string | Buffer): string {
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+async function uploadToR2(fileName: string, body: Buffer): Promise<{ success: boolean; error?: string }> {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET_NAME || "jarvis-backups";
+
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    return { success: false, error: "R2 credentials not configured" };
+  }
+
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const url = `https://${host}/${bucket}/${fileName}`;
+  const now = new Date();
+  const dateStamp = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const shortDate = dateStamp.slice(0, 8);
+  const region = "auto";
+  const service = "s3";
+  const scope = `${shortDate}/${region}/${service}/aws4_request`;
+
+  const payloadHash = sha256(body);
+
+  const headers: Record<string, string> = {
+    Host: host,
+    "Content-Type": "application/json",
+    "x-amz-content-sha256": payloadHash,
+    "x-amz-date": dateStamp,
+  };
+
+  // Canonical request
+  const signedHeaderKeys = Object.keys(headers).map((k) => k.toLowerCase()).sort();
+  const signedHeaders = signedHeaderKeys.join(";");
+  const canonicalHeaders = signedHeaderKeys.map((k) => `${k}:${headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!]}`).join("\n") + "\n";
+
+  const canonicalRequest = [
+    "PUT",
+    `/${bucket}/${fileName}`,
+    "", // no query string
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  // String to sign
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    dateStamp,
+    scope,
+    sha256(canonicalRequest),
+  ].join("\n");
+
+  // Signing key
+  const kDate = hmacSha256(`AWS4${secretAccessKey}`, shortDate);
+  const kRegion = hmacSha256(kDate, region);
+  const kService = hmacSha256(kRegion, service);
+  const kSigning = hmacSha256(kService, "aws4_request");
+  const signature = hmacSha256(kSigning, stringToSign).toString("hex");
+
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { ...headers, Authorization: authorization },
+      body,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `R2 upload failed (${res.status}): ${text}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "R2 upload failed" };
+  }
+}
 
 function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) {
@@ -112,7 +200,11 @@ export async function POST() {
       data,
     };
 
-    fs.writeFileSync(filePath, JSON.stringify(backup, null, 2), "utf-8");
+    const jsonStr = JSON.stringify(backup, null, 2);
+    fs.writeFileSync(filePath, jsonStr, "utf-8");
+
+    // Upload to R2 (off-device backup)
+    const r2Result = await uploadToR2(fileName, Buffer.from(jsonStr));
 
     // Update last backup timestamp in SQLite
     kvSet("last-full-backup", new Date().toISOString());
@@ -123,6 +215,7 @@ export async function POST() {
       path: filePath,
       size: fs.statSync(filePath).size,
       keys: Object.keys(data).length,
+      r2: r2Result,
     });
   } catch (err) {
     return NextResponse.json(

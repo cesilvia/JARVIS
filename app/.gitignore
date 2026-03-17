@@ -35,6 +35,9 @@ yarn-error.log*
 # SQLite database
 /data
 
+# Backup files
+/backups
+
 # vercel
 .vercel
 
