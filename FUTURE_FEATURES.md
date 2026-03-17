@@ -61,9 +61,8 @@
 
 ## Hub Wedge Improvements
 
-- ~~**German wedge**~~ — DONE (2026-03-17): Word of the Day — 5 words (v/n/adj/adv/prp) with gender color-coding. Two-column layout.
+- ~~**German wedge**~~ — DONE (2026-03-17): Word of the Day with gender color-coding. Redesigned to 3-word staggered layout with definitions — verb + noun always shown, 3rd rotates daily (adj/adv/prp/cnj). Staggered labels, per-word definitions in small text.
 - ~~**Nutrition wedge**~~ — DONE (2026-03-17): Placeholder "Fuel for the work required" (no Hexis/AnyList API).
-- **German wedge layout iteration** — Try different layouts (centered, single-column, etc.)
 - **Health wedge** — Placeholder until Garmin/Apple Health wired in
 
 ## Bike Enhancements

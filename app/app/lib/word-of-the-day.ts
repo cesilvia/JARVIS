@@ -26,13 +26,23 @@ export interface WordOfTheDay {
   category: string; // "verb" | "noun" | "adjective" | "adverb" | "preposition"
 }
 
-const WOTD_CATEGORIES = ["verb", "noun", "adjective", "adverb", "preposition"] as const;
+const ROTATING_CATEGORIES = ["adjective", "adverb", "preposition", "conjunction"] as const;
 
 function filterByCategory(vocab: VocabWord[], category: string): VocabWord[] {
   if (category === "preposition") {
     return vocab.filter(w => w.partOfSpeech === "preposition" || w.partOfSpeech === "conjunction");
   }
   return vocab.filter(w => w.partOfSpeech === category);
+}
+
+function pickFromCategory(vocab: VocabWord[], category: string, rng: () => number): WordOfTheDay | null {
+  const pool = filterByCategory(vocab, category);
+  if (pool.length === 0) return null;
+  const sorted = [...pool].sort((a, b) => a.german.localeCompare(b.german));
+  const unmastered = sorted.filter(w => w.repetitions < 5);
+  const pickFrom = unmastered.length > 0 ? unmastered : sorted;
+  const index = Math.floor(rng() * pickFrom.length);
+  return { word: pickFrom[index], category };
 }
 
 export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[] {
@@ -42,20 +52,17 @@ export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[]
 
   const results: WordOfTheDay[] = [];
 
-  for (const category of WOTD_CATEGORIES) {
-    const pool = filterByCategory(vocab, category);
-    if (pool.length === 0) continue;
+  // Always include a verb and a noun
+  const verb = pickFromCategory(vocab, "verb", rng);
+  if (verb) results.push(verb);
+  const noun = pickFromCategory(vocab, "noun", rng);
+  if (noun) results.push(noun);
 
-    // Sort deterministically by german word for stable indexing
-    const sorted = [...pool].sort((a, b) => a.german.localeCompare(b.german));
-
-    // Prioritize un-mastered words (repetitions < 5)
-    const unmastered = sorted.filter(w => w.repetitions < 5);
-    const pickFrom = unmastered.length > 0 ? unmastered : sorted;
-
-    const index = Math.floor(rng() * pickFrom.length);
-    results.push({ word: pickFrom[index], category });
-  }
+  // Rotate through adjective/adverb/preposition/conjunction by date
+  const daysSinceEpoch = Math.floor(date.getTime() / 86400000);
+  const rotatingCategory = ROTATING_CATEGORIES[daysSinceEpoch % ROTATING_CATEGORIES.length];
+  const third = pickFromCategory(vocab, rotatingCategory, rng);
+  if (third) results.push(third);
 
   return results;
 }
@@ -69,9 +76,16 @@ const ARTICLE_WEDGE_COLORS: Record<string, string> = {
 };
 
 // ─── Format for Wedge Display ───────────────────────────────────
-export function formatWotdForWedge(words: WordOfTheDay[]): { lines: string[]; colors: (string | undefined)[] } {
+export interface WotdWedgeData {
+  lines: string[];
+  colors: (string | undefined)[];
+  definitions: (string | undefined)[];
+}
+
+export function formatWotdForWedge(words: WordOfTheDay[]): WotdWedgeData {
   const lines: string[] = [];
   const colors: (string | undefined)[] = [];
+  const definitions: (string | undefined)[] = [];
   const POS_ABBREV: Record<string, string> = {
     verb: "v", noun: "n", adjective: "adj", adverb: "adv", preposition: "prp", conjunction: "cnj",
   };
@@ -80,6 +94,7 @@ export function formatWotdForWedge(words: WordOfTheDay[]): { lines: string[]; co
     const nounPart = word.article ? `${word.article} ${word.german}` : word.german;
     lines.push(`${pos}: ${nounPart}`);
     colors.push(word.article ? ARTICLE_WEDGE_COLORS[word.article] : undefined);
+    definitions.push(word.english || undefined);
   }
-  return { lines, colors };
+  return { lines, colors, definitions };
 }

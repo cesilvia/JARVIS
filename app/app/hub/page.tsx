@@ -561,6 +561,7 @@ export default function HubPage() {
   const [settingsSummary, setSettingsSummary] = useState<string[]>([]);
   const [germanSummary, setGermanSummary] = useState<string[]>([]);
   const [germanColors, setGermanColors] = useState<(string | undefined)[]>([]);
+  const [germanDefinitions, setGermanDefinitions] = useState<(string | undefined)[]>([]);
   const [nutritionSummary] = useState<string[]>(["Fuel for the", "work required"]);
   const [hasUnverified, setHasUnverified] = useState(false);
   const centerRef = useRef<HTMLDivElement>(null);
@@ -668,6 +669,7 @@ export default function HubPage() {
         const result = formatWotdForWedge(words);
         setGermanSummary(result.lines);
         setGermanColors(result.colors);
+        setGermanDefinitions(result.definitions);
       } catch (e) {
         console.error("German wedge error:", e);
         setGermanSummary(["Deutsch"]);
@@ -935,6 +937,8 @@ export default function HubPage() {
                       }
                       noBullets={wedgeModule === "strava" || wedgeModule === "german" || wedgeModule === "nutrition"}
                       summaryColors={wedgeModule === "german" ? germanColors : undefined}
+                      summaryDefinitions={wedgeModule === "german" ? germanDefinitions : undefined}
+                      labelAlign={wedgeModule === "german" ? "left" : "right"}
                     />
                   </div>
                 </div>
