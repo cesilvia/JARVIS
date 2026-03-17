@@ -543,3 +543,29 @@
 **Decision:** Use AWS Signature V4 signing directly instead of AWS SDK dependency
 - **Rationale:** Avoided adding `@aws-sdk/client-s3` (~50MB) to the Docker image. R2 is S3-compatible, so native `crypto` module handles HMAC-SHA256 signing.
 - **Status:** Implemented
+
+### German Page: Expanded Vocabulary + Word of the Day
+
+**Decision:** Expand German vocabulary from ~223 to ~1,869 words with Word of the Day feature
+- **Rationale:** User wants to focus on top 500 verbs, nouns, adjectives, adverbs, plus prepositions and conjunctions. Previous vocab was too small (~223 words). Word of the Day provides daily learning reinforcement on both the hub wedge and German page.
+- **Implementation:**
+  - New vocabulary data files in `app/lib/german-vocab/` (nouns.ts, verbs.ts, adjectives.ts, adverbs.ts, prepositions.ts, conjunctions.ts). All entries have example sentences with English translations.
+  - Shared types extracted to `app/lib/german-types.ts` (VocabWord, VocabWordBase).
+  - Word-of-the-day logic in `app/lib/word-of-the-day.ts`: deterministic date-seeded PRNG selects one word per category (verb, noun, adjective, adverb, preposition/conjunction). Prioritizes un-mastered words (repetitions < 5).
+  - German page: WordOfTheDaySection component above tabs shows 5 daily words with translations, example sentences, and "Review" button.
+  - Hub wedge: German wedge shows 5 words with part-of-speech labels (v:, n:, adj:, adv:, prp:). Two-column layout: labels right-aligned, words left-aligned. Nouns color-coded by gender (der=blue, die=pink, das=orange).
+  - WedgeSummaryCard enhanced: `summaryColors` prop for per-line colors, adaptive line height for 5+ lines, label/value column alignment.
+- **Status:** Implemented
+
+**Decision:** Color-code German nouns by gender on hub wedge
+- **Rationale:** Visual gender association reinforces article memorization. Masculine=dark blue (#4A7ECC), feminine=reddish pink (#D94A6B), neuter=muted orange (#CC8844). Non-nouns stay white.
+- **Status:** Implemented
+
+**Decision:** Nutrition wedge shows "Fuel for the work required" placeholder
+- **Rationale:** AnyList has no public API. Hexis has no public API. No compelling data to display yet. Placeholder until a useful integration is available.
+- **Status:** Implemented
+
+**Decision:** WedgeSummaryCard supports per-line colors and adaptive line height
+- **Rationale:** German wedge needs noun gender color-coding. 5 lines at fixed LINE_HEIGHT=26 overflowed narrow wedges.
+- **Implementation:** New `summaryColors` prop (array of optional hex colors). Adaptive `lineHeight` shrinks when lines would overflow available vertical space. Label/value columns use `TEXT_LABEL_RIGHT_X` (0.32) and `TEXT_VALUE_LEFT_X` (0.35) for clean alignment.
+- **Status:** Implemented

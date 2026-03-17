@@ -13,6 +13,14 @@ import {
   getYearStart,
 } from "../bike/strava/types";
 import * as api from "../lib/api-client";
+import { getWordsOfTheDay, formatWotdForWedge } from "../lib/word-of-the-day";
+import type { VocabWord, VocabWordBase } from "../lib/german-types";
+import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
+import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
+import { EXPANDED_ADJECTIVES } from "../lib/german-vocab/adjectives";
+import { EXPANDED_ADVERBS } from "../lib/german-vocab/adverbs";
+import { EXPANDED_PREPOSITIONS } from "../lib/german-vocab/prepositions";
+import { EXPANDED_CONJUNCTIONS } from "../lib/german-vocab/conjunctions";
 
 interface Module {
   id: string;
@@ -551,6 +559,9 @@ export default function HubPage() {
   const [alertSummaries, setAlertSummaries] = useState<string[]>([]);
   const [stravaSummary, setStravaSummary] = useState<string[]>([]);
   const [settingsSummary, setSettingsSummary] = useState<string[]>([]);
+  const [germanSummary, setGermanSummary] = useState<string[]>([]);
+  const [germanColors, setGermanColors] = useState<(string | undefined)[]>([]);
+  const [nutritionSummary] = useState<string[]>(["Fuel for the", "work required"]);
   const [hasUnverified, setHasUnverified] = useState(false);
   const centerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
@@ -633,6 +644,36 @@ export default function HubPage() {
       }
     }
     loadStravaSummary();
+  }, []);
+
+  // Load German word-of-the-day for wedge
+  useEffect(() => {
+    const allBuiltins: VocabWordBase[] = [
+      ...EXPANDED_NOUNS, ...EXPANDED_VERBS, ...EXPANDED_ADJECTIVES,
+      ...EXPANDED_ADVERBS, ...EXPANDED_PREPOSITIONS, ...EXPANDED_CONJUNCTIONS,
+    ];
+    async function loadGermanSummary() {
+      try {
+        const saved = (await api.getVocab()) as VocabWord[];
+        // Merge DB words with builtins so all categories are represented
+        const savedKeys = new Set(saved.map(w => `${w.german}|${w.partOfSpeech}`));
+        const merged: VocabWord[] = [...saved];
+        for (const b of allBuiltins) {
+          if (!savedKeys.has(`${b.german}|${b.partOfSpeech}`)) {
+            merged.push({ ...b, nextReview: 0, interval: 0, easeFactor: 2.5, repetitions: 0, source: "builtin" });
+          }
+        }
+        const words = getWordsOfTheDay(new Date(), merged);
+        if (words.length === 0) { setGermanSummary(["Deutsch"]); return; }
+        const result = formatWotdForWedge(words);
+        setGermanSummary(result.lines);
+        setGermanColors(result.colors);
+      } catch (e) {
+        console.error("German wedge error:", e);
+        setGermanSummary(["Deutsch"]);
+      }
+    }
+    loadGermanSummary();
   }, []);
 
   // Check for alerts (same conditions as alerts page: backup overdue, helmet reminders)
@@ -888,9 +929,12 @@ export default function HubPage() {
                         wedgeModule === "alerts" ? (alertSummaries.length > 0 ? alertSummaries : ["No Current Alerts"])
                         : wedgeModule === "strava" ? (stravaSummary.length > 0 ? stravaSummary : undefined)
                         : wedgeModule === "settings" ? (settingsSummary.length > 0 ? settingsSummary : undefined)
+                        : wedgeModule === "german" ? (germanSummary.length > 0 ? germanSummary : undefined)
+                        : wedgeModule === "nutrition" ? (nutritionSummary.length > 0 ? nutritionSummary : undefined)
                         : undefined
                       }
-                      noBullets={wedgeModule === "strava"}
+                      noBullets={wedgeModule === "strava" || wedgeModule === "german" || wedgeModule === "nutrition"}
+                      summaryColors={wedgeModule === "german" ? germanColors : undefined}
                     />
                   </div>
                 </div>

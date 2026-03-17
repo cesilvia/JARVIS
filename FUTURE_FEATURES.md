@@ -61,8 +61,9 @@
 
 ## Hub Wedge Improvements
 
-- **Nutrition wedge** — Recipe count (nutritionStats already loaded, not displayed)
-- **German wedge** — Cards due for review today (SM-2 next_review data available)
+- ~~**German wedge**~~ — DONE (2026-03-17): Word of the Day — 5 words (v/n/adj/adv/prp) with gender color-coding. Two-column layout.
+- ~~**Nutrition wedge**~~ — DONE (2026-03-17): Placeholder "Fuel for the work required" (no Hexis/AnyList API).
+- **German wedge layout iteration** — Try different layouts (centered, single-column, etc.)
 - **Health wedge** — Placeholder until Garmin/Apple Health wired in
 
 ## Bike Enhancements
@@ -80,9 +81,10 @@
 - GitHub-style contribution grid: rode, studied German, journaled. Hub or profile page.
 
 ## German Page Enhancements
+- ~~**Expand vocabulary**~~ — DONE (2026-03-17): ~1,869 words (528 nouns, 506 verbs, 483 adjectives, 251 adverbs, 51 prepositions, 32 conjunctions, 18 phrases). All with example sentences.
+- ~~**Word of the Day**~~ — DONE (2026-03-17): 5 daily words on hub wedge + German page top section. Deterministic date-seeded selection, prioritizes un-mastered words.
 - Listening practice (SpeechSynthesis / TTS)
 - Reading practice (passages with tap-to-translate)
-- Expand vocabulary (currently ~150 words)
 - Auto-backup via N8N
 - Component extraction from page.tsx
 - DeepL/Leo inline dictionary

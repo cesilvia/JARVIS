@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
 import * as api from "../lib/api-client";
+import { getWordsOfTheDay, type WordOfTheDay } from "../lib/word-of-the-day";
+import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
+import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
+import { EXPANDED_ADJECTIVES } from "../lib/german-vocab/adjectives";
+import { EXPANDED_ADVERBS } from "../lib/german-vocab/adverbs";
+import { EXPANDED_PREPOSITIONS } from "../lib/german-vocab/prepositions";
+import { EXPANDED_CONJUNCTIONS } from "../lib/german-vocab/conjunctions";
 
 // ─── Theme ───────────────────────────────────────────────────────
 const theme = { primary: "#00D9FF", secondary: "#67C7EB", bg: "#000000" };
@@ -231,7 +238,11 @@ const BUILTIN_PHRASES: Omit<VocabWord, "nextReview" | "interval" | "easeFactor" 
   { german: "Ich möchte...", english: "I would like...", partOfSpeech: "phrase", category: "Travel" },
 ];
 
-const ALL_BUILTIN = [...BUILTIN_NOUNS, ...BUILTIN_VERBS, ...BUILTIN_ADJECTIVES, ...BUILTIN_PHRASES];
+const ALL_BUILTIN = [
+  ...BUILTIN_NOUNS, ...BUILTIN_VERBS, ...BUILTIN_ADJECTIVES, ...BUILTIN_PHRASES,
+  ...EXPANDED_NOUNS, ...EXPANDED_VERBS, ...EXPANDED_ADJECTIVES,
+  ...EXPANDED_ADVERBS, ...EXPANDED_PREPOSITIONS, ...EXPANDED_CONJUNCTIONS,
+];
 
 function initWord(w: Omit<VocabWord, "nextReview" | "interval" | "easeFactor" | "repetitions" | "source">, source: "builtin" | "lookup" = "builtin"): VocabWord {
   return { ...w, nextReview: 0, interval: 0, easeFactor: 2.5, repetitions: 0, source };
@@ -617,6 +628,9 @@ export default function GermanPage() {
         </h1>
         <p className="text-sm mb-6" style={{ color: theme.secondary }}>German Language Learning</p>
 
+        {/* Word of the Day */}
+        <WordOfTheDaySection vocab={vocab} saveVocab={saveVocab} />
+
         {/* Tab Bar */}
         <div className="flex gap-1 mb-6 flex-wrap">
           {(["dictionary", "flashcards", "grammar", "quiz", "backup"] as Tab[]).map((t) => (
@@ -642,6 +656,94 @@ export default function GermanPage() {
         {tab === "quiz" && <QuizTab vocab={vocab} />}
         {tab === "backup" && <BackupTab vocab={vocab} setVocab={setVocab} />}
       </main>
+    </div>
+  );
+}
+
+// ─── Word of the Day Section ────────────────────────────────────
+function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void }) {
+  const words = useMemo(() => getWordsOfTheDay(new Date(), vocab), [vocab]);
+
+  if (words.length === 0) return null;
+
+  const handleAddToReview = (word: WordOfTheDay) => {
+    saveVocab((prev) =>
+      prev.map((w) =>
+        w.german === word.word.german && w.partOfSpeech === word.word.partOfSpeech
+          ? { ...w, nextReview: Date.now() }
+          : w
+      )
+    );
+  };
+
+  const categoryLabel = (cat: string) => {
+    switch (cat) {
+      case "verb": return "Verb";
+      case "noun": return "Nomen";
+      case "adjective": return "Adjektiv";
+      case "adverb": return "Adverb";
+      case "preposition": return "Präposition";
+      default: return cat;
+    }
+  };
+
+  return (
+    <div className="mb-6">
+      <h2 className="text-sm font-mono uppercase tracking-wider mb-3" style={{ color: theme.secondary }}>
+        Wort des Tages
+      </h2>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        {words.map(({ word, category }) => {
+          const isDue = word.nextReview <= Date.now();
+          return (
+            <div
+              key={`${word.german}-${category}`}
+              className="p-3 rounded"
+              style={{
+                background: `${theme.primary}08`,
+                border: `1px solid ${theme.primary}30`,
+              }}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-mono uppercase tracking-wider" style={{ color: theme.secondary + "80" }}>
+                  {categoryLabel(category)}
+                </span>
+                <button
+                  onClick={() => handleAddToReview({ word, category })}
+                  className="text-xs px-2 py-0.5 rounded transition-all"
+                  style={{
+                    border: `1px solid ${isDue ? theme.primary + "60" : theme.primary + "30"}`,
+                    color: isDue ? theme.primary : theme.secondary,
+                    background: isDue ? `${theme.primary}15` : "transparent",
+                  }}
+                  title={isDue ? "Due for review" : "Add to today's review"}
+                >
+                  {isDue ? "Due" : "Review"}
+                </button>
+              </div>
+              <div className="text-lg font-bold mb-0.5">
+                {word.article && (
+                  <span style={{ color: ARTICLE_COLORS[word.article] || theme.primary }}>
+                    {word.article}{" "}
+                  </span>
+                )}
+                <span style={{ color: theme.primary }}>{word.german}</span>
+                <span className="text-sm font-normal ml-2" style={{ color: theme.secondary }}>
+                  — {word.english}
+                </span>
+              </div>
+              {word.example && (
+                <div className="mt-1.5 text-xs" style={{ color: theme.secondary + "CC" }}>
+                  <div style={{ fontStyle: "italic" }}>{word.example}</div>
+                  {word.exampleEn && (
+                    <div style={{ color: theme.secondary + "80" }}>{word.exampleEn}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -5,7 +5,9 @@ import Link from "next/link";
 
 const ANIMATION_MS = 200;
 const LINE_HEIGHT = 26;
-const TEXT_LEFT_X = 0.08; /* label left margin */
+const TEXT_LEFT_X = 0.15; /* label left margin (fraction of L) */
+const TEXT_LABEL_RIGHT_X = 0.32; /* right edge of label column (for label: value alignment) */
+const TEXT_VALUE_LEFT_X = 0.35; /* left edge of value column */
 const TEXT_RIGHT_X = 0.95; /* value right margin */
 const MAX_DISPLAY_LINES = 8;
 
@@ -22,6 +24,8 @@ interface WedgeSummaryCardProps {
   summaryLines?: string[];
   /** If true, render lines without bullet prefixes */
   noBullets?: boolean;
+  /** Optional per-line colors (same length as summaryLines) */
+  summaryColors?: (string | undefined)[];
 }
 
 export default function WedgeSummaryCard({
@@ -35,6 +39,7 @@ export default function WedgeSummaryCard({
   onNavigate,
   summaryLines,
   noBullets,
+  summaryColors,
 }: WedgeSummaryCardProps) {
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
@@ -51,21 +56,23 @@ export default function WedgeSummaryCard({
   const maxChars = Math.floor(availableWidth / CHAR_WIDTH);
   const INDENT = "   "; // continuation indent (past bullet)
 
-  type DisplayRow = { label: string; value: string | null };
+  type DisplayRow = { label: string; value: string | null; color?: string };
   const displayLines: DisplayRow[] = [];
   if (hasSummary) {
-    for (const line of summaryLines!.slice(0, MAX_DISPLAY_LINES)) {
+    for (let li = 0; li < Math.min(summaryLines!.length, MAX_DISPLAY_LINES); li++) {
+      const line = summaryLines![li];
+      const lineColor = summaryColors?.[li];
       if (skipBullets) {
         const idx = line.indexOf(": ");
         if (idx >= 0) {
-          displayLines.push({ label: line.slice(0, idx), value: line.slice(idx + 2) });
+          displayLines.push({ label: line.slice(0, idx), value: line.slice(idx + 2), color: lineColor });
         } else {
-          displayLines.push({ label: line, value: null });
+          displayLines.push({ label: line, value: null, color: lineColor });
         }
       } else {
         const bullet = "• " + line;
         if (bullet.length <= maxChars) {
-          displayLines.push({ label: bullet, value: null });
+          displayLines.push({ label: bullet, value: null, color: lineColor });
         } else {
           // Word-wrap: first line gets bullet, continuations get indent
           const words = line.split(" ");
@@ -73,20 +80,23 @@ export default function WedgeSummaryCard({
           for (const word of words) {
             const test = current + (current.length > 2 ? " " : "") + word;
             if (test.length > maxChars && current.length > 2) {
-              displayLines.push({ label: current, value: null });
+              displayLines.push({ label: current, value: null, color: lineColor });
               current = INDENT + word;
             } else {
               current = test;
             }
           }
           if (current.length > 0) {
-            displayLines.push({ label: current, value: null });
+            displayLines.push({ label: current, value: null, color: lineColor });
           }
         }
       }
     }
   }
   const lineCount = displayLines.length;
+  // Adaptive line height: shrink if lines would overflow the wedge's vertical space
+  const availableHeight = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.7;
+  const lineHeight = lineCount > 1 ? Math.min(LINE_HEIGHT, availableHeight / lineCount) : LINE_HEIGHT;
 
   // Wedge path: point at origin, two rays, rounded arc at end
   const x1 = L * Math.cos(-halfAngleRad);
@@ -182,17 +192,18 @@ export default function WedgeSummaryCard({
                 }}
               >
                 {displayLines.map((row, i) => {
-                  const y = (i - (lineCount - 1) / 2) * LINE_HEIGHT;
+                  const y = (i - (lineCount - 1) / 2) * lineHeight;
+                  const fill = row.color || "#ffffff";
                   if (row.value !== null) {
                     return (
                       <React.Fragment key={i}>
-                        <tspan x={L * TEXT_LEFT_X} y={y} textAnchor="start">{row.label}</tspan>
-                        <tspan x={L * TEXT_RIGHT_X} y={y} textAnchor="end">{row.value}</tspan>
+                        <tspan x={L * TEXT_LABEL_RIGHT_X} y={y} textAnchor="end" fill="#ffffff">{row.label}:</tspan>
+                        <tspan x={L * TEXT_VALUE_LEFT_X} y={y} textAnchor="start" fill={fill}>{row.value}</tspan>
                       </React.Fragment>
                     );
                   }
                   return (
-                    <tspan key={i} x={L * TEXT_CENTER} y={y} textAnchor="middle">
+                    <tspan key={i} x={skipBullets ? L * TEXT_LEFT_X : L * TEXT_CENTER} y={y} textAnchor={skipBullets ? "start" : "middle"} fill={fill}>
                       {row.label}
                     </tspan>
                   );
