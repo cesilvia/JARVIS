@@ -1,72 +1,45 @@
 # Cursor Prompt: JARVIS Dashboard — Next Session
 
 ## Context
-I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi theme (primary=#00D9FF, secondary=#67C7EB, dark background). The main feature so far is a Strava cycling dashboard at `app/bike/strava/page.tsx`. Types are in `app/bike/strava/types.ts`. Charts are hand-rolled inline SVG (no charting library). The hub page is at `app/hub/page.tsx` with wedge-based navigation.
+I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi theme (primary=#00D9FF, secondary=#67C7EB, dark background). Uses TypeScript, Tailwind, better-sqlite3 for persistence. All data migrated from localStorage to server-side SQLite. Charts are hand-rolled inline SVG (no charting library). The hub page is at `app/hub/page.tsx` with wedge-based navigation.
 
-## What Was Just Implemented (2026-03-14)
+## Current state (as of 2026-03-16)
+- **SQLite migration complete**: All ~30 localStorage keys migrated to server-side SQLite via better-sqlite3. Hybrid schema: KV table + 8 normalized tables (strava_activities, strava_streams, german_vocab, recipes, saved_ingredients, bikes, gear_inventory, tire_refs). 10 API routes under /api/db/*, async api-client.ts with generic type params.
+- **Mac Mini hosting via Cloudflare Tunnel**: JARVIS served at `jarvis.chrissilvia.com` through Cloudflare Tunnel → Mac Mini Docker. Three containers: jarvis (port 3000 internal), n8n (port 5678 Tailscale-only), cloudflared. Vercel disconnected.
+- **Auto-deploy**: `deploy.sh` + launchd polls GitHub every 2min. Push to main → auto-rebuilds Docker on Mac Mini. Logs at `~/Projects/JARVIS/deploy.log`.
+- **Nightly automated backup**: N8N workflow triggers POST /api/backup at 2am daily. Sets `last-full-backup` KV key to clear hub alert.
+- **Wedge text**: Word-wraps long bullet text with indented continuations. Recalculates origin on window resize.
+- **Recipe import**: Expanded unit map (bunch/can/clove/pinch/dash), size descriptors (large/medium/small → "count"), "count" unit in builder.
 
-### 1. Tire Pressure Calculator Fix
-- Original formula used linear `PSI = (wheelLoad × k) / width` with k values ~3× too low (7.0-7.8), producing results clamped to minimum PSI floors
-- Replaced with non-linear power-law model: `PSI = k × wheelLoad^0.2 / width^0.625`
-- New k values: Clincher=290, Tubeless=264, Tubular=277 — calibrated against SILCA tire pressure data
-- Sub-linear load exponent (0.2) prevents rear tire from being disproportionately high vs front
-- For 200 lbs, 32mm tubeless, smooth pavement: ~60F/65R PSI (matches SILCA)
-- Widened number inputs (w-20 → w-24), hid browser number spinners for easier data entry
-- File: `app/bike/tire-pressure/page.tsx`
+## Key files
+- `app/lib/db.ts` — SQLite singleton, all table schemas, CRUD functions, exportAll()
+- `app/lib/api-client.ts` — Async fetch wrappers with generics
+- `app/api/db/*` — 10 route files
+- `app/api/backup/route.ts` — Full backup/restore (supports BACKUP_DIR env var)
+- `app/api/recipes/import/route.ts` — Recipe URL import with ingredient parsing
+- `proxy.ts` — Auth middleware (PUBLIC_PATHS includes /api/backup)
+- `Dockerfile` — Multi-stage Next.js + better-sqlite3 build
+- `docker-compose.yml` — JARVIS + N8N + cloudflared services
+- `deploy.sh` + `com.jarvis.deploy.plist` — Auto-deploy via git polling
+- `app/hub/page.tsx` — Main dashboard with wedge summaries
+- `app/hub/WedgeSummaryCard.tsx` — Wedge overlay with text wrapping
+- `app/bike/strava/page.tsx` — Strava cycling dashboard (~1700 lines)
+- `app/bike/strava/types.ts` — Shared Strava/bike types and constants
 
-### 2. Hub Wedge Strava Summary (2026-03-13)
-- Strava wedge shows summary stats: Week miles, YTD miles, Elevation, TSB status
-- `WedgeSummaryCard` redesigned: removed text wrapping, added `noBullets` prop for left-label / right-value alignment
-- TSB formatted as "TSB: -1 (Fresh)" with status right-justified
-- Hub page imports Strava types and computes CTL/ATL/TSB from cached activities + zones
+## Deploy workflow
+Just push to main. Auto-deploys to Mac Mini within 2 minutes.
 
-### 3. Previous Session Features (still in place)
-- Power curve auto-build (two-phase: cached then API, circuit breaker, daily auto-update)
-- Fitness chart with TSB zone shading, dashed trendlines, white TSB line
-- Ride cards: 3-column grid, route names from descriptions, compare buttons
-- Power & HR Zone period cards (Week/Month/Year toggle)
+## Important notes
+- `.env.local` on Mini uses `$$` to escape `$` in bcrypt hashes (Docker Compose interpolation). Local dev uses `\$` (shell escaping)
+- Separate `.env` file on Mini holds `CLOUDFLARE_TUNNEL_TOKEN`
+- N8N is Tailscale-only (no public URL, no auth)
+- Mac Mini repo is a proper git clone at `~/Projects/JARVIS/`
 
-## Technical Notes
-- Strava dashboard: single-file client component ("use client") — ~1700 lines in page.tsx
-- Stream data: `/api/strava/streams`, cached in localStorage per activity
-- Activity detail: `/api/strava/activity-detail/?id=<activity_id>`
-- Token refresh: `/api/strava/refresh` with 10s timeout
-- Tire pressure: non-linear model with surface/condition multipliers, clamped to safe min/max per width
-- Hexis.live has no public API — potential data via Apple Health or Intervals.icu API
+## Next priorities (pick one)
+1. **[P1] Page verification checklist** — QA page in settings/dev area to track which pages verified post-migration. Store in SQLite KV. Manual checkboxes, re-flag when code changes touch a page.
+2. **[P1] Journal page** — New hub page for personal journal entries. Store in SQLite.
+3. **[P1] Research page** — New hub page for research tool/dashboard.
+4. **N8N Strava sync workflow** — Automate Strava activity sync + token refresh via N8N (no browser needed).
+5. **Strava enhancements** — Component extraction from page.tsx, polyline route matching, Zwift route lookup.
 
-## Planned Features — Infrastructure (Priority)
-### Docker + Mac Mini Deployment
-- Dockerize JARVIS (Next.js) with multi-stage Dockerfile
-- Docker Compose orchestrating: JARVIS, N8N, MCP server
-- Deploy to always-on Mac Mini (already has Tailscale + Screens 5)
-- Develop on laptop, deploy via git + Docker
-
-### N8N Workflows
-- Strava power curve build (overnight, no browser needed — currently 22 min client-side)
-- Strava activity sync & token refresh
-- Alerts pipeline with push notifications
-- Nutrition data backups
-- Weather scheduled fetches
-
-### MCP Server
-- Expose JARVIS data as MCP tools for Claude/AI assistants
-- Query ride data, fitness metrics, power zones
-- Read/write journal entries, check/dismiss alerts
-- Trigger N8N workflows from Claude
-
-## Planned Features — App
-### New Hub Pages
-- **German page** — language learning/practice
-- **Journal page** — personal journal
-- **Research page** — research tool/dashboard
-
-### Nutrition Integration
-- Hexis.live has no public API — could pull data via Apple Health sync or Intervals.icu API
-
-### Strava Enhancements
-- Improve polyline route matching (edit distance or decoded lat/lng proximity)
-- Manual ride comparison selection (currently auto-matches)
-- Persist comparison view state across tab switches
-- Zwift route name lookup via polyline matching against reference database
-- Power curve build speed: could parallelize or batch API calls
-- Component extraction from page.tsx (~1700 lines)
+What would you like to work on?
