@@ -524,3 +524,22 @@
 - **Rationale:** Manual deploy (Screens 5 → terminal → docker compose up) was tedious and error-prone. Needed a simple, no-new-infrastructure solution.
 - **Implementation:** `deploy.sh` at repo root: git fetch → compare SHAs → git pull --ff-only → docker compose up -d --build jarvis → docker image prune. Runs every 2 minutes via launchd (`com.jarvis.deploy.plist` in ~/Library/LaunchAgents). Logs to ~/Projects/JARVIS/deploy.log. Mac Mini repo converted from loose files to proper git clone.
 - **Status:** Implemented
+
+## 2026-03-17
+
+### Backup: Cloudflare R2 Off-Device Backup
+
+**Decision:** Replace iCloud Drive backup path with simple local directory + Cloudflare R2 upload
+- **Rationale:** The iCloud Drive volume mount (`~/Library/Mobile Documents/com~apple~CloudDocs/JARVIS-backups`) caused filesystem errors (-35) inside Docker containers. iCloud's special filesystem attributes are incompatible with Docker volume mounts. Even when working, backups were only on the Mac Mini's disk — if the disk died, both SQLite and backups would be lost.
+- **Implementation:**
+  - Changed docker-compose.yml volume from iCloud path to `./backups:/backups` (simple local dir).
+  - Added Cloudflare R2 upload to backup API route using AWS Signature V4 signing (Node.js `crypto` module, no new dependencies).
+  - Every backup POST now saves locally AND uploads to R2 bucket `jarvis-backups`.
+  - R2 credentials (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`) in `.env.local` on Mac Mini.
+  - Backup UI updated: labels changed from "iCloud" to "R2", success message shows R2 upload status.
+  - R2 free tier: 10 GB storage, 1M writes/month, zero egress fees.
+- **Status:** Implemented
+
+**Decision:** Use AWS Signature V4 signing directly instead of AWS SDK dependency
+- **Rationale:** Avoided adding `@aws-sdk/client-s3` (~50MB) to the Docker image. R2 is S3-compatible, so native `crypto` module handles HMAC-SHA256 signing.
+- **Status:** Implemented
