@@ -59,9 +59,10 @@ export default function BackupSettingsPage() {
       const res = await fetch("/api/backup", { method: "POST" });
       const json = await res.json();
       if (json.success) {
+        const r2Status = json.r2?.success ? " + R2" : json.r2?.error ? ` (R2 failed: ${json.r2.error})` : "";
         setStatus({
           type: "success",
-          message: `Backed up ${json.keys} keys to iCloud (${formatBytes(json.size)})`,
+          message: `Backed up ${json.keys} keys (${formatBytes(json.size)})${r2Status}`,
         });
         fetchBackups();
       } else {
