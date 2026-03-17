@@ -86,7 +86,7 @@ async function uploadToR2(fileName: string, body: Buffer): Promise<{ success: bo
     const res = await fetch(url, {
       method: "PUT",
       headers: { ...headers, Authorization: authorization },
-      body,
+      body: new Uint8Array(body),
     });
 
     if (!res.ok) {
