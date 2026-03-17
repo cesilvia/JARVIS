@@ -7,7 +7,7 @@
 - ~~**Docker + N8N on Mac Mini**~~ — DONE (2026-03-16): Docker Compose with JARVIS + N8N + cloudflared. Auto-deploy via git polling.
 - ~~**Nightly backup**~~ — DONE (2026-03-16): N8N workflow POSTs to /api/backup at 2am daily.
 - ~~**Off-device backup (Cloudflare R2)**~~ — DONE (2026-03-17): Backup POST saves locally + uploads to R2 bucket. Survives Mac Mini disk failure. Free tier (10 GB).
-- ~~**Page verification checklist**~~ — DONE (2026-03-16): /settings/verification with file hash tracking, auto-invalidation, hub wedge integration.
+- ~~**Page verification checklist**~~ — DONE (2026-03-16, expanded 2026-03-17): /settings/verification with file hash tracking, auto-invalidation, hub wedge integration. 38 entries: 7 core pages, 12 hub wedges/icons, 5 cycling, 3 nutrition, 1 learning, 7 settings, 3 system.
 - ~~**Auto-deploy**~~ — DONE: deploy.sh + launchd polls GitHub every 2min, auto-rebuilds Docker.
 
 ### Planned

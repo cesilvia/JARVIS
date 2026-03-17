@@ -26,6 +26,19 @@ const PAGES: PageEntry[] = [
   { path: "/notes", name: "Notes", group: "Core" },
   { path: "/health", name: "Health", group: "Core" },
   { path: "/profile", name: "Profile", group: "Core" },
+  // Hub Wedges & Icons
+  { path: "/hub/wedge/calendar", name: "Calendar Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/nutrition", name: "Nutrition Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/strava", name: "Strava Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/tasks", name: "Tasks Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/weather", name: "Weather Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/notes", name: "Notes Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/health", name: "Health Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/wedge/german", name: "German Wedge & Icon", group: "Hub Wedges" },
+  { path: "/hub/icon/settings", name: "Settings Icon", group: "Hub Wedges" },
+  { path: "/hub/icon/profile", name: "Profile Icon", group: "Hub Wedges" },
+  { path: "/hub/icon/status", name: "Status Icon", group: "Hub Wedges" },
+  { path: "/hub/icon/alerts", name: "Alerts Icon", group: "Hub Wedges" },
   // Cycling
   { path: "/bike", name: "Bike Hub", group: "Cycling" },
   { path: "/bike/strava", name: "Strava Dashboard", group: "Cycling" },
@@ -45,6 +58,7 @@ const PAGES: PageEntry[] = [
   { path: "/settings/backup", name: "Backup", group: "Settings" },
   { path: "/settings/security", name: "Security", group: "Settings" },
   { path: "/settings/extras", name: "Extras", group: "Settings" },
+  { path: "/settings/verification", name: "Verification", group: "Settings" },
   // System
   { path: "/login", name: "Login", group: "System" },
   { path: "/status", name: "Status", group: "System" },
@@ -53,6 +67,7 @@ const PAGES: PageEntry[] = [
 
 const GROUP_COLORS: Record<string, { text: string; border: string }> = {
   Core: { text: "text-cyan-400", border: "border-cyan-400/20" },
+  "Hub Wedges": { text: "text-purple-400", border: "border-purple-400/20" },
   Cycling: { text: "text-orange-400", border: "border-orange-400/20" },
   Nutrition: { text: "text-green-400", border: "border-green-400/20" },
   Learning: { text: "text-amber-400", border: "border-amber-400/20" },

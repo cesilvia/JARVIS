@@ -569,3 +569,16 @@
 - **Rationale:** German wedge needs noun gender color-coding. 5 lines at fixed LINE_HEIGHT=26 overflowed narrow wedges.
 - **Implementation:** New `summaryColors` prop (array of optional hex colors). Adaptive `lineHeight` shrinks when lines would overflow available vertical space. Label/value columns use `TEXT_LABEL_RIGHT_X` (0.32) and `TEXT_VALUE_LEFT_X` (0.35) for clean alignment.
 - **Status:** Implemented
+
+### Verification Checklist: Hub Wedges & Icons + Missing Pages
+
+**Decision:** Add hub wedge/icon entries and missing pages to verification checklist
+- **Rationale:** The verification checklist tracked destination pages but not their visual representation on the hub. The German wedge, icon, and all other hub wedges/icons had no verification entries. The `/settings/verification` page was also missing from its own checklist.
+- **Implementation:**
+  - Added 12 "Hub Wedges" entries: 8 wedge+icon entries (Calendar, Nutrition, Strava, Tasks, Weather, Notes, Health, German) and 4 icon-only entries (Settings, Profile, Status, Alerts).
+  - Added `/settings/verification` to Settings group.
+  - New "Hub Wedges" group with purple color theme in verification UI.
+  - All wedge entries track `hub/page.tsx` + `hub/WedgeSummaryCard.tsx`. German wedge also tracks `lib/word-of-the-day.ts` and `lib/german-types.ts`. Icon-only entries track `hub/page.tsx`.
+  - Any hub code change invalidates all wedge/icon entries for individual re-verification.
+  - Total checklist items: 25 → 38.
+- **Status:** Implemented
