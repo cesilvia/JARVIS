@@ -143,7 +143,7 @@ export default function BackupSettingsPage() {
 
         <h1 className="text-3xl font-bold font-mono mt-4">Backup</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-6">
-          Full JARVIS backup to iCloud Drive.
+          Full JARVIS backup to R2 Drive.
         </p>
 
         {/* Status banner */}
@@ -164,14 +164,14 @@ export default function BackupSettingsPage() {
           <h2 className="text-lg font-semibold font-mono text-cyan-400 mb-2">Backup Now</h2>
           <p className="text-slate-400 font-mono text-xs mb-4">
             Exports all JARVIS data (Strava, German, Nutrition, Bikes, Settings) to a single JSON
-            file in your iCloud Drive.
+            file in your Cloudflare R2.
           </p>
           <button
             onClick={handleBackup}
             disabled={loading}
             className="px-6 py-2.5 bg-cyan-500/20 border border-cyan-400/40 rounded-lg font-mono text-sm text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Backing up..." : "Backup to iCloud"}
+            {loading ? "Backing up..." : "Backup to R2"}
           </button>
           {backupDir && (
             <p className="text-slate-500 font-mono text-[10px] mt-3 break-all">
