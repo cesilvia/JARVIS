@@ -217,7 +217,8 @@ export default function WedgeSummaryCard({
                   const maxLabelLen = labelRows.length > 0 ? Math.max(...labelRows.map(r => r.label.length)) : 0;
                   const labelStartX = (label: string) => {
                     let x = L * TEXT_LEFT_X - (maxLabelLen - label.length) * CHAR_WIDTH;
-                    if (label === "n") x += CHAR_WIDTH * 1.0; // nudge n: right of v:
+                    if (label === "n") x += CHAR_WIDTH * 0.75; // nudge n: right of default
+                    if (label === "v") x -= CHAR_WIDTH * 0.5; // nudge v: left of default
                     return x;
                   };
                   // Each row's value X: right after its own colon + 1 space

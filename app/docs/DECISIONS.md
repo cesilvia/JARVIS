@@ -543,3 +543,10 @@
 **Decision:** Use AWS Signature V4 signing directly instead of AWS SDK dependency
 - **Rationale:** Avoided adding `@aws-sdk/client-s3` (~50MB) to the Docker image. R2 is S3-compatible, so native `crypto` module handles HMAC-SHA256 signing.
 - **Status:** Implemented
+
+### German Wedge: Per-Label X Positioning
+
+**Decision:** Add per-label horizontal nudges for `v:` and `n:` on the German hub wedge
+- **Rationale:** The staggered label layout (shortest labels furthest left) didn't look balanced — `v:` needed to shift left and `n:` needed a rightward nudge to create better visual spacing between the three word rows.
+- **Implementation:** `labelStartX()` in WedgeSummaryCard applies per-label offsets: `n:` nudged right by 0.75 × CHAR_WIDTH, `v:` nudged left by 0.5 × CHAR_WIDTH. Iteratively tuned through visual feedback.
+- **Status:** Implemented
