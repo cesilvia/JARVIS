@@ -156,6 +156,8 @@
 - **Tire pressure enhancements:** Auto-select tire from saved tires list; show warning when calculated PSI exceeds tire min/max limits; historical log of pressures per ride.
 - **Gear inventory enhancements:** Bibs-specific fields (pad type, length); shoes-specific fields (cleat type, wear indicator); photo gallery view for gear items.
 - **Alert wedge summaries for other modules:** Currently only Alerts wedge shows summary text. Add summaries to other module wedges (e.g. Nutrition: recipe count; Bike: last sync date; Calendar: next event).
+- **Auto-deploy:** ✅ Completed — push to main auto-deploys to Mac Mini within 2 minutes via `deploy.sh` + launchd. No manual SSH/Screens needed.
+- **Recipe import accuracy:** ✅ Improved — expanded unitMap (bunch/can/clove/pinch/dash), size descriptors (large/medium/small → count), "count" unit in builder.
 - **Strava dashboard enhancements:** ✅ Ride detail charts, power curve, zones, and training load implemented. Remaining: segment leaderboard data; ride heatmap/map visualization; Strava route integration; power duration curve time-range filtering (30d/90d/all).
 - **Strava gear sync to inventory:** Automatically pull gear (bikes, shoes) from Strava into gear inventory; link Strava gear IDs to inventory items for mileage tracking.
 - **Component list enhancements:** Bulk component operations; component wear tracking (miles since install from Strava data); service-due alerts when mileage exceeds service interval.

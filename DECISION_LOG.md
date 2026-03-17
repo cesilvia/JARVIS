@@ -504,9 +504,23 @@
 - **Rationale:** N8N has no auth by default. Public access would be a security risk.
 - **Status:** Implemented
 
-### Hub: Fix Wedge Text Clipping
+### Hub: Wedge Text Wrapping and Resize Fix
 
-**Decision:** Remove SVG clipPath from wedge summary text and add overflow-visible to parent chain
-- **Rationale:** Text was clipped because clipPath operated in un-rotated coordinate space while text was counter-rotated. Parent container overflow also contributed.
-- **Implementation:** Removed clipPath from text group. Added overflow visible to SVG, Link, rotating div, and parent containers. Centered bullet text at L*0.55 with textAnchor middle.
+**Decision:** Word-wrap long wedge bullet text with indented continuations, recalculate on resize
+- **Rationale:** Long alert text (e.g. "Back up JARVIS to iCloud") overflowed the wedge shape. Shrinking font made it unreadable. Wedge origin also drifted on window resize since it was only computed once.
+- **Implementation:** WedgeSummaryCard calculates available chord width at the text's radial position (60% of wedge length). Lines exceeding maxChars word-wrap with 3-space indent on continuation lines. Font stays at base size (L*0.08). Added window resize listener that recalculates wedge origin/angle/length via `computeWedgeProps` callback.
+- **Status:** Implemented
+
+### Recipe Import: Expanded Unit Map and Size Descriptors
+
+**Decision:** Add missing units and handle size descriptors in recipe URL import
+- **Rationale:** Imported recipe macros were wildly inaccurate because the import parser's unitMap was missing common units (bunch, can, clove, pinch, dash). Size descriptors like "large" or "medium" were parsed as the unit, defaulting to grams (e.g. "2 large eggs" → 2g of eggs).
+- **Implementation:** Added bunch/can/clove/cloves/pinch/dash to import route unitMap. Size descriptors (large/medium/small/whole/big/extra) map to "count" unit and keep the descriptor in the ingredient name for better USDA search. Added "count" unit (100g default) to recipe builder dropdown and quick buttons.
+- **Status:** Implemented
+
+### Infrastructure: Auto-Deploy via Git Polling
+
+**Decision:** Automate deployment from laptop push to Mac Mini Docker rebuild
+- **Rationale:** Manual deploy (Screens 5 → terminal → docker compose up) was tedious and error-prone. Needed a simple, no-new-infrastructure solution.
+- **Implementation:** `deploy.sh` at repo root: git fetch → compare SHAs → git pull --ff-only → docker compose up -d --build jarvis → docker image prune. Runs every 2 minutes via launchd (`com.jarvis.deploy.plist` in ~/Library/LaunchAgents). Logs to ~/Projects/JARVIS/deploy.log. Mac Mini repo converted from loose files to proper git clone.
 - **Status:** Implemented
