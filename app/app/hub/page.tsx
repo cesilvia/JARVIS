@@ -653,7 +653,7 @@ export default function HubPage() {
     length: number;
     wedgeAngleDeg: number;
   } | null>(null);
-  useEffect(() => {
+  const computeWedgeProps = React.useCallback(() => {
     if (!wedgeModule || !centerRef.current || !contentAreaRef.current) {
       setWedgeProps(null);
       return;
@@ -705,6 +705,16 @@ export default function HubPage() {
       wedgeAngleDeg,
     });
   }, [wedgeModule]);
+
+  useEffect(() => {
+    computeWedgeProps();
+  }, [computeWedgeProps]);
+
+  useEffect(() => {
+    if (!wedgeModule) return;
+    window.addEventListener("resize", computeWedgeProps);
+    return () => window.removeEventListener("resize", computeWedgeProps);
+  }, [wedgeModule, computeWedgeProps]);
 
   // Click outside to close wedge
   useEffect(() => {

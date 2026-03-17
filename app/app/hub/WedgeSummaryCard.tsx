@@ -39,9 +39,20 @@ export default function WedgeSummaryCard({
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
   const skipBullets = noBullets || isNoAlertsMessage;
-  // Each summary line renders on its own row — no wrapping.
   // When skipBullets, split on ": " for left-label / right-value alignment.
-  const displayLines: { label: string; value: string | null }[] = [];
+  // Bullet lines wrap if too long, with continuation lines indented.
+  const L = length;
+  const halfAngleRad = (wedgeAngleDeg / 2) * (Math.PI / 180);
+  const TEXT_CENTER = 0.6; // radial position of text center (fraction of L)
+  const fontSize = Math.max(9, L * 0.08);
+  const CHAR_WIDTH = 0.6 * fontSize; // approximate monospace char width
+  // Available chord width at the text's radial position, with padding
+  const availableWidth = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.8;
+  const maxChars = Math.floor(availableWidth / CHAR_WIDTH);
+  const INDENT = "   "; // continuation indent (past bullet)
+
+  type DisplayRow = { label: string; value: string | null };
+  const displayLines: DisplayRow[] = [];
   if (hasSummary) {
     for (const line of summaryLines!.slice(0, MAX_DISPLAY_LINES)) {
       if (skipBullets) {
@@ -52,14 +63,30 @@ export default function WedgeSummaryCard({
           displayLines.push({ label: line, value: null });
         }
       } else {
-        displayLines.push({ label: "• " + line, value: null });
+        const bullet = "• " + line;
+        if (bullet.length <= maxChars) {
+          displayLines.push({ label: bullet, value: null });
+        } else {
+          // Word-wrap: first line gets bullet, continuations get indent
+          const words = line.split(" ");
+          let current = "• ";
+          for (const word of words) {
+            const test = current + (current.length > 2 ? " " : "") + word;
+            if (test.length > maxChars && current.length > 2) {
+              displayLines.push({ label: current, value: null });
+              current = INDENT + word;
+            } else {
+              current = test;
+            }
+          }
+          if (current.length > 0) {
+            displayLines.push({ label: current, value: null });
+          }
+        }
       }
     }
   }
   const lineCount = displayLines.length;
-  const L = length;
-  const halfAngleRad = (wedgeAngleDeg / 2) * (Math.PI / 180);
-  const fontSize = Math.max(9, Math.min(L * 0.08, lineCount > 0 ? (L * 0.9) / lineCount : L * 0.08));
 
   // Wedge path: point at origin, two rays, rounded arc at end
   const x1 = L * Math.cos(-halfAngleRad);
@@ -145,7 +172,7 @@ export default function WedgeSummaryCard({
             filter="url(#wedgeGlow)"
           />
           {hasSummary && lineCount > 0 && (
-            <g transform={`rotate(${-rotation}, ${L * 0.55}, 0)`}>
+            <g transform={`rotate(${-rotation}, ${L * TEXT_CENTER}, 0)`}>
               <text
                 fill="#ffffff"
                 fontSize={fontSize}
@@ -165,7 +192,7 @@ export default function WedgeSummaryCard({
                     );
                   }
                   return (
-                    <tspan key={i} x={L * 0.55} y={y} textAnchor="middle">
+                    <tspan key={i} x={L * TEXT_CENTER} y={y} textAnchor="middle">
                       {row.label}
                     </tspan>
                   );

@@ -452,10 +452,24 @@ export async function GET(request: NextRequest) {
           kilogram: "kg", kilograms: "kg", kg: "kg",
           milliliter: "ml", milliliters: "ml", ml: "ml",
           liter: "l", liters: "l", l: "l",
+          bunch: "bunch", bunches: "bunch",
+          can: "can", cans: "can",
+          clove: "clove", cloves: "cloves",
+          count: "count",
+          pinch: "tsp", dash: "tsp",
         };
-        
+
+        // Size descriptors → treat as "count" and keep descriptor in the name
+        const sizeDescriptors = new Set([
+          "large", "medium", "small", "whole", "big", "extra",
+        ]);
+
         if (possibleUnit && unitMap[possibleUnit]) {
           unit = unitMap[possibleUnit];
+        } else if (possibleUnit && sizeDescriptors.has(possibleUnit)) {
+          unit = "count";
+          // Prepend descriptor back to ingredient name for better USDA search
+          ingredientName = `${possibleUnit} ${namePart || ""}`.trim();
         }
       }
       

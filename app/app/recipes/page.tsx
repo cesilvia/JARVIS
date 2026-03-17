@@ -347,6 +347,7 @@ function RecipesPageInner() {
       can: 400,
       clove: 5,
       cloves: 5,
+      count: 100,
     };
     return amount * (conversions[unit] || 1);
   };
@@ -829,6 +830,7 @@ function RecipesPageInner() {
                   <option value="can">can</option>
                   <option value="clove">clove</option>
                   <option value="cloves">clove(s)</option>
+                  <option value="count">count</option>
                 </select>
                 {/* Ingredient Search */}
                 <input
@@ -877,7 +879,7 @@ function RecipesPageInner() {
               <div>
                 <div className="text-xs text-[#67C7EB] mb-1">Quick units:</div>
                 <div className="flex flex-wrap gap-1">
-                  {["g", "oz", "cup", "tbsp", "tsp", "ml", "bunch", "can", "clove", "cloves"].map((unit) => (
+                  {["g", "oz", "cup", "tbsp", "tsp", "ml", "bunch", "can", "clove", "cloves", "count"].map((unit) => (
                     <button
                       key={unit}
                       onClick={() => setIngredientUnit(unit)}
