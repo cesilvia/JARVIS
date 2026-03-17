@@ -550,6 +550,8 @@ export default function HubPage() {
   const [hasAlerts, setHasAlerts] = useState(false);
   const [alertSummaries, setAlertSummaries] = useState<string[]>([]);
   const [stravaSummary, setStravaSummary] = useState<string[]>([]);
+  const [settingsSummary, setSettingsSummary] = useState<string[]>([]);
+  const [hasUnverified, setHasUnverified] = useState(false);
   const centerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -643,6 +645,36 @@ export default function HubPage() {
     loadAlerts();
     const interval = setInterval(loadAlerts, 60 * 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Load verification status for settings wedge
+  useEffect(() => {
+    async function loadVerification() {
+      try {
+        const res = await fetch("/api/db/verification");
+        const { pages } = await res.json();
+        const unverified = (pages as { path: string; verified: boolean; invalidated: boolean }[])
+          .filter((p) => !p.verified || p.invalidated);
+        setHasUnverified(unverified.length > 0);
+        if (unverified.length === 0) {
+          setSettingsSummary(["All pages verified"]);
+        } else {
+          const lines: string[] = [`${unverified.length} page${unverified.length !== 1 ? "s" : ""} need verification`];
+          // Show up to 4 unverified page names
+          for (const p of unverified.slice(0, 4)) {
+            const name = p.path.replace(/^\//, "").replace(/\//g, " / ") || "home";
+            lines.push(name);
+          }
+          if (unverified.length > 4) {
+            lines.push(`+${unverified.length - 4} more`);
+          }
+          setSettingsSummary(lines);
+        }
+      } catch {
+        setSettingsSummary([]);
+      }
+    }
+    loadVerification();
   }, []);
 
   // Wedge geometry: compute from center and icon positions
@@ -839,7 +871,7 @@ export default function HubPage() {
               const bottomModule = bottomModules.find((m) => m.id === wedgeModule);
               const href = topModule?.href ?? bottomModule?.href;
               if (!href) return null;
-              const themeColor = wedgeModule === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary;
+              const themeColor = wedgeModule === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : wedgeModule === "settings" && hasUnverified ? ALERT_ICON_ORANGE : currentTheme.primary;
               return (
                 <div className="absolute inset-0 overflow-visible" style={{ zIndex: 20, pointerEvents: "none" }}>
                   <div style={{ pointerEvents: "auto", overflow: "visible" }}>
@@ -855,6 +887,7 @@ export default function HubPage() {
                       summaryLines={
                         wedgeModule === "alerts" ? (alertSummaries.length > 0 ? alertSummaries : ["No Current Alerts"])
                         : wedgeModule === "strava" ? (stravaSummary.length > 0 ? stravaSummary : undefined)
+                        : wedgeModule === "settings" ? (settingsSummary.length > 0 ? settingsSummary : undefined)
                         : undefined
                       }
                       noBullets={wedgeModule === "strava"}
@@ -869,7 +902,7 @@ export default function HubPage() {
               <div className="flex items-center justify-center gap-4">
                 {bottomModules.map((module) => {
                   const isSelected = wedgeModule === module.id;
-                  const iconColor = module.id === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : currentTheme.primary;
+                  const iconColor = module.id === "alerts" && hasAlerts ? ALERT_ICON_ORANGE : module.id === "settings" && hasUnverified ? ALERT_ICON_ORANGE : currentTheme.primary;
                   const BottomIcon = module.id === "settings" ? JarvisSettingsIcon : module.id === "profile" ? JarvisProfileIcon : module.id === "status" ? JarvisStatusIcon : JarvisAlertIcon;
                   return (
                     <button

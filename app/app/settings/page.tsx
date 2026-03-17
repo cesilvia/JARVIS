@@ -74,6 +74,13 @@ const ExtrasIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
   </svg>
 );
 
+const VerifyIcon = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+    <path d="M16 24 L22 30 L32 18" strokeWidth="2.5" fill="none" />
+  </svg>
+);
+
 const categories = [
   {
     name: "Cycling",
@@ -110,6 +117,15 @@ const categories = [
     color: "text-blue-400",
     borderColor: "border-blue-400/20",
     hoverBg: "hover:bg-blue-400/5",
+  },
+  {
+    name: "Verification",
+    description: "Page QA checklist post-migration",
+    href: "/settings/verification",
+    icon: VerifyIcon,
+    color: "text-emerald-400",
+    borderColor: "border-emerald-400/20",
+    hoverBg: "hover:bg-emerald-400/5",
   },
   {
     name: "Extras",
