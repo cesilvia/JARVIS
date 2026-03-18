@@ -34,6 +34,8 @@ interface WedgeSummaryCardProps {
   fontScale?: number;
   /** Override text radial center position (fraction of L, default TEXT_CENTER=0.6) */
   textCenter?: number;
+  /** If true, left-justify bullet lines instead of centering them */
+  bulletsLeft?: boolean;
 }
 
 export default function WedgeSummaryCard({
@@ -52,6 +54,7 @@ export default function WedgeSummaryCard({
   labelAlign = "right",
   fontScale = 1,
   textCenter,
+  bulletsLeft,
 }: WedgeSummaryCardProps) {
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
@@ -66,9 +69,9 @@ export default function WedgeSummaryCard({
   // Available chord width at the text's radial position, with padding
   const availableWidth = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.8;
   const maxChars = Math.floor(availableWidth / CHAR_WIDTH);
-  const INDENT = "   "; // continuation indent (past bullet)
+  const INDENT = "    "; // continuation indent (aligns under first word after "• ")
 
-  type DisplayRow = { label: string; value: string | null; color?: string; isDefinition?: boolean; parentLabelLen?: number };
+  type DisplayRow = { label: string; value: string | null; color?: string; isDefinition?: boolean; parentLabelLen?: number; isContinuation?: boolean };
   const displayLines: DisplayRow[] = [];
   const hasDefinitions = summaryDefinitions && summaryDefinitions.some(d => d);
   if (hasSummary) {
@@ -114,20 +117,22 @@ export default function WedgeSummaryCard({
         if (bullet.length <= maxChars) {
           displayLines.push({ label: bullet, value: null, color: lineColor });
         } else {
-          // Word-wrap: first line gets bullet, continuations get indent
+          // Word-wrap: first line gets bullet, continuations positioned via x offset
           const words = line.split(" ");
           let current = "• ";
+          let pastFirst = false;
           for (const word of words) {
-            const test = current + (current.length > 2 ? " " : "") + word;
-            if (test.length > maxChars && current.length > 2) {
-              displayLines.push({ label: current, value: null, color: lineColor });
-              current = INDENT + word;
+            const test = current + (current.length > (pastFirst ? 0 : 2) ? " " : "") + word;
+            if (test.length > maxChars && current.length > (pastFirst ? 0 : 2)) {
+              displayLines.push({ label: current, value: null, color: lineColor, isContinuation: pastFirst });
+              current = word;
+              pastFirst = true;
             } else {
               current = test;
             }
           }
           if (current.length > 0) {
-            displayLines.push({ label: current, value: null, color: lineColor });
+            displayLines.push({ label: current, value: null, color: lineColor, isContinuation: pastFirst });
           }
         }
       }
@@ -362,11 +367,25 @@ export default function WedgeSummaryCard({
                         </React.Fragment>
                       );
                     }
-                    return (
-                      <tspan key={i} x={skipBullets ? L * TEXT_LEFT_X : L * TEXT_CENTER} y={y} textAnchor={skipBullets ? "start" : "middle"} fill={fill}>
-                        {row.label}
-                      </tspan>
-                    );
+                    {
+                      let plainX = (skipBullets || bulletsLeft) ? L * TEXT_LEFT_X : L * TEXT_CENTER;
+                      const plainAnchor = (skipBullets || bulletsLeft) ? "start" : "middle";
+                      // When textCenter is overridden (nutrition), push text further into wedge body
+                      if (textCenter != null && skipBullets) {
+                        plainX = L * 0.4 + CHAR_WIDTH;
+                      }
+                      if (bulletsLeft && i === 5) plainX += CHAR_WIDTH * 2;
+                      else if (bulletsLeft && i === 6) plainX += CHAR_WIDTH * 5;
+                      // Continuation lines: offset x to align under first word after bullet
+                      if (row.isContinuation) {
+                        plainX += CHAR_WIDTH * 2;
+                      }
+                      return (
+                        <tspan key={i} x={plainX} y={y} textAnchor={plainAnchor} fill={fill}>
+                          {row.label}
+                        </tspan>
+                      );
+                    }
                   })}
                 </text>
               </g>

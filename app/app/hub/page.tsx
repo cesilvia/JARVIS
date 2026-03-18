@@ -926,6 +926,7 @@ export default function HubPage() {
                       labelAlign={wedgeModule === "german" ? "left" : "right"}
                       fontScale={wedgeModule === "nutrition" ? 1.2 : 1}
                       textCenter={wedgeModule === "nutrition" ? 0.7 : undefined}
+                      bulletsLeft={wedgeModule === "settings"}
                     />
                   </div>
                 </div>
