@@ -83,7 +83,8 @@ function pickFromStaticPool(
 }
 
 export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[] {
-  const dateStr = date.toISOString().slice(0, 10);
+  // Use local date (not UTC) so words change at local midnight
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const seed = hashDateString(dateStr);
   const rng = seededRandom(seed);
 
@@ -96,12 +97,36 @@ export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[]
   if (noun) results.push(noun);
 
   // Rotate through adjective/adverb/preposition/conjunction by date
-  const daysSinceEpoch = Math.floor(date.getTime() / 86400000);
+  const localMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceEpoch = Math.floor(localMidnight.getTime() / 86400000);
   const rotatingCategory = ROTATING_CATEGORIES[daysSinceEpoch % ROTATING_CATEGORIES.length];
   const third = pickFromStaticPool(rotatingCategory, rng, vocab);
   if (third) results.push(third);
 
   return results;
+}
+
+// ─── Auto-add WotD words to flashcard deck ─────────────────────
+// Finds any WotD words not yet in the user's vocab and saves them.
+// Safe to call repeatedly — only saves words that are missing.
+export function getNewWotdWords(words: WordOfTheDay[], vocab: VocabWord[]): VocabWord[] {
+  const newWords: VocabWord[] = [];
+  for (const { word } of words) {
+    const exists = vocab.some(
+      (w) => w.german === word.german && w.partOfSpeech === word.partOfSpeech,
+    );
+    if (!exists) {
+      newWords.push({
+        ...word,
+        nextReview: 0,
+        interval: 0,
+        easeFactor: 2.5,
+        repetitions: 0,
+        source: "wotd",
+      });
+    }
+  }
+  return newWords;
 }
 
 // ─── Noun color coding ──────────────────────────────────────────

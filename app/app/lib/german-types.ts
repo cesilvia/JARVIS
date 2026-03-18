@@ -16,7 +16,7 @@ export interface VocabWord {
   interval: number;        // days until next review
   easeFactor: number;      // SM-2 ease factor
   repetitions: number;     // successful repetitions in a row
-  source: "builtin" | "lookup";
+  source: "builtin" | "lookup" | "wotd";
 }
 
 export type VocabWordBase = Omit<VocabWord, "nextReview" | "interval" | "easeFactor" | "repetitions" | "source">;

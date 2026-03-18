@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
 import * as api from "../lib/api-client";
-import { getWordsOfTheDay } from "../lib/word-of-the-day";
+import { getWordsOfTheDay, getNewWotdWords } from "../lib/word-of-the-day";
 import type { VocabWordBase } from "../lib/german-types";
 import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
 import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
@@ -722,6 +722,14 @@ export default function GermanPage() {
 // ─── Word of the Day Section ────────────────────────────────────
 function WordOfTheDaySection({ vocab, onDetail }: { vocab: VocabWord[]; onDetail: (w: VocabWordBase | null) => void }) {
   const words = useMemo(() => getWordsOfTheDay(new Date(), vocab), [vocab]);
+
+  // Auto-add WotD words to flashcard deck if not already present
+  useEffect(() => {
+    const newWords = getNewWotdWords(words, vocab);
+    if (newWords.length > 0) {
+      api.saveVocab(newWords).catch(() => {});
+    }
+  }, [words, vocab]);
 
   if (words.length === 0) return null;
 

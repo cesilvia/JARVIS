@@ -5,7 +5,6 @@ import Link from "next/link";
 import Navigation from "../components/Navigation";
 import * as api from "../lib/api-client";
 
-const BACKUP_REMINDER_DAYS = 7;
 const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
@@ -27,8 +26,6 @@ function getReplaceDate(item: GearItem): Date | null {
 }
 
 export default function AlertsPage() {
-  const [lastBackup, setLastBackup] = useState<string | null>(null);
-  const [backupOverdue, setBackupOverdue] = useState(false);
   const [lastFullBackup, setLastFullBackup] = useState<string | null>(null);
   const [fullBackupOverdue, setFullBackupOverdue] = useState(false);
   const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
@@ -64,23 +61,11 @@ export default function AlertsPage() {
       }
 
       // Load all data in parallel
-      const [nutritionBackup, fullBackup, zones, gearItems] = await Promise.all([
-        api.getKV<string>("last-nutrition-backup"),
+      const [fullBackup, zones, gearItems] = await Promise.all([
         api.getKV<string>("last-full-backup"),
         api.getKV<{ zonesUpdatedAt?: string }>("strava-zones"),
         api.getGearItems<GearItem>(),
       ]);
-
-      // Nutrition backup
-      setLastBackup(nutritionBackup);
-      if (!nutritionBackup) {
-        setBackupOverdue(true);
-      } else {
-        const then = new Date(nutritionBackup).getTime();
-        const now = Date.now();
-        const daysSince = (now - then) / (1000 * 60 * 60 * 24);
-        setBackupOverdue(daysSince >= BACKUP_REMINDER_DAYS);
-      }
 
       // Full backup
       setLastFullBackup(fullBackup);
@@ -247,33 +232,6 @@ export default function AlertsPage() {
           <section className="border border-slate-700 rounded-lg p-6 mb-6">
             <p className="text-slate-400 font-mono text-sm">
               JARVIS backup is up to date. Last backup: {new Date(lastFullBackup).toLocaleDateString()}. You can manage backups in <Link href="/settings/backup" className="text-slate-300 underline hover:text-white">Settings → Backup</Link>.
-            </p>
-          </section>
-        )}
-
-        {backupOverdue && (
-          <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
-            <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
-              Weekly reminder: Back up nutrition data
-            </h2>
-            <p className="text-slate-400 font-mono text-sm mb-4">
-              {lastBackup
-                ? `Your last backup was ${new Date(lastBackup).toLocaleDateString()}. Back up your recipes and saved ingredients at least weekly.`
-                : "You haven't backed up your nutrition data yet. Export a backup from Settings so you don't lose your recipes and ingredients."}
-            </p>
-            <Link
-              href="/settings"
-              className="inline-block px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-slate-100 font-mono text-sm transition-colors"
-            >
-              Open Settings → Backup
-            </Link>
-          </section>
-        )}
-
-        {!backupOverdue && lastBackup && (
-          <section className="border border-slate-700 rounded-lg p-6 mb-6">
-            <p className="text-slate-400 font-mono text-sm">
-              Nutrition backup is up to date. Last backup: {new Date(lastBackup).toLocaleDateString()}. You can export or import in <Link href="/settings" className="text-slate-300 underline hover:text-white">Settings</Link>.
             </p>
           </section>
         )}

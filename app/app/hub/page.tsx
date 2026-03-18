@@ -13,7 +13,7 @@ import {
   getYearStart,
 } from "../bike/strava/types";
 import * as api from "../lib/api-client";
-import { getWordsOfTheDay, formatWotdForWedge } from "../lib/word-of-the-day";
+import { getWordsOfTheDay, formatWotdForWedge, getNewWotdWords } from "../lib/word-of-the-day";
 import type { VocabWord } from "../lib/german-types";
 
 interface Module {
@@ -474,7 +474,6 @@ const currentTheme = {
 const ALERT_ICON_ORANGE = "#FF6600";
 
 // Same logic as alerts page: backup overdue + helmet reminders
-const BACKUP_REMINDER_DAYS = 7;
 const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
@@ -504,16 +503,6 @@ async function hubGetAlertSummaries(): Promise<string[]> {
     const fullDays = (Date.now() - new Date(lastFullBackup).getTime()) / (1000 * 60 * 60 * 24);
     if (fullDays >= FULL_BACKUP_REMINDER_DAYS) {
       lines.push("Back up JARVIS to iCloud");
-    }
-  }
-  // Weekly nutrition backup check
-  const lastBackup = await api.getKV<string>("last-nutrition-backup");
-  if (!lastBackup) {
-    lines.push("Back up nutrition data");
-  } else {
-    const daysSince = (Date.now() - new Date(lastBackup).getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSince >= BACKUP_REMINDER_DAYS) {
-      lines.push("Back up nutrition data");
     }
   }
   try {
@@ -651,6 +640,11 @@ export default function HubPage() {
         const saved = (await api.getVocab()) as VocabWord[];
         const words = getWordsOfTheDay(new Date(), saved);
         if (words.length === 0) { setGermanSummary(["Deutsch"]); return; }
+        // Auto-add WotD words to flashcard deck if not already present
+        const newWords = getNewWotdWords(words, saved);
+        if (newWords.length > 0) {
+          api.saveVocab(newWords).catch(() => {});
+        }
         const result = formatWotdForWedge(words);
         setGermanSummary(result.lines);
         setGermanColors(result.colors);
