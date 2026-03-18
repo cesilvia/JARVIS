@@ -30,6 +30,10 @@ interface WedgeSummaryCardProps {
   summaryDefinitions?: (string | undefined)[];
   /** Label alignment: "right" (default) or "left" */
   labelAlign?: "left" | "right";
+  /** Optional font scale multiplier (default 1) */
+  fontScale?: number;
+  /** Override text radial center position (fraction of L, default TEXT_CENTER=0.6) */
+  textCenter?: number;
 }
 
 export default function WedgeSummaryCard({
@@ -46,6 +50,8 @@ export default function WedgeSummaryCard({
   summaryColors,
   summaryDefinitions,
   labelAlign = "right",
+  fontScale = 1,
+  textCenter,
 }: WedgeSummaryCardProps) {
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
@@ -54,8 +60,8 @@ export default function WedgeSummaryCard({
   // Bullet lines wrap if too long, with continuation lines indented.
   const L = length;
   const halfAngleRad = (wedgeAngleDeg / 2) * (Math.PI / 180);
-  const TEXT_CENTER = 0.6; // radial position of text center (fraction of L)
-  const fontSize = Math.max(9, L * 0.08);
+  const TEXT_CENTER = textCenter ?? 0.6; // radial position of text center (fraction of L)
+  const fontSize = Math.max(9, L * 0.08) * fontScale;
   const CHAR_WIDTH = 0.6 * fontSize; // approximate monospace char width
   // Available chord width at the text's radial position, with padding
   const availableWidth = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.8;
@@ -218,56 +224,98 @@ export default function WedgeSummaryCard({
             strokeOpacity="0.8"
             filter="url(#wedgeGlow)"
           />
-          {hasSummary && lineCount > 0 && (
-            <g transform={`rotate(${-rotation}, ${L * TEXT_CENTER}, 0)`}>
-              <text
-                fill="#ffffff"
-                fontSize={fontSize}
-                fontFamily="ui-monospace, monospace"
-                style={{
-                  filter: "drop-shadow(0 0 1px rgba(0,0,0,0.8)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
-                }}
-              >
+          {hasSummary && lineCount > 0 && (() => {
+            // Gap between definition and next word group
+            const DEF_GAP = lineHeight * 0.9;
+
+            // For left-aligned mode: longest label starts at TEXT_LEFT_X,
+            // shorter labels shift left so colons align and words start at the same X
+            const labelRows = displayLines.filter(r => r.value !== null);
+            const maxLabelLen = labelRows.length > 0 ? Math.max(...labelRows.map(r => r.label.length)) : 0;
+            const labelStartX = (label: string) => {
+              let x = L * TEXT_LEFT_X - (maxLabelLen - label.length) * CHAR_WIDTH;
+              if (label === "n") x += CHAR_WIDTH * 0.75;
+              if (label === "v") x -= CHAR_WIDTH * 0.5;
+              return x;
+            };
+            const rowValueX = (label: string) => {
+              return labelStartX(label) + (label.length + 2) * CHAR_WIDTH;
+            };
+
+            // Pre-compute y positions and badge data
+            const rowY = (i: number) => {
+              let y = 0;
+              for (let j = 0; j < i; j++) {
+                y += displayLines[j].isDefinition ? defLineHeight : lineHeight;
+                if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
+                  y += DEF_GAP;
+                }
+              }
+              let totalHeight = 0;
+              for (let j = 0; j < lineCount; j++) {
+                totalHeight += displayLines[j].isDefinition ? defLineHeight : lineHeight;
+                if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
+                  totalHeight += DEF_GAP;
+                }
+              }
+              return y - totalHeight / 2 + (displayLines[i].isDefinition ? defLineHeight : lineHeight) / 2;
+            };
+
+            // Collect badge rects to render outside <text>
+            const BADGE_LABELS: Record<string, string> = {
+              "\u24B6": "A", "\u24B9": "D", "\u24BC": "G",
+              "\u24CC": "W", "\u24E5": "VK", "\u2195": "↕",
+            };
+            const badgeRects: { x: number; y: number; w: number; h: number; key: number }[] = [];
+
+            return (
+              <g transform={`rotate(${-rotation}, ${L * TEXT_CENTER}, 0)`}>
+                {/* Badge background rects (rendered before text so text appears on top) */}
                 {(() => {
-                  // Gap between definition and next word group
-                  const DEF_GAP = lineHeight * 0.9;
-
-                  // For left-aligned mode: longest label starts at TEXT_LEFT_X,
-                  // shorter labels shift left so colons align and words start at the same X
-                  const labelRows = displayLines.filter(r => r.value !== null);
-                  const maxLabelLen = labelRows.length > 0 ? Math.max(...labelRows.map(r => r.label.length)) : 0;
-                  const labelStartX = (label: string) => {
-                    let x = L * TEXT_LEFT_X - (maxLabelLen - label.length) * CHAR_WIDTH;
-                    if (label === "n") x += CHAR_WIDTH * 0.75; // nudge n: right of default
-                    if (label === "v") x -= CHAR_WIDTH * 0.5; // nudge v: left of default
-                    return x;
-                  };
-                  // Each row's value X: right after its own colon + 1 space
-                  const rowValueX = (label: string) => {
-                    return labelStartX(label) + (label.length + 2) * CHAR_WIDTH;
-                  };
-
-                  return displayLines.map((row, i) => {
-                    // Compute y: accumulate heights with extra gap after definitions
-                    let y = 0;
-                    for (let j = 0; j < i; j++) {
-                      y += displayLines[j].isDefinition ? defLineHeight : lineHeight;
-                      if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
-                        y += DEF_GAP;
-                      }
-                    }
-                    // Center vertically
-                    let totalHeight = 0;
-                    for (let j = 0; j < lineCount; j++) {
-                      totalHeight += displayLines[j].isDefinition ? defLineHeight : lineHeight;
-                      if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
-                        totalHeight += DEF_GAP;
-                      }
-                    }
-                    y = y - totalHeight / 2 + (row.isDefinition ? defLineHeight : lineHeight) / 2;
+                  // We need to compute badge positions first, then render rects
+                  displayLines.forEach((row, i) => {
+                    if (row.value === null || labelAlign !== "left") return;
+                    const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
+                    if (!badgeMatch) return;
+                    const mainValue = row.value.slice(0, badgeMatch.index);
+                    const badgeChar = badgeMatch[1];
+                    const badge = BADGE_LABELS[badgeChar] || badgeChar;
+                    const valueX = rowValueX(row.label);
+                    const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.8;
+                    const y = rowY(i);
+                    const bFontSize = fontSize * 0.6;
+                    const bWidth = badge.length * bFontSize * 0.7 + bFontSize * 0.5;
+                    const bHeight = bFontSize * 1.4;
+                    const bY = y - fontSize * 0.45;
+                    badgeRects.push({ x: badgeX - bFontSize * 0.1, y: bY - bHeight * 0.72, w: bWidth, h: bHeight, key: i });
+                  });
+                  return badgeRects.map(b => (
+                    <rect
+                      key={`badge-bg-${b.key}`}
+                      x={b.x}
+                      y={b.y}
+                      width={b.w}
+                      height={b.h}
+                      rx={2}
+                      ry={2}
+                      fill="#000000"
+                      stroke="#FFD700"
+                      strokeWidth={1}
+                    />
+                  ));
+                })()}
+                <text
+                  fill="#ffffff"
+                  fontSize={fontSize}
+                  fontFamily="ui-monospace, monospace"
+                  style={{
+                    filter: "drop-shadow(0 0 1px rgba(0,0,0,0.8)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
+                  }}
+                >
+                  {displayLines.map((row, i) => {
+                    const y = rowY(i);
 
                     if (row.isDefinition) {
-                      // Find the parent label to align definition with its German word
                       let parentLabel = "";
                       for (let pi = i - 1; pi >= 0; pi--) {
                         if (!displayLines[pi].isDefinition && displayLines[pi].value !== null) {
@@ -285,24 +333,25 @@ export default function WedgeSummaryCard({
                     const fill = row.color || "#ffffff";
                     if (row.value !== null) {
                       if (labelAlign === "left") {
-                        // Split trailing badge characters (Ⓐ Ⓓ Ⓖ Ⓦ ⓥ ↕) from value
                         const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
                         const mainValue = badgeMatch ? row.value.slice(0, badgeMatch.index) : row.value;
                         const badgeChar = badgeMatch ? badgeMatch[1] : null;
-                        const BADGE_LABELS: Record<string, string> = {
-                          "\u24B6": "A", "\u24B9": "D", "\u24BC": "G",
-                          "\u24CC": "W", "\u24E5": "VK", "\u2195": "↕",
-                        };
                         const badge = badgeChar ? (BADGE_LABELS[badgeChar] || badgeChar) : null;
                         const valueX = rowValueX(row.label);
-                        const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.3;
+                        const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.8;
                         return (
                           <React.Fragment key={i}>
                             <tspan x={labelStartX(row.label)} y={y} textAnchor="start" fill="#ffffff">{row.label}:</tspan>
                             <tspan x={valueX} y={y} textAnchor="start" fill={fill}>{mainValue}</tspan>
-                            {badge && (
-                              <tspan x={badgeX} y={y - fontSize * 0.35} textAnchor="start" fill="#FFD700" fontSize={fontSize * 0.6} fontWeight="bold">{badge}</tspan>
-                            )}
+                            {badge && (() => {
+                              const bFontSize = fontSize * 0.6;
+                              const bWidth = badge.length * bFontSize * 0.7 + bFontSize * 0.5;
+                              const bTextX = badgeX - bFontSize * 0.1 + bWidth / 2;
+                              const bY = y - fontSize * 0.45;
+                              return (
+                                <tspan x={bTextX} y={bY} textAnchor="middle" fill="#FFD700" fontSize={bFontSize} fontWeight="bold">{badge}</tspan>
+                              );
+                            })()}
                           </React.Fragment>
                         );
                       }
@@ -318,11 +367,11 @@ export default function WedgeSummaryCard({
                         {row.label}
                       </tspan>
                     );
-                  });
-                })()}
-              </text>
-            </g>
-          )}
+                  })}
+                </text>
+              </g>
+            );
+          })()}
         </svg>
         </div>
       </Link>

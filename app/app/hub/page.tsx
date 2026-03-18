@@ -924,6 +924,8 @@ export default function HubPage() {
                       summaryColors={wedgeModule === "german" ? germanColors : undefined}
                       summaryDefinitions={wedgeModule === "german" ? germanDefinitions : undefined}
                       labelAlign={wedgeModule === "german" ? "left" : "right"}
+                      fontScale={wedgeModule === "nutrition" ? 1.2 : 1}
+                      textCenter={wedgeModule === "nutrition" ? 0.7 : undefined}
                     />
                   </div>
                 </div>
