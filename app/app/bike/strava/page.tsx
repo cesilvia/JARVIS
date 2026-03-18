@@ -55,7 +55,9 @@ async function syncActivities(): Promise<StravaActivity[]> {
     fetch("/api/strava/gear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken }) }),
   ]);
   if (!actRes.ok) throw new Error((await actRes.json().catch(() => ({}))).error || `${actRes.status}`);
-  const { activities } = await actRes.json();
+  const actData = await actRes.json();
+  const { activities } = actData;
+  console.log(`Strava sync: ${actData.totalAllTypes} total activities, ${actData.total} rides, ${actData.pages} pages`);
   if (!Array.isArray(activities) || activities.length === 0) {
     // Don't overwrite stored rides with empty results — return what we already have
     const stored = await api.getActivities<StravaActivity>();

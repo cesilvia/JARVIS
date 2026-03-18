@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       activities: rideActivities,
       total: rideActivities.length,
+      totalAllTypes: activities.length,
+      pages: Math.ceil(activities.length / 200) || 1,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
