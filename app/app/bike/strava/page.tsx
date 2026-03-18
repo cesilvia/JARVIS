@@ -1254,7 +1254,29 @@ export default function StravaPage() {
             <span className="text-xs" style={{ color: hubTheme.secondary }}>{connected ? "Connected" : "Not connected"}</span>
             {syncMsg && <span className="text-xs ml-2" style={{ color: syncing ? "#FFD700" : "#00FF88" }}>{syncMsg}</span>}
           </div>
-          <span />  {/* Settings link moved to bottom of page */}
+          {connected && (
+            <button
+              disabled={syncing}
+              onClick={async () => {
+                setSyncing(true);
+                setSyncMsg("Full sync...");
+                try {
+                  const acts = await syncActivities();
+                  setActivities(acts);
+                  setSyncMsg(`Synced ${acts.length} rides`);
+                  setTimeout(() => setSyncMsg(""), 3000);
+                } catch {
+                  setSyncMsg("Sync failed");
+                  setTimeout(() => setSyncMsg(""), 5000);
+                } finally {
+                  setSyncing(false);
+                }
+              }}
+              className="text-xs px-3 py-1 rounded border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF] hover:border-[#00D9FF]/50 disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync"}
+            </button>
+          )}
         </div>
 
         {noData ? (
