@@ -116,8 +116,8 @@ export async function POST() {
       // Go back 2 hours before last sync to catch any stragglers / edits
       afterEpoch = Math.floor(new Date(lastSync).getTime() / 1000) - 7200;
     } else {
-      // First auto-sync: fetch last 30 days
-      afterEpoch = now - 30 * 86400;
+      // First auto-sync: fetch full history (5 years back)
+      afterEpoch = now - 5 * 365 * 86400;
     }
 
     // 4. Fetch & filter rides
