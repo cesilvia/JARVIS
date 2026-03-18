@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import SettingsNavIcon from "../SettingsNavIcon";
 
 // Cycling icon (hub bike gear / cassette style) – parked here for reference
 const CyclingIcon = ({ className = "w-12 h-12", stroke = "#94a3b8" }: { className?: string; stroke?: string }) => (
@@ -21,12 +21,7 @@ export default function ExtrasPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
-        <div className="flex items-center justify-between mt-4 mb-6">
-          <Link href="/settings" className="text-slate-400 hover:text-slate-200 font-mono text-sm">
-            &larr; Settings
-          </Link>
-        </div>
-        <h1 className="text-3xl font-bold font-mono text-slate-400">Extras</h1>
+        <h1 className="text-3xl font-bold font-mono mt-4 text-slate-400">Extras</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Things you&apos;ve created but don&apos;t need or want to use right now. A place to park experiments, backups, or features for later.
         </p>
@@ -46,6 +41,7 @@ export default function ExtrasPage() {
           </p>
         </section>
       </div>
+      <SettingsNavIcon />
     </div>
   );
 }

@@ -6,8 +6,8 @@ import Link from "next/link";
 const ANIMATION_MS = 200;
 const LINE_HEIGHT = 26;
 const TEXT_LEFT_X = 0.15; /* label left margin (fraction of L) */
-const TEXT_LABEL_RIGHT_X = 0.32; /* right edge of label column (for label: value alignment) */
-const TEXT_VALUE_LEFT_X = 0.35; /* left edge of value column */
+const TEXT_LABEL_RIGHT_X = 0.52; /* right edge of label column (for label: value alignment) */
+const TEXT_VALUE_LEFT_X = 0.55; /* left edge of value column */
 const TEXT_RIGHT_X = 0.95; /* value right margin */
 const MAX_DISPLAY_LINES = 8;
 
@@ -288,7 +288,12 @@ export default function WedgeSummaryCard({
                         // Split trailing badge characters (Ⓐ Ⓓ Ⓖ Ⓦ ⓥ ↕) from value
                         const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
                         const mainValue = badgeMatch ? row.value.slice(0, badgeMatch.index) : row.value;
-                        const badge = badgeMatch ? badgeMatch[1] : null;
+                        const badgeChar = badgeMatch ? badgeMatch[1] : null;
+                        const BADGE_LABELS: Record<string, string> = {
+                          "\u24B6": "A", "\u24B9": "D", "\u24BC": "G",
+                          "\u24CC": "W", "\u24E5": "VK", "\u2195": "↕",
+                        };
+                        const badge = badgeChar ? (BADGE_LABELS[badgeChar] || badgeChar) : null;
                         const valueX = rowValueX(row.label);
                         const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.3;
                         return (
@@ -296,7 +301,7 @@ export default function WedgeSummaryCard({
                             <tspan x={labelStartX(row.label)} y={y} textAnchor="start" fill="#ffffff">{row.label}:</tspan>
                             <tspan x={valueX} y={y} textAnchor="start" fill={fill}>{mainValue}</tspan>
                             {badge && (
-                              <tspan x={badgeX} y={y - fontSize * 0.35} textAnchor="start" fill="#CC3333" fontSize={fontSize * 0.6}>{badge}</tspan>
+                              <tspan x={badgeX} y={y - fontSize * 0.35} textAnchor="start" fill="#FFD700" fontSize={fontSize * 0.6} fontWeight="bold">{badge}</tspan>
                             )}
                           </React.Fragment>
                         );

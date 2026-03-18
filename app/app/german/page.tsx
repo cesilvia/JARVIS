@@ -31,32 +31,37 @@ function WordBadge({ word }: { word: { weakNoun?: boolean; partOfSpeech: string;
   let label = "";
   if (word.weakNoun) label = "W";
   else if (word.partOfSpeech === "preposition" && word.category) {
-    if (word.category === "Akkusativ") label = "Akk";
-    else if (word.category === "Dativ") label = "Dat";
-    else if (word.category === "Genitiv") label = "Gen";
+    if (word.category === "Akkusativ") label = "A";
+    else if (word.category === "Dativ") label = "D";
+    else if (word.category === "Genitiv") label = "G";
     else if (word.category.includes("Two-Way") || word.category.includes("Wechsel")) label = "↕";
   } else if (word.partOfSpeech === "conjunction" && (word.verbKicker || word.category === "Subordinating")) label = "VK";
   if (!label) return null;
   return (
-    <span
-      className="inline-flex items-center justify-center text-[10px] font-bold rounded ml-1.5"
+    <sup
+      className="font-bold ml-1"
       style={{
-        background: "#FFD70030",
+        fontSize: "10px",
+        background: "#000000",
         border: "1px solid #FFD700",
         color: "#FFD700",
-        padding: "0px 4px",
-        lineHeight: "16px",
-        verticalAlign: "middle",
+        padding: "1px 3px",
+        borderRadius: "2px",
+        boxShadow: "0 0 4px rgba(255,215,0,0.3), inset 0 0 6px rgba(255,215,0,0.08)",
+        textShadow: "0 0 4px rgba(255,215,0,0.5)",
       }}
       title={
         label === "W" ? "Weak noun (n-Deklination)" :
         label === "VK" ? "Verb kicker (subordinating)" :
         label === "↕" ? "Two-way preposition (Akk or Dat)" :
+        label === "A" ? "Governs Akkusativ" :
+        label === "D" ? "Governs Dativ" :
+        label === "G" ? "Governs Genitiv" :
         `Governs ${label}`
       }
     >
       {label}
-    </span>
+    </sup>
   );
 }
 
@@ -763,7 +768,7 @@ function WordOfTheDaySection({ vocab, onDetail }: { vocab: VocabWord[]; onDetail
                   </button>
                 )}
               </div>
-              <div className="text-lg font-bold mb-0.5">
+              <div className="text-lg font-bold mb-0.5" style={{ paddingLeft: "2em", textIndent: "-2em" }}>
                 <span style={{ color: word.article ? ARTICLE_COLORS[word.article] || theme.primary : theme.primary }}>
                   {word.article ? `${word.article} ${word.german}` : word.german}
                 </span>

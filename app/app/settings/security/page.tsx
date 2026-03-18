@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import SettingsNavIcon from "../SettingsNavIcon";
 import { useRouter } from "next/navigation";
 
 export default function SecuritySettingsPage() {
@@ -106,14 +106,7 @@ export default function SecuritySettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
 
-        {/* Breadcrumb */}
-        <div className="flex items-center justify-between mt-4 mb-6">
-          <Link href="/settings" className="text-slate-400 hover:text-slate-200 font-mono text-sm">
-            &larr; Settings
-          </Link>
-        </div>
-
-        <h1 className="text-3xl font-bold font-mono text-blue-400">Security</h1>
+        <h1 className="text-3xl font-bold font-mono mt-4 text-blue-400">Security</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Password, biometrics, and authentication.
         </p>
@@ -194,6 +187,7 @@ export default function SecuritySettingsPage() {
           </button>
         </section>
       </div>
+      <SettingsNavIcon />
     </div>
   );
 }

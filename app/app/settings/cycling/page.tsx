@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import SettingsNavIcon from "../SettingsNavIcon";
 import * as api from "../../lib/api-client";
 import {
   ZoneConfig, ZoneBand,
@@ -232,11 +233,8 @@ export default function CyclingSettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
 
-        {/* Breadcrumb + Quick Nav */}
-        <div className="flex items-center justify-between mt-4 mb-6">
-          <Link href="/settings" className="text-slate-400 hover:text-slate-200 font-mono text-sm">
-            &larr; Settings
-          </Link>
+        {/* Quick Nav */}
+        <div className="flex items-center justify-end mt-4 mb-6">
           <div className="flex items-center gap-3">
             <Link href="/bike" className="text-slate-400 hover:text-orange-400 transition-colors" title="Bike Dashboard">
               <BikeWheelIcon className="w-7 h-7" />
@@ -398,6 +396,7 @@ export default function CyclingSettingsPage() {
           )}
         </section>
       </div>
+      <SettingsNavIcon />
     </div>
   );
 }

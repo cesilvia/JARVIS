@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import Navigation from "../../components/Navigation";
+import SettingsNavIcon from "../SettingsNavIcon";
 
 type BackupInfo = {
   name: string;
@@ -137,10 +137,6 @@ export default function BackupSettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
 
-        <Link href="/settings" className="text-cyan-400 hover:text-cyan-300 font-mono text-sm">
-          &larr; Settings
-        </Link>
-
         <h1 className="text-3xl font-bold font-mono mt-4">Backup</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-6">
           Full JARVIS backup to R2 Drive.
@@ -222,6 +218,7 @@ export default function BackupSettingsPage() {
           )}
         </div>
       </div>
+      <SettingsNavIcon />
     </div>
   );
 }

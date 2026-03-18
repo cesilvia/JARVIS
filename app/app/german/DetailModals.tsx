@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { conjugateVerb, TENSE_USAGE, type Tense } from "../lib/german-conjugation";
 import type { VocabWordBase } from "../lib/german-types";
 
@@ -14,7 +14,7 @@ const ARTICLE_COLORS: Record<string, string> = {
 
 // ─── Shared Modal Shell ─────────────────────────────────────────
 function ModalShell({ title, subtitle, onClose, children }: {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   onClose: () => void;
   children: React.ReactNode;
@@ -51,14 +51,21 @@ function ModalShell({ title, subtitle, onClose, children }: {
 }
 
 // ─── Styled Table ───────────────────────────────────────────────
-function DetailTable({ headers, rows, highlightCol }: {
+function DetailTable({ headers, rows, highlightCol, colWidths, highlightColor }: {
   headers: string[];
   rows: string[][];
   highlightCol?: number;
+  colWidths?: string[];
+  highlightColor?: string;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm font-mono" style={{ borderCollapse: "collapse" }}>
+      <table className="w-full text-sm font-mono" style={{ borderCollapse: "collapse", tableLayout: colWidths ? "fixed" : undefined }}>
+        {colWidths && (
+          <colgroup>
+            {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
+          </colgroup>
+        )}
         <thead>
           <tr>
             {headers.map((h, i) => (
@@ -76,7 +83,7 @@ function DetailTable({ headers, rows, highlightCol }: {
                   key={ci}
                   className="px-3 py-2"
                   style={{
-                    color: ci === 0 ? theme.secondary : (highlightCol !== undefined && ci === highlightCol ? theme.primary : "#fff"),
+                    color: ci === 0 ? theme.secondary : (highlightCol !== undefined && ci === highlightCol ? (highlightColor || theme.primary) : "#fff"),
                     borderBottom: `1px solid ${theme.primary}10`,
                     fontWeight: ci === highlightCol ? 600 : 400,
                   }}
@@ -194,7 +201,67 @@ function NounPhraseTable({ noun, article, weakNoun }: { noun: string; article: s
           `${adjNone} ${nf}`,
         ];
       })}
+      colWidths={["20%", "28%", "28%", "24%"]}
     />
+  );
+}
+
+const GENDER_HIGHLIGHT_COLORS: Record<string, string> = {
+  m: "#6CB4FF",  // light blue - masculine
+  f: "#FF4A6A",  // red - feminine
+  n: "#FFB347",  // orange - neuter
+};
+
+function AdjEndingTables({ gender }: { gender: string }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const cases = ["Nom", "Akk", "Dat", "Gen"];
+  const casesFull = ["Nominativ", "Akkusativ", "Dativ", "Genitiv"];
+  const genderKeys = ["m", "f", "n", "p"];
+  const highlightIdx = genderKeys.indexOf(gender) + 1;
+  const hColor = GENDER_HIGHLIGHT_COLORS[gender] || theme.primary;
+
+  const tables = [
+    { key: "def", label: "Definite", data: ADJ_DEFINITE },
+    { key: "indef", label: "Indefinite", data: ADJ_INDEFINITE },
+    { key: "none", label: "No Article", data: ADJ_NO_ARTICLE },
+  ];
+
+  const toggle = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div>
+      <div className="flex gap-2 mt-2">
+        {tables.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => toggle(t.key)}
+            className="text-xs font-mono px-3 py-1 rounded transition-all"
+            style={{
+              border: `1px solid ${open[t.key] ? theme.primary : theme.primary + "40"}`,
+              color: open[t.key] ? theme.primary : theme.secondary,
+              background: open[t.key] ? theme.primary + "15" : "transparent",
+            }}
+          >
+            {t.label} Endings
+          </button>
+        ))}
+      </div>
+      {tables.map((t) => open[t.key] && (
+        <div key={t.key} className="mt-3">
+          <p className="text-xs font-mono mb-1" style={{ color: theme.secondary }}>{t.label} article endings</p>
+          <DetailTable
+            headers={["", "m", "f", "n", "pl"]}
+            rows={casesFull.map((c, i) => [
+              cases[i],
+              ...genderKeys.map((g) => `-${t.data[c][g]}`),
+            ])}
+            highlightCol={highlightIdx}
+            highlightColor={hColor}
+            colWidths={["20%", "20%", "20%", "20%", "20%"]}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -222,25 +289,25 @@ export function NounDeclensionModal({ word, onClose }: {
 
   return (
     <ModalShell
-      title={`${article} ${german}`}
+      title={<span style={{ color: ARTICLE_COLORS[article] || theme.primary }}>{article} {german}</span>}
       subtitle={`${english} — ${genderLabel}${weakNoun ? " — Weak Noun (n-Deklination)" : ""}`}
       onClose={onClose}
     >
       {weakNoun && (
-        <div className="mb-4 px-3 py-2 rounded text-xs font-mono" style={{ background: "#FFD70010", border: "1px solid #FFD70040", color: "#FFD700" }}>
+        <div className="mb-4 px-3 py-2 rounded text-xs font-mono" style={{ background: "#000000", border: "1px solid #FFD700", color: "#FFD700", borderRadius: "2px", boxShadow: "0 0 4px rgba(255,215,0,0.3), inset 0 0 6px rgba(255,215,0,0.08)", textShadow: "0 0 4px rgba(255,215,0,0.5)" }}>
           Weak noun (n-Deklination) — adds -n/-en in all cases except Nominativ singular
         </div>
       )}
 
       <SectionLabel>Definite Article (the)</SectionLabel>
       <DetailTable
-        headers={["Case", "Article + Noun", "Question"]}
+        headers={["Case", "Article + Noun"]}
         rows={cases.map((c, i) => [
           c,
           `${defArt[c]} ${nounForms[i]}`,
-          c === "Nominativ" ? "Wer? Was?" : c === "Akkusativ" ? "Wen? Was?" : c === "Dativ" ? "Wem?" : "Wessen?",
         ])}
         highlightCol={1}
+        colWidths={["35%", "65%"]}
       />
 
       <SectionLabel>Indefinite Article (a/an)</SectionLabel>
@@ -251,10 +318,12 @@ export function NounDeclensionModal({ word, onClose }: {
           `${indefArt[c]} ${nounForms[i]}`,
         ])}
         highlightCol={1}
+        colWidths={["35%", "65%"]}
       />
 
       <SectionLabel>Full Noun Phrase (with adjective &quot;groß&quot;)</SectionLabel>
       <NounPhraseTable noun={german} article={article} weakNoun={weakNoun} />
+      <AdjEndingTables gender={article === "der" ? "m" : article === "die" ? "f" : "n"} />
 
       <SectionLabel>Example Sentences</SectionLabel>
       <div className="space-y-3">
