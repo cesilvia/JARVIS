@@ -377,8 +377,6 @@ export default function WedgeSummaryCard({
                       if (textCenter != null && skipBullets) {
                         plainX = L * 0.4 + CHAR_WIDTH;
                       }
-                      if (bulletsLeft && i === 5) plainX += CHAR_WIDTH * 2;
-                      else if (bulletsLeft && i === 6) plainX += CHAR_WIDTH * 5;
                       // Continuation lines: offset x to align under first word after bullet
                       if (row.isContinuation) {
                         plainX += CHAR_WIDTH * 2;
