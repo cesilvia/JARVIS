@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
 import * as api from "../lib/api-client";
-import { getWordsOfTheDay, type WordOfTheDay } from "../lib/word-of-the-day";
+import { getWordsOfTheDay } from "../lib/word-of-the-day";
 import type { VocabWordBase } from "../lib/german-types";
 import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
 import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
@@ -13,6 +13,7 @@ import { EXPANDED_ADVERBS } from "../lib/german-vocab/adverbs";
 import { EXPANDED_PREPOSITIONS } from "../lib/german-vocab/prepositions";
 import { EXPANDED_CONJUNCTIONS } from "../lib/german-vocab/conjunctions";
 import { generateConjugationBuiltins } from "../lib/german-conjugation-cards";
+import { NounDeclensionModal, VerbConjugationModal, AdjectiveEndingModal } from "./DetailModals";
 
 // ─── Theme ───────────────────────────────────────────────────────
 const theme = { primary: "#00D9FF", secondary: "#67C7EB", bg: "#000000" };
@@ -606,10 +607,14 @@ function generateQuiz(vocab: VocabWord[], count: number = 10): QuizQuestion[] {
 }
 
 // ─── Component ──────────────────────────────────────────────────
+// Detail word type for modals
+type DetailWord = VocabWordBase | null;
+
 export default function GermanPage() {
   const [tab, setTab] = useState<Tab>("dictionary");
   const [vocab, setVocab] = useState<VocabWord[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [detailWord, setDetailWord] = useState<DetailWord>(null);
 
   // Load vocab from SQLite, merging with builtins
   useEffect(() => {
@@ -667,7 +672,7 @@ export default function GermanPage() {
         <p className="text-sm mb-6" style={{ color: theme.secondary }}>German Language Learning</p>
 
         {/* Word of the Day */}
-        <WordOfTheDaySection vocab={vocab} saveVocab={saveVocab} />
+        <WordOfTheDaySection vocab={vocab} onDetail={setDetailWord} />
 
         {/* Tab Bar */}
         <div className="flex gap-1 mb-6 flex-wrap">
@@ -688,39 +693,41 @@ export default function GermanPage() {
           ))}
         </div>
 
-        {tab === "dictionary" && <DictionaryTab vocab={vocab} saveVocab={saveVocab} />}
-        {tab === "flashcards" && <FlashcardsTab vocab={vocab} saveVocab={saveVocab} />}
+        {tab === "dictionary" && <DictionaryTab vocab={vocab} saveVocab={saveVocab} onDetail={setDetailWord} />}
+        {tab === "flashcards" && <FlashcardsTab vocab={vocab} saveVocab={saveVocab} onDetail={setDetailWord} />}
         {tab === "grammar" && <GrammarTab />}
         {tab === "quiz" && <QuizTab vocab={vocab} />}
         {tab === "backup" && <BackupTab vocab={vocab} setVocab={setVocab} />}
+
+        {/* Detail Modals */}
+        {detailWord?.partOfSpeech === "noun" && detailWord.article && (
+          <NounDeclensionModal word={detailWord as VocabWordBase & { article: string }} onClose={() => setDetailWord(null)} />
+        )}
+        {detailWord?.partOfSpeech === "verb" && (
+          <VerbConjugationModal word={detailWord} onClose={() => setDetailWord(null)} />
+        )}
+        {detailWord?.partOfSpeech === "adjective" && (
+          <AdjectiveEndingModal word={detailWord} onClose={() => setDetailWord(null)} />
+        )}
       </main>
     </div>
   );
 }
 
 // ─── Word of the Day Section ────────────────────────────────────
-function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void }) {
+function WordOfTheDaySection({ vocab, onDetail }: { vocab: VocabWord[]; onDetail: (w: VocabWordBase | null) => void }) {
   const words = useMemo(() => getWordsOfTheDay(new Date(), vocab), [vocab]);
 
   if (words.length === 0) return null;
 
-  const handleAddToReview = (word: WordOfTheDay) => {
-    saveVocab((prev) =>
-      prev.map((w) =>
-        w.german === word.word.german && w.partOfSpeech === word.word.partOfSpeech
-          ? { ...w, nextReview: Date.now() }
-          : w
-      )
-    );
-  };
-
   const categoryLabel = (cat: string) => {
     switch (cat) {
       case "verb": return "Verb";
-      case "noun": return "Nomen";
-      case "adjective": return "Adjektiv";
+      case "noun": return "Noun";
+      case "adjective": return "Adjective";
       case "adverb": return "Adverb";
-      case "preposition": return "Präposition";
+      case "preposition": return "Preposition";
+      case "conjunction": return "Conjunction";
       default: return cat;
     }
   };
@@ -732,7 +739,6 @@ function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVoc
       </h2>
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {words.map(({ word, category }) => {
-          const isDue = word.nextReview <= Date.now();
           return (
             <div
               key={`${word.german}-${category}`}
@@ -746,26 +752,21 @@ function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVoc
                 <span className="text-xs font-mono uppercase tracking-wider" style={{ color: theme.secondary + "80" }}>
                   {categoryLabel(category)}
                 </span>
-                <button
-                  onClick={() => handleAddToReview({ word, category })}
-                  className="text-xs px-2 py-0.5 rounded transition-all"
-                  style={{
-                    border: `1px solid ${isDue ? theme.primary + "60" : theme.primary + "30"}`,
-                    color: isDue ? theme.primary : theme.secondary,
-                    background: isDue ? `${theme.primary}15` : "transparent",
-                  }}
-                  title={isDue ? "Due for review" : "Add to today's review"}
-                >
-                  {isDue ? "Due" : "Review"}
-                </button>
+                {(word.partOfSpeech === "noun" && word.article || word.partOfSpeech === "verb" || word.partOfSpeech === "adjective") && (
+                  <button
+                    onClick={() => onDetail(word)}
+                    className="text-xs px-2 py-0.5 rounded transition-all"
+                    style={{ border: `1px solid ${theme.primary}30`, color: theme.secondary }}
+                    title={word.partOfSpeech === "noun" ? "Declension" : word.partOfSpeech === "verb" ? "Conjugation" : "Endings"}
+                  >
+                    {word.partOfSpeech === "noun" ? "Cases" : word.partOfSpeech === "verb" ? "Conj." : "Endings"}
+                  </button>
+                )}
               </div>
               <div className="text-lg font-bold mb-0.5">
-                {word.article && (
-                  <span style={{ color: ARTICLE_COLORS[word.article] || theme.primary }}>
-                    {word.article}{" "}
-                  </span>
-                )}
-                <span style={{ color: theme.primary }}>{word.german}</span>
+                <span style={{ color: word.article ? ARTICLE_COLORS[word.article] || theme.primary : theme.primary }}>
+                  {word.article ? `${word.article} ${word.german}` : word.german}
+                </span>
                 <WordBadge word={word} />
                 <span className="text-sm font-normal ml-2" style={{ color: theme.secondary }}>
                   — {word.english}
@@ -788,7 +789,7 @@ function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVoc
 }
 
 // ─── Dictionary Tab ─────────────────────────────────────────────
-function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void }) {
+function DictionaryTab({ vocab, saveVocab, onDetail }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void; onDetail: (w: VocabWordBase | null) => void }) {
   const [query, setQuery] = useState("");
   const [direction, setDirection] = useState<"de-en" | "en-de">("de-en");
   const [result, setResult] = useState<{ word: string; translation: string; alternatives: string[] } | null>(null);
@@ -884,7 +885,7 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
           <p className="text-xs uppercase tracking-wider mb-2" style={{ color: theme.secondary }}>From your vocabulary</p>
           <div className="space-y-1">
             {localResults.map((w, i) => (
-              <div key={i} className="flex gap-3 px-3 py-2 font-mono text-sm" style={{ background: `${theme.primary}08`, border: `1px solid ${theme.primary}15` }}>
+              <div key={i} className="flex gap-3 px-3 py-2 font-mono text-sm items-center" style={{ background: `${theme.primary}08`, border: `1px solid ${theme.primary}15` }}>
                 <span style={{ color: w.article ? ARTICLE_COLORS[w.article] || theme.primary : theme.primary }}>
                   {w.article ? `${w.article} ${w.german}` : w.german}
                 </span>
@@ -892,6 +893,15 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
                 <span style={{ color: theme.secondary }}>—</span>
                 <span style={{ color: "#fff" }}>{w.english}</span>
                 {w.partOfSpeech !== "phrase" && <span className="text-xs" style={{ color: theme.secondary }}>({w.partOfSpeech})</span>}
+                {(w.partOfSpeech === "noun" && w.article || w.partOfSpeech === "verb" || w.partOfSpeech === "adjective") && (
+                  <button
+                    onClick={() => onDetail(w)}
+                    className="ml-auto text-xs px-2 py-0.5 rounded"
+                    style={{ border: `1px solid ${theme.primary}30`, color: theme.secondary }}
+                  >
+                    {w.partOfSpeech === "noun" ? "Cases" : w.partOfSpeech === "verb" ? "Conj." : "Endings"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -939,13 +949,22 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
             <p className="text-xs uppercase tracking-wider mb-2" style={{ color: theme.secondary }}>Recent lookups</p>
             <div className="space-y-1">
               {lookups.map((w, i) => (
-                <div key={i} className="flex gap-3 px-3 py-2 font-mono text-sm" style={{ background: `${theme.primary}08`, border: `1px solid ${theme.primary}15` }}>
+                <div key={i} className="flex gap-3 px-3 py-2 font-mono text-sm items-center" style={{ background: `${theme.primary}08`, border: `1px solid ${theme.primary}15` }}>
                   <span style={{ color: w.article ? ARTICLE_COLORS[w.article] || theme.primary : theme.primary }}>
                     {w.article ? `${w.article} ${w.german}` : w.german}
                   </span>
                   <WordBadge word={w} />
                   <span style={{ color: theme.secondary }}>—</span>
                   <span style={{ color: "#fff" }}>{w.english}</span>
+                  {(w.partOfSpeech === "noun" && w.article || w.partOfSpeech === "verb" || w.partOfSpeech === "adjective") && (
+                    <button
+                      onClick={() => onDetail(w)}
+                      className="ml-auto text-xs px-2 py-0.5 rounded"
+                      style={{ border: `1px solid ${theme.primary}30`, color: theme.secondary }}
+                    >
+                      {w.partOfSpeech === "noun" ? "Cases" : w.partOfSpeech === "verb" ? "Conj." : "Endings"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -957,7 +976,7 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
 }
 
 // ─── Flashcards Tab ─────────────────────────────────────────────
-function FlashcardsTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void }) {
+function FlashcardsTab({ vocab, saveVocab, onDetail }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void; onDetail: (w: VocabWordBase | null) => void }) {
   const [flipped, setFlipped] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [filter, setFilter] = useState<"all" | "due" | "noun" | "verb" | "adjective" | "phrase" | "conjugation">("due");
@@ -1107,6 +1126,15 @@ function FlashcardsTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
             >
               Skip
             </button>
+            {(current.partOfSpeech === "noun" && current.article || current.partOfSpeech === "verb" || current.partOfSpeech === "adjective") && (
+              <button
+                onClick={() => onDetail(current)}
+                className="px-3 py-1 text-xs font-mono"
+                style={{ border: `1px solid ${theme.primary}`, color: theme.primary }}
+              >
+                {current.partOfSpeech === "noun" ? "Cases" : current.partOfSpeech === "verb" ? "Conjugation" : "Endings"}
+              </button>
+            )}
           </div>
         </div>
       ) : (

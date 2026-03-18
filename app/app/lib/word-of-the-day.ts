@@ -1,4 +1,11 @@
 import type { VocabWord } from "./german-types";
+import type { VocabWordBase } from "./german-types";
+import { EXPANDED_NOUNS } from "./german-vocab/nouns";
+import { EXPANDED_VERBS } from "./german-vocab/verbs";
+import { EXPANDED_ADJECTIVES } from "./german-vocab/adjectives";
+import { EXPANDED_ADVERBS } from "./german-vocab/adverbs";
+import { EXPANDED_PREPOSITIONS } from "./german-vocab/prepositions";
+import { EXPANDED_CONJUNCTIONS } from "./german-vocab/conjunctions";
 
 // ─── Seeded PRNG (Linear Congruential Generator) ────────────────
 function hashDateString(dateStr: string): number {
@@ -17,9 +24,26 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+// ─── Static Word Pools (sorted, never changes at runtime) ───────
+// Selection uses ONLY these static lists so adding words to the DB
+// or mastering cards can never change the daily picks.
+const STATIC_VERBS = [...EXPANDED_VERBS].sort((a, b) => a.german.localeCompare(b.german));
+const STATIC_NOUNS = [...EXPANDED_NOUNS].sort((a, b) => a.german.localeCompare(b.german));
+const STATIC_ADJECTIVES = [...EXPANDED_ADJECTIVES].sort((a, b) => a.german.localeCompare(b.german));
+const STATIC_ADVERBS = [...EXPANDED_ADVERBS].sort((a, b) => a.german.localeCompare(b.german));
+const STATIC_PREPOSITIONS = [...EXPANDED_PREPOSITIONS, ...EXPANDED_CONJUNCTIONS].sort((a, b) => a.german.localeCompare(b.german));
+
+const STATIC_POOLS: Record<string, VocabWordBase[]> = {
+  verb: STATIC_VERBS,
+  noun: STATIC_NOUNS,
+  adjective: STATIC_ADJECTIVES,
+  adverb: STATIC_ADVERBS,
+  preposition: STATIC_PREPOSITIONS,
+};
+
 // ─── Word of the Day Selection ──────────────────────────────────
-// Returns 5 words: one verb, one noun, one adjective, one adverb, one preposition/conjunction
-// Deterministic per date, prioritizes un-mastered words
+// Returns 3 words: one verb, one noun, one rotating (adj/adv/prp/cnj)
+// Deterministic per date — uses static builtin lists only
 
 export interface WordOfTheDay {
   word: VocabWord;
@@ -28,21 +52,34 @@ export interface WordOfTheDay {
 
 const ROTATING_CATEGORIES = ["adjective", "adverb", "preposition", "conjunction"] as const;
 
-function filterByCategory(vocab: VocabWord[], category: string): VocabWord[] {
-  if (category === "preposition") {
-    return vocab.filter(w => w.partOfSpeech === "preposition" || w.partOfSpeech === "conjunction");
-  }
-  return vocab.filter(w => w.partOfSpeech === category);
-}
+function pickFromStaticPool(
+  category: string,
+  rng: () => number,
+  vocab: VocabWord[],
+): WordOfTheDay | null {
+  const poolKey = category === "conjunction" ? "preposition" : category;
+  const pool = STATIC_POOLS[poolKey];
+  if (!pool || pool.length === 0) return null;
 
-function pickFromCategory(vocab: VocabWord[], category: string, rng: () => number): WordOfTheDay | null {
-  const pool = filterByCategory(vocab, category);
-  if (pool.length === 0) return null;
-  const sorted = [...pool].sort((a, b) => a.german.localeCompare(b.german));
-  const unmastered = sorted.filter(w => w.repetitions < 5);
-  const pickFrom = unmastered.length > 0 ? unmastered : sorted;
-  const index = Math.floor(rng() * pickFrom.length);
-  return { word: pickFrom[index], category };
+  // Pick a deterministic index from the static pool
+  const index = Math.floor(rng() * pool.length);
+  const picked = pool[index];
+
+  // Find the matching word in the user's vocab (for SR state), or create a default
+  const match = vocab.find(
+    (w) => w.german === picked.german && w.partOfSpeech === picked.partOfSpeech,
+  );
+
+  const word: VocabWord = match || {
+    ...picked,
+    nextReview: 0,
+    interval: 0,
+    easeFactor: 2.5,
+    repetitions: 0,
+    source: "builtin",
+  };
+
+  return { word, category: picked.partOfSpeech };
 }
 
 export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[] {
@@ -53,15 +90,15 @@ export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[]
   const results: WordOfTheDay[] = [];
 
   // Always include a verb and a noun
-  const verb = pickFromCategory(vocab, "verb", rng);
+  const verb = pickFromStaticPool("verb", rng, vocab);
   if (verb) results.push(verb);
-  const noun = pickFromCategory(vocab, "noun", rng);
+  const noun = pickFromStaticPool("noun", rng, vocab);
   if (noun) results.push(noun);
 
   // Rotate through adjective/adverb/preposition/conjunction by date
   const daysSinceEpoch = Math.floor(date.getTime() / 86400000);
   const rotatingCategory = ROTATING_CATEGORIES[daysSinceEpoch % ROTATING_CATEGORIES.length];
-  const third = pickFromCategory(vocab, rotatingCategory, rng);
+  const third = pickFromStaticPool(rotatingCategory, rng, vocab);
   if (third) results.push(third);
 
   return results;
@@ -92,15 +129,15 @@ export function formatWotdForWedge(words: WordOfTheDay[]): WotdWedgeData {
   for (const { word } of words) {
     const pos = POS_ABBREV[word.partOfSpeech] || word.partOfSpeech;
     const nounPart = word.article ? `${word.article} ${word.german}` : word.german;
-    // Badge suffix for weak nouns, preposition case, verb kickers
+    // Compact badge: circled letters for case governance, small markers for others
     let badge = "";
-    if (word.weakNoun) badge = " [W]";
+    if (word.weakNoun) badge = " Ⓦ";
     else if (word.partOfSpeech === "preposition" && word.category) {
-      if (word.category === "Akkusativ") badge = " [Akk]";
-      else if (word.category === "Dativ") badge = " [Dat]";
-      else if (word.category === "Genitiv") badge = " [Gen]";
-      else if (word.category.includes("Two-Way") || word.category.includes("Wechsel")) badge = " [↕]";
-    } else if (word.partOfSpeech === "conjunction" && word.category === "Subordinating") badge = " [VK]";
+      if (word.category === "Akkusativ") badge = " Ⓐ";
+      else if (word.category === "Dativ") badge = " Ⓓ";
+      else if (word.category === "Genitiv") badge = " Ⓖ";
+      else if (word.category.includes("Two-Way") || word.category.includes("Wechsel")) badge = " ↕";
+    } else if (word.partOfSpeech === "conjunction" && word.category === "Subordinating") badge = " ⓥ";
     lines.push(`${pos}: ${nounPart}${badge}`);
     colors.push(word.article ? ARTICLE_WEDGE_COLORS[word.article] : undefined);
     definitions.push(word.english || undefined);

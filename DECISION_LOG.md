@@ -582,3 +582,40 @@
   - Any hub code change invalidates all wedge/icon entries for individual re-verification.
   - Total checklist items: 25 → 38.
 - **Status:** Implemented
+
+## 2026-03-17 (session 2)
+
+### German Detail Pages
+
+**Decision:** Add noun declension, verb conjugation, and adjective ending detail modals
+- **Rationale:** Flashcards and dictionary show words in isolation. Learners need to see how words change across cases, tenses, and article contexts. Modals open from "Cases" / "Conj." / "Endings" buttons on WotD cards, dictionary results, and flashcard navigation.
+- **Implementation:** New `app/german/DetailModals.tsx` with three exported components:
+  - `NounDeclensionModal` — definite/indefinite article tables, full noun phrase table (article + adjective "groß" + noun across definite/indefinite/no-article contexts), example sentences per case, weak noun indicator.
+  - `VerbConjugationModal` — 2-column layout (ich/du/er left, wir/ihr/sie right), 4 tenses with usage notes, sample sentence per tense. Uses existing `conjugateVerb()` engine.
+  - `AdjectiveEndingModal` — 3 tables (definite/indefinite/no article), 4 cases × 3 genders + plural, key pattern summary.
+- **Status:** Implemented
+
+### Word of the Day Stability
+
+**Decision:** WotD selection uses static builtin word lists only, not the dynamic vocab array
+- **Rationale:** Previously, selection depended on the merged vocab array (DB + builtins). Adding words to builtins or mastering flashcards changed the pool size, causing the seeded RNG to pick different words mid-day. Users expect the same words all day.
+- **Implementation:** `word-of-the-day.ts` imports static sorted arrays at module level. `getWordsOfTheDay()` picks indices into these fixed arrays. The vocab parameter is only used to look up SR state for the already-selected words.
+- **Status:** Implemented
+
+### Compact Wedge Badges
+
+**Decision:** Replace `[Dat]`/`[Akk]`/`[Gen]` badge text with circled Unicode letters (Ⓓ/Ⓐ/Ⓖ)
+- **Rationale:** Long preposition entries like "prp: entsprechend [Dat]" overflowed the wedge. Circled letters save 3-4 characters. Badge is rendered as a red superscript at 60% font size, positioned tightly after the word.
+- **Status:** Implemented
+
+### Noun Color Coding
+
+**Decision:** Color-code the entire noun (article + word) by gender, not just the article
+- **Rationale:** Previously only the article was colored, with the noun in default cyan. Coloring both reinforces the gender association more strongly.
+- **Status:** Implemented
+
+### WotD Card Cleanup
+
+**Decision:** Remove Due/Review button from Word of the Day cards
+- **Rationale:** The button silently reset `nextReview` with no visible feedback. Detail buttons (Cases/Conj./Endings) are more useful for the WotD context.
+- **Status:** Implemented

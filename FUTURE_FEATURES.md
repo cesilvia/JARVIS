@@ -81,7 +81,10 @@
 
 ## German Page Enhancements
 - ~~**Expand vocabulary**~~ — DONE (2026-03-17): ~1,869 words (528 nouns, 506 verbs, 483 adjectives, 251 adverbs, 51 prepositions, 32 conjunctions, 18 phrases). All with example sentences.
-- ~~**Word of the Day**~~ — DONE (2026-03-17): 5 daily words on hub wedge + German page top section. Deterministic date-seeded selection, prioritizes un-mastered words.
+- ~~**Word of the Day**~~ — DONE (2026-03-17): 3 daily words on hub wedge + German page top section. Deterministic date-seeded selection from static builtin lists (stable across DB changes).
+- ~~**Detail pages**~~ — DONE (2026-03-17): Noun declension (case tables, full noun phrase with adjective, weak noun support), verb conjugation (2-column layout, 4 tenses, usage notes), adjective endings (definite/indefinite/no article × 4 cases × 3 genders + plural). Accessible from WotD cards, dictionary, and flashcards.
+- ~~**Compact wedge badges**~~ — DONE (2026-03-17): Circled Unicode letters (Ⓓ/Ⓐ/Ⓖ) replace `[Dat]`/`[Akk]`/`[Gen]` on hub wedge. Red superscript rendering.
+- Try using German page yellow badge style on hub wedge (for dative/case indicators)
 - Listening practice (SpeechSynthesis / TTS)
 - Reading practice (passages with tap-to-translate)
 - Auto-backup via N8N

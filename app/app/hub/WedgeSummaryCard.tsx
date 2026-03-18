@@ -78,9 +78,30 @@ export default function WedgeSummaryCard({
         } else {
           displayLines.push({ label: line, value: null, color: lineColor });
         }
-        // Add definition row if provided, tracking parent label width for alignment
+        // Add definition row(s) if provided, word-wrapping if too long
         if (hasDefinitions && summaryDefinitions![li]) {
-          displayLines.push({ label: summaryDefinitions![li]!, value: null, isDefinition: true, parentLabelLen: labelLen });
+          const defText = summaryDefinitions![li]!;
+          // Estimate available chars for definition (smaller font = more chars)
+          const defMaxChars = Math.floor(maxChars / 0.7);
+          if (defText.length <= defMaxChars) {
+            displayLines.push({ label: defText, value: null, isDefinition: true, parentLabelLen: labelLen });
+          } else {
+            // Word-wrap the definition
+            const defWords = defText.split(" ");
+            let current = "";
+            for (const word of defWords) {
+              const test = current + (current.length > 0 ? " " : "") + word;
+              if (test.length > defMaxChars && current.length > 0) {
+                displayLines.push({ label: current, value: null, isDefinition: true, parentLabelLen: labelLen });
+                current = word;
+              } else {
+                current = test;
+              }
+            }
+            if (current.length > 0) {
+              displayLines.push({ label: current, value: null, isDefinition: true, parentLabelLen: labelLen });
+            }
+          }
         }
       } else {
         const bullet = "• " + line;
@@ -264,10 +285,19 @@ export default function WedgeSummaryCard({
                     const fill = row.color || "#ffffff";
                     if (row.value !== null) {
                       if (labelAlign === "left") {
+                        // Split trailing badge characters (Ⓐ Ⓓ Ⓖ Ⓦ ⓥ ↕) from value
+                        const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
+                        const mainValue = badgeMatch ? row.value.slice(0, badgeMatch.index) : row.value;
+                        const badge = badgeMatch ? badgeMatch[1] : null;
+                        const valueX = rowValueX(row.label);
+                        const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.3;
                         return (
                           <React.Fragment key={i}>
                             <tspan x={labelStartX(row.label)} y={y} textAnchor="start" fill="#ffffff">{row.label}:</tspan>
-                            <tspan x={rowValueX(row.label)} y={y} textAnchor="start" fill={fill}>{row.value}</tspan>
+                            <tspan x={valueX} y={y} textAnchor="start" fill={fill}>{mainValue}</tspan>
+                            {badge && (
+                              <tspan x={badgeX} y={y - fontSize * 0.35} textAnchor="start" fill="#CC3333" fontSize={fontSize * 0.6}>{badge}</tspan>
+                            )}
                           </React.Fragment>
                         );
                       }

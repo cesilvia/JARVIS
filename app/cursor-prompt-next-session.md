@@ -12,8 +12,15 @@ I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi
 - **R2 backup**: AWS Signature V4 signing using Node crypto (no SDK dependency). R2 credentials in `.env.local` on Mac Mini only (prod-only for safety).
 - **Page verification checklist**: `/settings/verification` tracks 38 items across 7 groups.
 - **German vocabulary**: ~1,869 words across 6 categories in `app/lib/german-vocab/`. 500 verbs.
-- **German conjugation engine (2026-03-17)**: `app/lib/german-conjugation.ts` (~500 lines) covers 4 tenses (Präsens, Präteritum, Perfekt, Futur I) × 6 pronouns. 100+ irregular verb lookup table. `app/lib/german-conjugation-cards.ts` generates 12,000 conjugation flashcards (partOfSpeech="conjugation").
-- **German badges (2026-03-17)**: Yellow badges for weak nouns (W), preposition case governance (Akk/Dat/Gen/↕), subordinating conjunction verb kickers (VK). `WordBadge` component in page.tsx. Badges in WotD cards, dictionary, flashcards, and hub wedge.
+- **German conjugation engine**: `app/lib/german-conjugation.ts` (~500 lines) covers 4 tenses (Präsens, Präteritum, Perfekt, Futur I) × 6 pronouns. 100+ irregular verb lookup table. `app/lib/german-conjugation-cards.ts` generates 12,000 conjugation flashcards (partOfSpeech="conjugation").
+- **German badges**: Yellow badges for weak nouns (W), preposition case governance (Akk/Dat/Gen/↕), subordinating conjunction verb kickers (VK). `WordBadge` component in page.tsx. Badges in WotD cards, dictionary, flashcards.
+- **German detail modals (2026-03-17)**: `app/german/DetailModals.tsx` — three modal components accessible from WotD cards, dictionary, and flashcards:
+  - `NounDeclensionModal` — definite/indefinite article tables, full noun phrase table (article + adjective "groß" + noun across definite/indefinite/no-article contexts), example sentences per case, weak noun indicator.
+  - `VerbConjugationModal` — 2-column layout (ich/du/er left, wir/ihr/sie right), 4 tenses with usage notes, sample sentence per tense. Uses existing `conjugateVerb()` engine.
+  - `AdjectiveEndingModal` — 3 tables (definite/indefinite/no article), 4 cases × 3 genders + plural, key pattern summary.
+- **WotD stability (2026-03-17)**: Word of the Day selection uses static builtin word lists only (not dynamic vocab array). Adding words or mastering cards never changes the daily picks. 3 words per day: verb, noun, rotating 3rd (adj/adv/prp/cnj).
+- **Hub wedge badges (2026-03-17)**: Circled Unicode letters (Ⓓ/Ⓐ/Ⓖ) for case governance, rendered as red superscript at 60% font size. Definition text word-wraps if too long.
+- **Noun color coding**: Entire noun (article + word) color-coded by gender (blue=masc, red=fem, orange=neut) everywhere on German page.
 - **German types**: `VocabWord` has `weakNoun?: boolean`, `caseGovernment?`, `verbKicker?: boolean`. `partOfSpeech` includes "conjugation". `VocabWordBase` = VocabWord without SR fields.
 - **Neuter color**: das nouns now orange (#FFB347), not green.
 
@@ -24,11 +31,12 @@ I'm building a Next.js personal dashboard ("JARVIS") at `app/` with a HUD/sci-fi
 - `app/lib/german-types.ts` — Shared VocabWord and VocabWordBase types
 - `app/lib/german-conjugation.ts` — Conjugation engine (conjugateVerb, generateFlashcards, IRREGULARS table)
 - `app/lib/german-conjugation-cards.ts` — Generates VocabWordBase[] conjugation cards from verb list
-- `app/lib/word-of-the-day.ts` — Date-seeded word selection + wedge formatting with gender colors + definitions + badge suffixes
+- `app/lib/word-of-the-day.ts` — Date-seeded word selection from static builtin lists + wedge formatting with gender colors + circled badge characters
 - `app/lib/german-vocab/` — 6 files: nouns.ts (8 weak nouns marked), verbs.ts (500 verbs), adjectives.ts, adverbs.ts, prepositions.ts, conjunctions.ts
-- `app/german/page.tsx` — German learning page (~1100 lines) with WordBadge component, conjugation filter, merge logic preserving weakNoun/category from builtins
+- `app/german/page.tsx` — German learning page (~1100 lines) with WordBadge component, conjugation filter, detail modal state
+- `app/german/DetailModals.tsx` — NounDeclensionModal, VerbConjugationModal, AdjectiveEndingModal
 - `app/hub/page.tsx` — Main dashboard with wedge summaries (~950 lines)
-- `app/hub/WedgeSummaryCard.tsx` — Wedge overlay with staggered labels
+- `app/hub/WedgeSummaryCard.tsx` — Wedge overlay with staggered labels, badge superscript rendering, definition word-wrapping
 - `app/bike/strava/page.tsx` — Strava cycling dashboard (~1700 lines)
 - `proxy.ts` — Auth middleware (PUBLIC_PATHS includes /api/backup)
 - `Dockerfile` — Multi-stage Next.js + better-sqlite3 build
@@ -44,32 +52,17 @@ Just push to main. Auto-deploys to Mac Mini within 2 minutes.
 - When `.env.local` changes, remind user to update Apple Passwords entry.
 - Wedge text word-wraps with indented continuations — don't shrink font to fit.
 - Conjugation engine must be 100% accurate. The IRREGULARS table in german-conjugation.ts has been verified. Don't modify without double-checking.
+- Part of speech labels on German page cards should be in English (Noun, Verb, Adjective), not German.
 
-## Next priorities — German detail pages
+## First task — Try yellow badge style on hub wedge
 
-These three detail pages are the immediate next task. Each should be a button on the relevant card type that opens a detail view (modal/overlay or separate page):
+The German page has yellow badges (WordBadge component in page.tsx) for case governance: small yellow text with yellow border, e.g., "Dat", "Akk", "Gen". Currently the hub wedge uses red circled Unicode letters (Ⓓ/Ⓐ/Ⓖ) as superscripts for the same purpose.
 
-### 1. Noun declension detail page
-- Button on noun cards in dictionary/flashcards
-- Shows nom/akk/dat/gen case table for the noun (with article changes: der→den→dem→des for masculine, etc.)
-- Sample sentence for each case
-- Weak noun (n-Deklination) indicator when applicable — shows the -n/-en ending in non-nominative cases
-- Plural forms if available
+**Try replacing the circled Unicode letters on the hub wedge with the same yellow badge style used on the German page.** This is an experiment — be ready to revert if it doesn't look right.
 
-### 2. Verb conjugation detail page
-- Button on verb cards in dictionary/flashcards
-- 2-column layout: ich/du/er in left column, wir/ihr/sie in right column
-- All 4 tenses (Präsens, Präteritum, Perfekt, Futur I) with usage notes per tense
-- 1st person singular sample sentence with translation per tense
-- Use the existing `conjugateVerb()` from `app/lib/german-conjugation.ts` — it returns all forms
+The badge rendering is in `app/hub/WedgeSummaryCard.tsx` around line 267-279 (the `badgeMatch` / `badge` rendering). The badge data comes from `app/lib/word-of-the-day.ts` `formatWotdForWedge()`. The yellow badge style on the German page is in the `WordBadge` component in `app/german/page.tsx`.
 
-### 3. Adjective ending detail page
-- Button on adjective cards in dictionary/flashcards
-- 3 tables: definite article (der/die/das), indefinite article (ein/eine/ein), no article
-- Each table: 4 cases × 3 genders (masculine/feminine/neuter) + plural
-- Shows the adjective with the correct ending in each cell (e.g., "der große Mann", "ein großer Mann", "großer Mann")
-
-## Other priorities (pick one or more after detail pages)
+## Other priorities (pick one or more after the badge experiment)
 1. **[Quick win] Weather page** — Open-Meteo (free, no API key), cycling-relevant (wind, rain, rideable hours), feeds hub wedge.
 2. **[New page] Journal page** — SQLite table, daily entries with mood/energy tags.
 3. **[New page] Research page** — Readwise API integration + RAG (Ollama on Mac Mini).

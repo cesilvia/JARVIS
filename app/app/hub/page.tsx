@@ -14,13 +14,7 @@ import {
 } from "../bike/strava/types";
 import * as api from "../lib/api-client";
 import { getWordsOfTheDay, formatWotdForWedge } from "../lib/word-of-the-day";
-import type { VocabWord, VocabWordBase } from "../lib/german-types";
-import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
-import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
-import { EXPANDED_ADJECTIVES } from "../lib/german-vocab/adjectives";
-import { EXPANDED_ADVERBS } from "../lib/german-vocab/adverbs";
-import { EXPANDED_PREPOSITIONS } from "../lib/german-vocab/prepositions";
-import { EXPANDED_CONJUNCTIONS } from "../lib/german-vocab/conjunctions";
+import type { VocabWord } from "../lib/german-types";
 
 interface Module {
   id: string;
@@ -648,23 +642,14 @@ export default function HubPage() {
   }, []);
 
   // Load German word-of-the-day for wedge
+  // Selection uses static builtin lists (inside getWordsOfTheDay), so adding
+  // words to the DB or mastering cards never changes the daily picks.
+  // The vocab array is only used to look up SR state for the selected words.
   useEffect(() => {
-    const allBuiltins: VocabWordBase[] = [
-      ...EXPANDED_NOUNS, ...EXPANDED_VERBS, ...EXPANDED_ADJECTIVES,
-      ...EXPANDED_ADVERBS, ...EXPANDED_PREPOSITIONS, ...EXPANDED_CONJUNCTIONS,
-    ];
     async function loadGermanSummary() {
       try {
         const saved = (await api.getVocab()) as VocabWord[];
-        // Merge DB words with builtins so all categories are represented
-        const savedKeys = new Set(saved.map(w => `${w.german}|${w.partOfSpeech}`));
-        const merged: VocabWord[] = [...saved];
-        for (const b of allBuiltins) {
-          if (!savedKeys.has(`${b.german}|${b.partOfSpeech}`)) {
-            merged.push({ ...b, nextReview: 0, interval: 0, easeFactor: 2.5, repetitions: 0, source: "builtin" });
-          }
-        }
-        const words = getWordsOfTheDay(new Date(), merged);
+        const words = getWordsOfTheDay(new Date(), saved);
         if (words.length === 0) { setGermanSummary(["Deutsch"]); return; }
         const result = formatWotdForWedge(words);
         setGermanSummary(result.lines);
