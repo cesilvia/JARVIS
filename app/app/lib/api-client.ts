@@ -39,11 +39,20 @@ export async function getActivities<T = unknown>(): Promise<T[]> {
 }
 
 export async function saveActivities(activities: unknown[]): Promise<void> {
-  await fetch("/api/db/strava/activities", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ activities }),
-  });
+  // Batch in chunks of 100 to stay under Next.js 1MB body limit
+  const BATCH = 100;
+  for (let i = 0; i < activities.length; i += BATCH) {
+    const chunk = activities.slice(i, i + BATCH);
+    const res = await fetch("/api/db/strava/activities", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activities: chunk }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Save activities failed (batch ${Math.floor(i / BATCH) + 1}): ${err}`);
+    }
+  }
 }
 
 // ─── Strava Streams ─────────────────────────────────────────────
