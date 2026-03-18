@@ -34,16 +34,28 @@ export interface StravaActivity {
   description?: string;
 }
 
-async function fetchAllActivities(accessToken: string): Promise<StravaActivity[]> {
+async function fetchAllActivities(accessToken: string): Promise<{ activities: StravaActivity[]; pages: number; rateLimitUsage: string; rateLimitLimit: string }> {
   const all: StravaActivity[] = [];
   let page = 1;
   const perPage = 200;
+  let rateLimitUsage = "";
+  let rateLimitLimit = "";
 
   while (true) {
     const url = `${STRAVA_ACTIVITIES_URL}?page=${page}&per_page=${perPage}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    // Capture rate limit headers
+    rateLimitUsage = res.headers.get("x-ratelimit-usage") || rateLimitUsage;
+    rateLimitLimit = res.headers.get("x-ratelimit-limit") || rateLimitLimit;
+
+    if (res.status === 429) {
+      console.error(`Strava rate limit hit on page ${page}. Usage: ${rateLimitUsage}, Limit: ${rateLimitLimit}`);
+      // Return what we have so far rather than failing completely
+      break;
+    }
 
     if (!res.ok) {
       throw new Error(`Strava API error: ${res.status} ${await res.text()}`);
@@ -57,7 +69,7 @@ async function fetchAllActivities(accessToken: string): Promise<StravaActivity[]
     page++;
   }
 
-  return all;
+  return { activities: all, pages: page, rateLimitUsage, rateLimitLimit };
 }
 
 export async function POST(request: NextRequest) {
@@ -68,9 +80,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "accessToken required" }, { status: 400 });
     }
 
-    const activities = await fetchAllActivities(accessToken);
+    const result = await fetchAllActivities(accessToken);
 
-    const rideActivities = activities.filter(
+    const rideActivities = result.activities.filter(
       (a) =>
         a.type === "Ride" ||
         a.sport_type?.includes("Ride") ||
@@ -83,8 +95,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       activities: rideActivities,
       total: rideActivities.length,
-      totalAllTypes: activities.length,
-      pages: Math.ceil(activities.length / 200) || 1,
+      totalAllTypes: result.activities.length,
+      pages: result.pages,
+      rateLimitUsage: result.rateLimitUsage,
+      rateLimitLimit: result.rateLimitLimit,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
