@@ -8,6 +8,7 @@ import * as api from "../lib/api-client";
 const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
+const STRAVA_SYNC_STALE_HOURS = 3;
 
 interface GearItem {
   id: string;
@@ -31,6 +32,9 @@ export default function AlertsPage() {
   const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
   const [zoneReviewDue, setZoneReviewDue] = useState(false);
   const [zoneReviewDays, setZoneReviewDays] = useState(0);
+  const [stravaSyncStale, setStravaSyncStale] = useState(false);
+  const [lastStravaSync, setLastStravaSync] = useState<string | null>(null);
+  const [stravaSyncHoursAgo, setStravaSyncHoursAgo] = useState(0);
 
   // Migration state
   const [migrationNeeded, setMigrationNeeded] = useState(false);
@@ -61,11 +65,20 @@ export default function AlertsPage() {
       }
 
       // Load all data in parallel
-      const [fullBackup, zones, gearItems] = await Promise.all([
+      const [fullBackup, zones, gearItems, stravaSync] = await Promise.all([
         api.getKV<string>("last-full-backup"),
         api.getKV<{ zonesUpdatedAt?: string }>("strava-zones"),
         api.getGearItems<GearItem>(),
+        api.getKV<string>("strava-last-sync"),
       ]);
+
+      // Strava sync staleness
+      setLastStravaSync(stravaSync);
+      if (stravaSync) {
+        const hours = (Date.now() - new Date(stravaSync).getTime()) / (1000 * 60 * 60);
+        setStravaSyncHoursAgo(Math.floor(hours));
+        setStravaSyncStale(hours >= STRAVA_SYNC_STALE_HOURS);
+      }
 
       // Full backup
       setLastFullBackup(fullBackup);
@@ -233,6 +246,25 @@ export default function AlertsPage() {
             <p className="text-slate-400 font-mono text-sm">
               JARVIS backup is up to date. Last backup: {new Date(lastFullBackup).toLocaleDateString()}. You can manage backups in <Link href="/settings/backup" className="text-slate-300 underline hover:text-white">Settings → Backup</Link>.
             </p>
+          </section>
+        )}
+
+        {stravaSyncStale && (
+          <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
+            <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
+              Strava auto-sync is stale
+            </h2>
+            <p className="text-slate-400 font-mono text-sm mb-4">
+              {lastStravaSync
+                ? `Last synced ${stravaSyncHoursAgo} hours ago. N8N may be down or the Strava token may have expired.`
+                : "No Strava sync has been recorded yet. Connect Strava and verify the N8N workflow is running."}
+            </p>
+            <Link
+              href="/settings/cycling"
+              className="inline-block px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Open Settings → Cycling
+            </Link>
           </section>
         )}
 

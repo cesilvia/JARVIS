@@ -36,6 +36,8 @@ interface WedgeSummaryCardProps {
   textCenter?: number;
   /** If true, left-justify bullet lines instead of centering them */
   bulletsLeft?: boolean;
+  /** Optional colored dot rendered after the first line's value */
+  statusDot?: { color: string };
 }
 
 export default function WedgeSummaryCard({
@@ -55,6 +57,7 @@ export default function WedgeSummaryCard({
   fontScale = 1,
   textCenter,
   bulletsLeft,
+  statusDot,
 }: WedgeSummaryCardProps) {
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
@@ -388,6 +391,18 @@ export default function WedgeSummaryCard({
                     }
                   })}
                 </text>
+                {statusDot && displayLines.length > 0 && (() => {
+                  const firstRow = displayLines[0];
+                  const y0 = rowY(0);
+                  const valText = firstRow.value ?? firstRow.label;
+                  const dotX = (firstRow.value !== null && labelAlign !== "left")
+                    ? L * TEXT_VALUE_LEFT_X + valText.length * CHAR_WIDTH + CHAR_WIDTH * 0.6
+                    : L * TEXT_LEFT_X + valText.length * CHAR_WIDTH + CHAR_WIDTH * 0.6;
+                  const dotR = fontSize * 0.25;
+                  return (
+                    <circle cx={dotX} cy={y0 - fontSize * 0.35} r={dotR} fill={statusDot.color} />
+                  );
+                })()}
               </g>
             );
           })()}

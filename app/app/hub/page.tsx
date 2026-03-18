@@ -531,6 +531,17 @@ async function hubGetAlertSummaries(): Promise<string[]> {
   } catch {
     // ignore
   }
+  try {
+    const lastSync = await api.getKV<string>("strava-last-sync");
+    if (lastSync) {
+      const hours = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
+      if (hours >= 3) {
+        lines.push("Strava sync stale");
+      }
+    }
+  } catch {
+    // ignore
+  }
   return lines;
 }
 
@@ -541,6 +552,7 @@ export default function HubPage() {
   const [hasAlerts, setHasAlerts] = useState(false);
   const [alertSummaries, setAlertSummaries] = useState<string[]>([]);
   const [stravaSummary, setStravaSummary] = useState<string[]>([]);
+  const [stravaSyncDotColor, setStravaSyncDotColor] = useState<string | undefined>();
   const [settingsSummary, setSettingsSummary] = useState<string[]>([]);
   const [germanSummary, setGermanSummary] = useState<string[]>([]);
   const [germanColors, setGermanColors] = useState<(string | undefined)[]>([]);
@@ -613,6 +625,15 @@ export default function HubPage() {
               const status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
               tsbLabel = `TSB: ${Math.round(tsb)} (${status})`;
             }
+          }
+        } catch { /* ignore */ }
+
+        // Sync status dot color
+        try {
+          const lastSync = await api.getKV<string>("strava-last-sync");
+          if (lastSync) {
+            const hoursAgo = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
+            setStravaSyncDotColor(hoursAgo <= 2 ? "#22c55e" : hoursAgo <= 6 ? "#eab308" : "#ef4444");
           }
         } catch { /* ignore */ }
 
@@ -916,6 +937,7 @@ export default function HubPage() {
                       }
                       noBullets={wedgeModule === "strava" || wedgeModule === "german" || wedgeModule === "nutrition"}
                       summaryColors={wedgeModule === "german" ? germanColors : undefined}
+                      statusDot={wedgeModule === "strava" && stravaSyncDotColor ? { color: stravaSyncDotColor } : undefined}
                       summaryDefinitions={wedgeModule === "german" ? germanDefinitions : undefined}
                       labelAlign={wedgeModule === "german" ? "left" : "right"}
                       fontScale={wedgeModule === "nutrition" ? 1.2 : 1}
