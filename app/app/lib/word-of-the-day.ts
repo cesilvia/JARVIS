@@ -92,7 +92,16 @@ export function formatWotdForWedge(words: WordOfTheDay[]): WotdWedgeData {
   for (const { word } of words) {
     const pos = POS_ABBREV[word.partOfSpeech] || word.partOfSpeech;
     const nounPart = word.article ? `${word.article} ${word.german}` : word.german;
-    lines.push(`${pos}: ${nounPart}`);
+    // Badge suffix for weak nouns, preposition case, verb kickers
+    let badge = "";
+    if (word.weakNoun) badge = " [W]";
+    else if (word.partOfSpeech === "preposition" && word.category) {
+      if (word.category === "Akkusativ") badge = " [Akk]";
+      else if (word.category === "Dativ") badge = " [Dat]";
+      else if (word.category === "Genitiv") badge = " [Gen]";
+      else if (word.category.includes("Two-Way") || word.category.includes("Wechsel")) badge = " [↕]";
+    } else if (word.partOfSpeech === "conjunction" && word.category === "Subordinating") badge = " [VK]";
+    lines.push(`${pos}: ${nounPart}${badge}`);
     colors.push(word.article ? ARTICLE_WEDGE_COLORS[word.article] : undefined);
     definitions.push(word.english || undefined);
   }

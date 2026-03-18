@@ -5,12 +5,14 @@ import Navigation from "../components/Navigation";
 import CircuitBackground from "../hub/CircuitBackground";
 import * as api from "../lib/api-client";
 import { getWordsOfTheDay, type WordOfTheDay } from "../lib/word-of-the-day";
+import type { VocabWordBase } from "../lib/german-types";
 import { EXPANDED_NOUNS } from "../lib/german-vocab/nouns";
 import { EXPANDED_VERBS } from "../lib/german-vocab/verbs";
 import { EXPANDED_ADJECTIVES } from "../lib/german-vocab/adjectives";
 import { EXPANDED_ADVERBS } from "../lib/german-vocab/adverbs";
 import { EXPANDED_PREPOSITIONS } from "../lib/german-vocab/prepositions";
 import { EXPANDED_CONJUNCTIONS } from "../lib/german-vocab/conjunctions";
+import { generateConjugationBuiltins } from "../lib/german-conjugation-cards";
 
 // ─── Theme ───────────────────────────────────────────────────────
 const theme = { primary: "#00D9FF", secondary: "#67C7EB", bg: "#000000" };
@@ -19,27 +21,49 @@ const theme = { primary: "#00D9FF", secondary: "#67C7EB", bg: "#000000" };
 const ARTICLE_COLORS: Record<string, string> = {
   der: "#4A9EFF",  // blue - masculine
   die: "#FF4A6A",  // red - feminine
-  das: "#4AFF88",  // green - neuter
+  das: "#FFB347",  // orange - neuter
 };
+
+// ─── Badge Helper ────────────────────────────────────────────────
+// Yellow badges: W (weak noun), Akk/Dat/Gen/↕ (preposition case), VK (verb kicker)
+function WordBadge({ word }: { word: { weakNoun?: boolean; partOfSpeech: string; category?: string; verbKicker?: boolean } }) {
+  let label = "";
+  if (word.weakNoun) label = "W";
+  else if (word.partOfSpeech === "preposition" && word.category) {
+    if (word.category === "Akkusativ") label = "Akk";
+    else if (word.category === "Dativ") label = "Dat";
+    else if (word.category === "Genitiv") label = "Gen";
+    else if (word.category.includes("Two-Way") || word.category.includes("Wechsel")) label = "↕";
+  } else if (word.partOfSpeech === "conjunction" && (word.verbKicker || word.category === "Subordinating")) label = "VK";
+  if (!label) return null;
+  return (
+    <span
+      className="inline-flex items-center justify-center text-[10px] font-bold rounded ml-1.5"
+      style={{
+        background: "#FFD70030",
+        border: "1px solid #FFD700",
+        color: "#FFD700",
+        padding: "0px 4px",
+        lineHeight: "16px",
+        verticalAlign: "middle",
+      }}
+      title={
+        label === "W" ? "Weak noun (n-Deklination)" :
+        label === "VK" ? "Verb kicker (subordinating)" :
+        label === "↕" ? "Two-way preposition (Akk or Dat)" :
+        `Governs ${label}`
+      }
+    >
+      {label}
+    </span>
+  );
+}
 
 // ─── Types ───────────────────────────────────────────────────────
 type Tab = "dictionary" | "flashcards" | "grammar" | "quiz" | "backup";
 
-interface VocabWord {
-  german: string;
-  english: string;
-  article?: string;       // der/die/das for nouns
-  partOfSpeech: "noun" | "verb" | "adjective" | "adverb" | "phrase" | "preposition" | "conjunction";
-  category?: string;
-  example?: string;        // example sentence
-  exampleEn?: string;      // English translation of example
-  // Spaced repetition fields
-  nextReview: number;      // timestamp
-  interval: number;        // days until next review
-  easeFactor: number;      // SM-2 ease factor
-  repetitions: number;     // successful repetitions in a row
-  source: "builtin" | "lookup";
-}
+// VocabWord is imported from german-types.ts via VocabWordBase + SR fields
+type VocabWord = import("../lib/german-types").VocabWord;
 
 interface QuizQuestion {
   type: "article" | "translation" | "conjugation" | "case";
@@ -238,13 +262,18 @@ const BUILTIN_PHRASES: Omit<VocabWord, "nextReview" | "interval" | "easeFactor" 
   { german: "Ich möchte...", english: "I would like...", partOfSpeech: "phrase", category: "Travel" },
 ];
 
-const ALL_BUILTIN = [
+const ALL_BASE_VOCAB: VocabWordBase[] = [
   ...BUILTIN_NOUNS, ...BUILTIN_VERBS, ...BUILTIN_ADJECTIVES, ...BUILTIN_PHRASES,
   ...EXPANDED_NOUNS, ...EXPANDED_VERBS, ...EXPANDED_ADJECTIVES,
   ...EXPANDED_ADVERBS, ...EXPANDED_PREPOSITIONS, ...EXPANDED_CONJUNCTIONS,
 ];
 
-function initWord(w: Omit<VocabWord, "nextReview" | "interval" | "easeFactor" | "repetitions" | "source">, source: "builtin" | "lookup" = "builtin"): VocabWord {
+// Generate conjugation flashcards from all verbs (500 verbs × 4 tenses × 6 pronouns = ~12,000 cards)
+const CONJUGATION_CARDS = generateConjugationBuiltins(ALL_BASE_VOCAB);
+
+const ALL_BUILTIN: VocabWordBase[] = [...ALL_BASE_VOCAB, ...CONJUGATION_CARDS];
+
+function initWord(w: VocabWordBase, source: "builtin" | "lookup" = "builtin"): VocabWord {
   return { ...w, nextReview: 0, interval: 0, easeFactor: 2.5, repetitions: 0, source };
 }
 
@@ -589,9 +618,18 @@ export default function GermanPage() {
       try {
         saved = (await api.getVocab()) as VocabWord[];
       } catch { /* ignore */ }
-      // Merge: keep saved state for known words, add any new builtins
+      // Merge: keep saved SM-2 state, apply builtin metadata (weakNoun, etc.), add new builtins
+      const builtinMap = new Map(ALL_BUILTIN.map((b) => [`${b.german}|${b.partOfSpeech}`, b]));
       const savedKeys = new Set(saved.map((w) => `${w.german}|${w.partOfSpeech}`));
-      const merged = [...saved];
+      // Update existing saved words with builtin metadata
+      const merged = saved.map((w) => {
+        const builtin = builtinMap.get(`${w.german}|${w.partOfSpeech}`);
+        if (builtin) {
+          return { ...w, weakNoun: builtin.weakNoun, category: builtin.category || w.category };
+        }
+        return w;
+      });
+      // Add new builtins not yet in saved
       for (const b of ALL_BUILTIN) {
         const key = `${b.german}|${b.partOfSpeech}`;
         if (!savedKeys.has(key)) {
@@ -728,6 +766,7 @@ function WordOfTheDaySection({ vocab, saveVocab }: { vocab: VocabWord[]; saveVoc
                   </span>
                 )}
                 <span style={{ color: theme.primary }}>{word.german}</span>
+                <WordBadge word={word} />
                 <span className="text-sm font-normal ml-2" style={{ color: theme.secondary }}>
                   — {word.english}
                 </span>
@@ -849,6 +888,7 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
                 <span style={{ color: w.article ? ARTICLE_COLORS[w.article] || theme.primary : theme.primary }}>
                   {w.article ? `${w.article} ${w.german}` : w.german}
                 </span>
+                <WordBadge word={w} />
                 <span style={{ color: theme.secondary }}>—</span>
                 <span style={{ color: "#fff" }}>{w.english}</span>
                 {w.partOfSpeech !== "phrase" && <span className="text-xs" style={{ color: theme.secondary }}>({w.partOfSpeech})</span>}
@@ -903,6 +943,7 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
                   <span style={{ color: w.article ? ARTICLE_COLORS[w.article] || theme.primary : theme.primary }}>
                     {w.article ? `${w.article} ${w.german}` : w.german}
                   </span>
+                  <WordBadge word={w} />
                   <span style={{ color: theme.secondary }}>—</span>
                   <span style={{ color: "#fff" }}>{w.english}</span>
                 </div>
@@ -919,7 +960,7 @@ function DictionaryTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
 function FlashcardsTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (fn: (prev: VocabWord[]) => VocabWord[]) => void }) {
   const [flipped, setFlipped] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [filter, setFilter] = useState<"all" | "due" | "noun" | "verb" | "adjective" | "phrase">("due");
+  const [filter, setFilter] = useState<"all" | "due" | "noun" | "verb" | "adjective" | "phrase" | "conjugation">("due");
   const [showFront, setShowFront] = useState<"german" | "english">("german");
 
   const filteredVocab = useMemo(() => {
@@ -945,7 +986,7 @@ function FlashcardsTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
     <div>
       {/* Filter bar */}
       <div className="flex gap-2 mb-4 items-center flex-wrap">
-        {(["due", "all", "noun", "verb", "adjective", "phrase"] as const).map((f) => (
+        {(["due", "all", "noun", "verb", "adjective", "phrase", "conjugation"] as const).map((f) => (
           <button
             key={f}
             onClick={() => { setFilter(f); setCurrentIndex(0); setFlipped(false); }}
@@ -1001,6 +1042,7 @@ function FlashcardsTab({ vocab, saveVocab }: { vocab: VocabWord[]; saveVocab: (f
                 </p>
                 <p className="text-xs uppercase tracking-wider" style={{ color: theme.secondary }}>
                   {current.partOfSpeech}{current.category ? ` — ${current.category}` : ""}
+                  <WordBadge word={current} />
                 </p>
                 <p className="text-xs mt-4" style={{ color: theme.secondary + "80" }}>tap to flip</p>
               </div>

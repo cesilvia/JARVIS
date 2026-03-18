@@ -544,6 +544,38 @@
 - **Rationale:** Avoided adding `@aws-sdk/client-s3` (~50MB) to the Docker image. R2 is S3-compatible, so native `crypto` module handles HMAC-SHA256 signing.
 - **Status:** Implemented
 
+### German Page: Conjugation Engine, Badges, and Flashcard Expansion
+
+**Decision:** Build a conjugation engine covering 4 tenses (Präsens, Präteritum, Perfekt, Futur I)
+- **Rationale:** User wanted verb conjugation flashcards auto-generated for all 500 verbs × 6 pronouns × 4 tenses = 12,000 cards. Must be 100% accurate — built a comprehensive irregular verb lookup table (100+ entries) covering stem-vowel changes, strong/weak/mixed verbs, separable/inseparable prefixes, sein vs haben auxiliary, reflexive verbs.
+- **Implementation:** `app/lib/german-conjugation.ts` (~500 lines) with `conjugateVerb()` and `generateFlashcards()`. `app/lib/german-conjugation-cards.ts` generates VocabWordBase cards from verb list. Cards have front="ich arbeite", back="I work", partOfSpeech="conjugation".
+- **Status:** Implemented
+
+**Decision:** Expand verb vocabulary to 500 verbs
+- **Rationale:** User wanted top 500 German verbs for comprehensive conjugation coverage.
+- **Implementation:** Added 35 new verbs in "Additional Common Verbs" section of `app/lib/german-vocab/verbs.ts`.
+- **Status:** Implemented
+
+**Decision:** Fix neuter noun color from green to orange
+- **Rationale:** Neuter (`das`) nouns were incorrectly green (#4AFF88). User wanted orange to distinguish from masculine (blue) and feminine (pink).
+- **Implementation:** Changed `das` color to `#FFB347` in page.tsx.
+- **Status:** Implemented
+
+**Decision:** Add yellow badges for special word properties (W, Akk, Dat, Gen, ↕, VK)
+- **Rationale:** User wanted visual indicators for: weak/n-declension nouns (W), preposition case governance (Akk/Dat/Gen/↕ for two-way), subordinating conjunction verb kickers (VK). All badges yellow for visibility.
+- **Implementation:** `WordBadge` component in page.tsx. Badges appear in WotD cards, dictionary results, recent lookups, and flashcard front. Badge text also appended to hub wedge display via word-of-the-day.ts.
+- **Status:** Implemented
+
+**Decision:** Add "conjugation" as a partOfSpeech type and flashcard filter
+- **Rationale:** 12,000 conjugation cards need their own filter in the flashcard tab so users can study conjugations separately.
+- **Implementation:** Added to VocabWord union type in german-types.ts. Added filter option in flashcard tab dropdown.
+- **Status:** Implemented
+
+**Decision:** Mark weak nouns with `weakNoun: true` field
+- **Rationale:** N-Deklination nouns (e.g., Löwe → Löwen in accusative/dative/genitive) need special identification for the W badge and future declension detail page.
+- **Implementation:** Added `weakNoun?: boolean` to VocabWord type. Marked 8 nouns in nouns.ts (Nachbar, Mensch, Kollege, Kunde, Polizist, Bär, Gedanke, Name). Merge logic preserves weakNoun from builtins to saved words.
+- **Status:** Implemented
+
 ### German Wedge: Per-Label X Positioning
 
 **Decision:** Add per-label horizontal nudges for `v:` and `n:` on the German hub wedge
