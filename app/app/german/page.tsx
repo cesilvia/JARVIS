@@ -66,7 +66,7 @@ function WordBadge({ word }: { word: { weakNoun?: boolean; partOfSpeech: string;
 }
 
 // ─── Types ───────────────────────────────────────────────────────
-type Tab = "dictionary" | "flashcards" | "grammar" | "quiz" | "backup";
+type Tab = "wotd-history" | "dictionary" | "flashcards" | "grammar" | "quiz" | "backup";
 
 // VocabWord is imported from german-types.ts via VocabWordBase + SR fields
 type VocabWord = import("../lib/german-types").VocabWord;
@@ -681,7 +681,7 @@ export default function GermanPage() {
 
         {/* Tab Bar */}
         <div className="flex gap-1 mb-6 flex-wrap">
-          {(["dictionary", "flashcards", "grammar", "quiz", "backup"] as Tab[]).map((t) => (
+          {(["wotd-history", "dictionary", "flashcards", "grammar", "quiz", "backup"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -693,11 +693,12 @@ export default function GermanPage() {
                 textShadow: tab === t ? `0 0 6px ${theme.primary}` : "none",
               }}
             >
-              {t === "backup" ? "Export / Import" : t}
+              {t === "wotd-history" ? "WotD" : t === "backup" ? "Export / Import" : t}
             </button>
           ))}
         </div>
 
+        {tab === "wotd-history" && <WotdHistoryTab vocab={vocab} onDetail={setDetailWord} />}
         {tab === "dictionary" && <DictionaryTab vocab={vocab} saveVocab={saveVocab} onDetail={setDetailWord} />}
         {tab === "flashcards" && <FlashcardsTab vocab={vocab} saveVocab={saveVocab} onDetail={setDetailWord} />}
         {tab === "grammar" && <GrammarTab />}
@@ -797,6 +798,80 @@ function WordOfTheDaySection({ vocab, onDetail }: { vocab: VocabWord[]; onDetail
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── WotD History Tab ───────────────────────────────────────────
+const POS_ORDER = ["verb", "noun", "adjective", "adverb", "preposition", "conjunction"] as const;
+const POS_LABEL: Record<string, string> = {
+  verb: "Verbs", noun: "Nouns", adjective: "Adjectives",
+  adverb: "Adverbs", preposition: "Prepositions", conjunction: "Conjunctions",
+};
+
+function WotdHistoryTab({ vocab, onDetail }: { vocab: VocabWord[]; onDetail: (w: VocabWordBase | null) => void }) {
+  const grouped = useMemo(() => {
+    const wotdWords = vocab.filter((w) => w.source === "wotd");
+    const groups: Record<string, VocabWord[]> = {};
+    for (const w of wotdWords) {
+      const pos = w.partOfSpeech;
+      if (!groups[pos]) groups[pos] = [];
+      groups[pos].push(w);
+    }
+    // Sort each group alphabetically
+    for (const pos of Object.keys(groups)) {
+      groups[pos].sort((a, b) => a.german.localeCompare(b.german));
+    }
+    return groups;
+  }, [vocab]);
+
+  const totalCount = Object.values(grouped).reduce((sum, g) => sum + g.length, 0);
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold mb-1" style={{ color: theme.primary }}>Word of the Day History</h2>
+      <p className="text-sm mb-4" style={{ color: theme.secondary + "80" }}>{totalCount} word{totalCount !== 1 ? "s" : ""}</p>
+      {totalCount === 0 && (
+        <p className="text-sm" style={{ color: theme.secondary + "60" }}>
+          No words yet — words are added automatically each day from the Wort des Tages section above.
+        </p>
+      )}
+      {POS_ORDER.filter((pos) => grouped[pos]?.length).map((pos) => (
+        <div key={pos} className="mb-5">
+          <h3 className="text-sm font-mono uppercase tracking-wider mb-2" style={{ color: theme.secondary }}>
+            {POS_LABEL[pos] || pos} ({grouped[pos].length})
+          </h3>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+            {grouped[pos].map((word) => (
+              <div
+                key={`${word.german}-${word.partOfSpeech}`}
+                className="p-2.5 rounded flex items-start justify-between"
+                style={{
+                  background: `${theme.primary}08`,
+                  border: `1px solid ${theme.primary}20`,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div className="font-bold" style={{ color: word.article ? ARTICLE_COLORS[word.article] || theme.primary : theme.primary }}>
+                    {word.article ? `${word.article} ${word.german}` : word.german}
+                    <WordBadge word={word} />
+                  </div>
+                  <div className="text-sm" style={{ color: theme.secondary }}>{word.english}</div>
+                </div>
+                {(word.partOfSpeech === "noun" && word.article || word.partOfSpeech === "verb" || word.partOfSpeech === "adjective") && (
+                  <button
+                    onClick={() => onDetail(word)}
+                    className="text-xs px-2 py-0.5 rounded ml-2 shrink-0"
+                    style={{ border: `1px solid ${theme.primary}30`, color: theme.secondary }}
+                  >
+                    {word.partOfSpeech === "noun" ? "Cases" : word.partOfSpeech === "verb" ? "Conj." : "Endings"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

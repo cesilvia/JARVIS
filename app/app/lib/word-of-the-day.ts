@@ -8,11 +8,19 @@ import { EXPANDED_PREPOSITIONS } from "./german-vocab/prepositions";
 import { EXPANDED_CONJUNCTIONS } from "./german-vocab/conjunctions";
 
 // ─── Seeded PRNG (Linear Congruential Generator) ────────────────
+// Uses splitmix32-style finalizer for good avalanche — similar date
+// strings (e.g. consecutive days) produce very different seeds.
 function hashDateString(dateStr: string): number {
   let hash = 0;
   for (let i = 0; i < dateStr.length; i++) {
     hash = ((hash << 5) - hash + dateStr.charCodeAt(i)) | 0;
   }
+  // Avalanche mix (splitmix32 finalizer) — ensures nearby hashes diverge
+  hash = (hash ^ (hash >>> 16)) | 0;
+  hash = Math.imul(hash, 0x45d9f3b);
+  hash = (hash ^ (hash >>> 16)) | 0;
+  hash = Math.imul(hash, 0x45d9f3b);
+  hash = (hash ^ (hash >>> 16)) | 0;
   return Math.abs(hash);
 }
 
@@ -106,17 +114,18 @@ export function getWordsOfTheDay(date: Date, vocab: VocabWord[]): WordOfTheDay[]
   return results;
 }
 
-// ─── Auto-add WotD words to flashcard deck ─────────────────────
-// Finds any WotD words not yet in the user's vocab and saves them.
-// Safe to call repeatedly — only saves words that are missing.
+// ─── Auto-add / tag WotD words in flashcard deck ────────────────
+// Returns words that need saving: new words not yet in vocab, plus
+// existing words whose source should be updated to "wotd".
+// Safe to call repeatedly — only returns words that actually changed.
 export function getNewWotdWords(words: WordOfTheDay[], vocab: VocabWord[]): VocabWord[] {
-  const newWords: VocabWord[] = [];
+  const toSave: VocabWord[] = [];
   for (const { word } of words) {
-    const exists = vocab.some(
+    const existing = vocab.find(
       (w) => w.german === word.german && w.partOfSpeech === word.partOfSpeech,
     );
-    if (!exists) {
-      newWords.push({
+    if (!existing) {
+      toSave.push({
         ...word,
         nextReview: 0,
         interval: 0,
@@ -124,9 +133,11 @@ export function getNewWotdWords(words: WordOfTheDay[], vocab: VocabWord[]): Voca
         repetitions: 0,
         source: "wotd",
       });
+    } else if (existing.source !== "wotd") {
+      toSave.push({ ...existing, source: "wotd" });
     }
   }
-  return newWords;
+  return toSave;
 }
 
 // ─── Noun color coding ──────────────────────────────────────────
