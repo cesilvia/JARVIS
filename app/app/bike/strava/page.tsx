@@ -57,9 +57,6 @@ async function syncActivities(): Promise<StravaActivity[]> {
   if (!actRes.ok) throw new Error((await actRes.json().catch(() => ({}))).error || `${actRes.status}`);
   const actData = await actRes.json();
   const { activities } = actData;
-  // Store diagnostic info for display
-  (syncActivities as unknown as { lastDiag?: string }).lastDiag =
-    `${actData.totalAllTypes} fetched, ${actData.total} rides, ${actData.pages} pg, rate: ${actData.rateLimitUsage || "?"}/${actData.rateLimitLimit || "?"}`;
   if (!Array.isArray(activities) || activities.length === 0) {
     // Don't overwrite stored rides with empty results — return what we already have
     const stored = await api.getActivities<StravaActivity>();
@@ -1267,9 +1264,8 @@ export default function StravaPage() {
                 try {
                   const acts = await syncActivities();
                   setActivities(acts);
-                  const diag = (syncActivities as unknown as { lastDiag?: string }).lastDiag || "";
-                  setSyncMsg(`Synced ${acts.length} rides (${diag})`);
-                  setTimeout(() => setSyncMsg(""), 10000);
+                  setSyncMsg(`Synced ${acts.length} rides`);
+                  setTimeout(() => setSyncMsg(""), 3000);
                 } catch {
                   setSyncMsg("Sync failed");
                   setTimeout(() => setSyncMsg(""), 5000);
