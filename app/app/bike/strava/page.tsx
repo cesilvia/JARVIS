@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
@@ -208,6 +208,439 @@ function computeFitness(dailyTSS: Map<string, number>, days: number) {
 }
 
 // ─── SVG Charts ─────────────────────────────────────────────────
+
+function SummaryChart({ streams, ride, zones }: {
+  streams: StreamData;
+  ride: StravaActivity;
+  zones: ZoneConfig | null;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hover, setHover] = useState<number | null>(null); // index into stream data
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [selection, setSelection] = useState<[number, number] | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [compareIntervals, setCompareIntervals] = useState<{ label: string; range: [number, number]; stats: ReturnType<typeof computeStatsRef.current> }[]>([]);
+  // Use ref so compareIntervals callback can access computeStats without circular dependency
+  const computeStatsRef = useRef<(s: number, e: number) => { duration: number; np: number; tss: number; iff: string; kj: number; power: number; maxPower: number; speed: string; hr: number; maxHr: number; cadence: number; elevGain: number; distance: string }>(null!);
+
+  const W = 700, H = 275, padL = 10, padR = 10, padT = 28, padB = 25;
+  const cW = W - padL - padR, cH = H - padT - padB;
+
+  // Determine the base length from the longest available stream
+  const baseLen = Math.max(
+    streams.watts?.length || 0, streams.heartrate?.length || 0,
+    streams.cadence?.length || 0, streams.velocity_smooth?.length || 0,
+    streams.altitude?.length || 0
+  );
+  const step = Math.max(1, Math.floor(baseLen / 600));
+
+  // Double-pass EMA (forward + backward) for heavy smoothing without lag
+  const sample = useCallback((data: number[] | undefined) => {
+    if (!data) return null;
+    const alpha = 0.015; // ~120s effective window
+    // Forward pass
+    const fwd: number[] = [data[0]];
+    for (let i = 1; i < data.length; i++) {
+      fwd.push(alpha * data[i] + (1 - alpha) * fwd[i - 1]);
+    }
+    // Backward pass (eliminates EMA lag)
+    const bwd: number[] = new Array(data.length);
+    bwd[data.length - 1] = fwd[data.length - 1];
+    for (let i = data.length - 2; i >= 0; i--) {
+      bwd[i] = alpha * fwd[i] + (1 - alpha) * bwd[i + 1];
+    }
+    return bwd.filter((_, i) => i % step === 0);
+  }, [step]);
+
+  const power = useMemo(() => sample(streams.watts), [sample, streams.watts]);
+  const hr = useMemo(() => sample(streams.heartrate), [sample, streams.heartrate]);
+  const cadence = useMemo(() => sample(streams.cadence), [sample, streams.cadence]);
+  const speed = useMemo(() => sample(streams.velocity_smooth?.map((v) => v * MPS_TO_MPH)), [sample, streams.velocity_smooth]);
+  const elev = useMemo(() => sample(streams.altitude?.map((v) => v * METERS_TO_FEET)), [sample, streams.altitude]);
+
+  const len = power?.length || hr?.length || cadence?.length || speed?.length || elev?.length || 0;
+  if (len < 2) return <p className="text-xs" style={{ color: "#67C7EB" }}>Not enough stream data for summary.</p>;
+
+  // Scale helpers per series (each has its own Y range)
+  const mkScale = (data: number[] | null) => {
+    if (!data || data.length === 0) return { min: 0, max: 1, toY: () => padT + cH };
+    const min = Math.min(...data);
+    const max = Math.max(...data, min + 1);
+    return { min, max, toY: (v: number) => padT + cH - ((v - min) / (max - min)) * cH };
+  };
+  const pScale = mkScale(power);
+  const hrScale = mkScale(hr);
+  const cadScale = mkScale(cadence);
+  const spdScale = mkScale(speed);
+  const elevScale = mkScale(elev);
+
+  const toX = (i: number) => padL + (i / (len - 1)) * cW;
+
+  const mkPath = (data: number[] | null, scale: { toY: (v: number) => number }) => {
+    if (!data) return "";
+    return data.map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${scale.toY(v).toFixed(1)}`).join(" ");
+  };
+
+  const mkArea = (data: number[] | null, scale: { toY: (v: number) => number }) => {
+    if (!data) return "";
+    const path = mkPath(data, scale);
+    return `${path} L${toX(data.length - 1).toFixed(1)},${padT + cH} L${toX(0).toFixed(1)},${padT + cH} Z`;
+  };
+
+  // Mouse position to data index
+  const posToIdx = useCallback((clientX: number) => {
+    if (!svgRef.current) return 0;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = ((clientX - rect.left) / rect.width) * W;
+    const idx = Math.round(((svgX - padL) / cW) * (len - 1));
+    return Math.max(0, Math.min(len - 1, idx));
+  }, [len, cW]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const idx = posToIdx(e.clientX);
+    setHover(idx);
+    if (dragging && dragStart !== null) {
+      setSelection([Math.min(dragStart, idx), Math.max(dragStart, idx)]);
+    }
+  }, [posToIdx, dragging, dragStart]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const idx = posToIdx(e.clientX);
+    setDragStart(idx);
+    setDragging(true);
+    setSelection(null);
+  }, [posToIdx]);
+
+  const handleMouseUp = useCallback(() => {
+    setDragging(false);
+    if (dragStart !== null && hover !== null && Math.abs(hover - dragStart) < 2) {
+      setSelection(null); // Click, not drag
+    }
+  }, [dragStart, hover]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!dragging) setHover(null);
+  }, [dragging]);
+
+  // Compute stats from RAW stream data for a selection range (downsampled indices)
+  const computeStats = useCallback((startIdx: number, endIdx: number) => {
+    // Map downsampled indices back to raw stream indices
+    const rawStart = startIdx * step;
+    const rawEnd = Math.min(endIdx * step, baseLen - 1);
+
+    const slice = (arr: number[] | undefined) => arr ? arr.slice(rawStart, rawEnd + 1) : [];
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+    const max = (arr: number[]) => arr.length > 0 ? Math.max(...arr) : 0;
+
+    const pSlice = slice(streams.watts);
+    const hrSlice = slice(streams.heartrate);
+    const cadSlice = slice(streams.cadence);
+    const spdSlice = slice(streams.velocity_smooth)?.map((v) => v * MPS_TO_MPH) || [];
+    const elevSlice = slice(streams.altitude)?.map((v) => v * METERS_TO_FEET) || [];
+
+    // Duration: based on actual raw sample count (1Hz = 1 sample per second)
+    const duration = rawEnd - rawStart + 1;
+
+    // NP calculation (30s rolling average of power ^4)
+    let np = 0;
+    if (pSlice.length >= 30) {
+      const rolling: number[] = [];
+      let sum = 0;
+      for (let i = 0; i < pSlice.length; i++) {
+        sum += pSlice[i];
+        if (i >= 30) sum -= pSlice[i - 30];
+        if (i >= 29) rolling.push((sum / 30) ** 4);
+      }
+      np = Math.round(Math.pow(rolling.reduce((s, v) => s + v, 0) / rolling.length, 0.25));
+    } else if (pSlice.length > 0) {
+      np = Math.round(avg(pSlice));
+    }
+
+    const ftp = zones?.ftp || 0;
+    const iff = ftp > 0 ? np / ftp : 0;
+    const tss = ftp > 0 ? Math.round((duration * np * iff) / (ftp * 3600) * 100) : 0;
+    const kj = Math.round(avg(pSlice) * duration / 1000);
+
+    // Elevation gain (sum of positive altitude changes)
+    let elevGain = 0;
+    for (let i = 1; i < elevSlice.length; i++) {
+      const diff = elevSlice[i] - elevSlice[i - 1];
+      if (diff > 0) elevGain += diff;
+    }
+
+    // Distance from stream if available, otherwise proportion
+    let dist: number;
+    if (streams.distance) {
+      const d0 = streams.distance[rawStart] || 0;
+      const d1 = streams.distance[rawEnd] || 0;
+      dist = (d1 - d0) * METERS_TO_MILES;
+    } else {
+      dist = ride.distance * METERS_TO_MILES * (duration / ride.moving_time);
+    }
+
+    return {
+      duration,
+      np,
+      tss,
+      iff: iff.toFixed(2),
+      kj,
+      power: Math.round(avg(pSlice)),
+      maxPower: Math.round(max(pSlice)),
+      speed: spdSlice.length > 0 ? avg(spdSlice).toFixed(1) : "0.0",
+      hr: Math.round(avg(hrSlice)),
+      maxHr: Math.round(max(hrSlice)),
+      cadence: Math.round(avg(cadSlice)),
+      elevGain: Math.round(elevGain),
+      distance: dist.toFixed(1),
+    };
+  }, [streams, baseLen, ride, zones, step]);
+  computeStatsRef.current = computeStats;
+
+  const fullStats = useMemo(() => computeStats(0, len - 1), [computeStats, len]);
+  const selStats = useMemo(() => selection ? computeStats(selection[0], selection[1]) : null, [computeStats, selection]);
+  const displayStats = selStats || fullStats;
+
+  // Time axis labels
+  const totalSec = ride.moving_time;
+  const timeLabels = useMemo(() => {
+    const labels: { x: number; label: string }[] = [];
+    const count = 6;
+    for (let i = 0; i <= count; i++) {
+      const sec = (i / count) * totalSec;
+      const min = Math.floor(sec / 60);
+      const hr = Math.floor(min / 60);
+      labels.push({
+        x: padL + (i / count) * cW,
+        label: hr > 0 ? `${hr}:${String(min % 60).padStart(2, "0")}:00` : `${min}:00`,
+      });
+    }
+    return labels;
+  }, [totalSec, cW]);
+
+  // FTP line
+  const ftpY = zones?.ftp ? pScale.toY(zones.ftp) : null;
+
+  // Hover tooltip values
+  const hoverVals = hover !== null ? {
+    power: power?.[hover],
+    hr: hr?.[hover],
+    cadence: cadence?.[hover],
+    speed: speed?.[hover],
+    elev: elev?.[hover],
+    time: formatTime(Math.round((hover / len) * ride.moving_time)),
+  } : null;
+
+  return (<>
+    <div className="mb-3 flex gap-0">
+      {/* Chart */}
+      <div className="flex-1 min-w-0">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full select-none"
+          preserveAspectRatio="xMidYMid meet"
+          onMouseMove={handleMouseMove}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          style={{ cursor: "crosshair" }}
+        >
+          {/* Legend */}
+          {(() => {
+            const items = [
+              ...(power ? [{ color: "#FFE030", label: "Power" }] : []),
+              ...(hr ? [{ color: "#FF3333", label: "HR" }] : []),
+              ...(cadence ? [{ color: "#FFFFFF", label: "Cadence" }] : []),
+              ...(speed ? [{ color: "#00D9FF", label: "Speed" }] : []),
+              ...(elev ? [{ color: "#888888", label: "Elevation" }] : []),
+            ];
+            let x = padL;
+            return items.map((item, i) => {
+              const startX = x;
+              x += item.label.length * 8 + 32;
+              return (
+                <g key={i}>
+                  <line x1={startX} y1={10} x2={startX + 18} y2={10} stroke={item.color} strokeWidth="2.5" />
+                  <text x={startX + 22} y={14} fill={item.color} fontSize="12" fontWeight="500">{item.label}</text>
+                </g>
+              );
+            });
+          })()}
+
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+            <line key={f} x1={padL} y1={padT + cH * (1 - f)} x2={padL + cW} y2={padT + cH * (1 - f)} stroke="#67C7EB" strokeOpacity="0.08" strokeWidth="0.5" />
+          ))}
+
+          {/* Elevation fill (gray) */}
+          {elev && <path d={mkArea(elev, elevScale)} fill="rgba(160,160,160,0.3)" />}
+
+          {/* FTP line */}
+          {ftpY !== null && ftpY >= padT && ftpY <= padT + cH && (
+            <>
+              <line x1={padL} y1={ftpY} x2={padL + cW} y2={ftpY} stroke="#FF8C00" strokeWidth="1" strokeDasharray="4,3" strokeOpacity="0.6" />
+              <text x={padL + cW + 3} y={ftpY + 3} fill="#FF8C00" fontSize="8" opacity="0.7">{zones!.ftp} FTP</text>
+            </>
+          )}
+
+          {/* Saved interval highlights */}
+          {compareIntervals.map((interval, i) => {
+            const x0 = toX(interval.range[0]);
+            const w = toX(interval.range[1]) - x0;
+            return (
+              <g key={`int-${i}`}>
+                <rect x={x0} y={padT} width={w} height={cH} fill="rgba(0,217,255,0.1)" stroke="#00D9FF" strokeWidth="0.5" strokeOpacity="0.4" />
+                <rect x={x0} y={padT + cH - 14} width={32} height={14} rx="2" fill="rgba(0,0,0,0.8)" stroke="#00D9FF" strokeWidth="0.5" strokeOpacity="0.5" />
+                <text x={x0 + 16} y={padT + cH - 4} fill="#00D9FF" fontSize="9" fontWeight="bold" textAnchor="middle">{interval.label}</text>
+              </g>
+            );
+          })}
+
+          {/* Active selection highlight */}
+          {selection && (
+            <rect
+              x={toX(selection[0])} y={padT}
+              width={toX(selection[1]) - toX(selection[0])} height={cH}
+              fill="rgba(0,217,255,0.15)"
+            />
+          )}
+
+          {/* Data lines */}
+          {power && <path d={mkPath(power, pScale)} fill="none" stroke="#FFE030" strokeWidth="1.4" />}
+          {hr && <path d={mkPath(hr, hrScale)} fill="none" stroke="#FF3333" strokeWidth="1.2" />}
+          {cadence && <path d={mkPath(cadence, cadScale)} fill="none" stroke="#FFFFFF" strokeWidth="1" strokeOpacity="0.85" />}
+          {speed && <path d={mkPath(speed, spdScale)} fill="none" stroke="#00D9FF" strokeWidth="0.8" strokeOpacity="0.9" />}
+
+          {/* Time axis */}
+          {timeLabels.map((t, i) => (
+            <text key={i} x={t.x} y={H - 3} fill="#B0E0FF" fontSize="10" textAnchor="middle">{t.label}</text>
+          ))}
+
+
+          {/* Hover line + tooltip (hidden during selection) */}
+          {hover !== null && hoverVals && !selection && (
+            <>
+              <line x1={toX(hover)} y1={padT} x2={toX(hover)} y2={padT + cH} stroke="#FFFFFF" strokeWidth="0.5" strokeOpacity="0.5" />
+              <rect x={Math.min(toX(hover) + 8, padL + cW - 165)} y={padT + 2} width="155" height="115" rx="4" fill="rgba(0,0,0,0.92)" stroke="#00D9FF" strokeWidth="0.5" strokeOpacity="0.5" />
+              {[
+                { label: "Time", val: hoverVals.time, color: "#67C7EB" },
+                { label: "Elevation", val: hoverVals.elev != null ? `${Math.round(hoverVals.elev)}` : "—", color: "#888888" },
+                { label: "HR", val: hoverVals.hr != null ? `${Math.round(hoverVals.hr)}` : "—", color: "#FF3333" },
+                { label: "Cadence", val: hoverVals.cadence != null ? `${Math.round(hoverVals.cadence)}` : "—", color: "#FFFFFF" },
+                { label: "Power", val: hoverVals.power != null ? `${Math.round(hoverVals.power)}` : "—", color: "#FFE030" },
+                { label: "Speed", val: hoverVals.speed != null ? `${hoverVals.speed.toFixed(1)} mph` : "—", color: "#00D9FF" },
+              ].map((row, i) => {
+                const tx = Math.min(toX(hover) + 16, padL + cW - 157);
+                return (
+                  <g key={i}>
+                    <text x={tx} y={padT + 20 + i * 17} fill={row.color} fontSize="11" opacity="0.8">{row.label}</text>
+                    <text x={tx + 130} y={padT + 20 + i * 17} fill={row.color} fontSize="11" textAnchor="end" fontFamily="monospace" fontWeight="bold">{row.val}</text>
+                  </g>
+                );
+              })}
+            </>
+          )}
+        </svg>
+      </div>
+
+      {/* Stats panel */}
+      <div className="w-44 flex-shrink-0 pl-3 text-xs" style={{ color: "#67C7EB" }}>
+        {selection && (
+          <div className="text-[10px] mb-1 px-1.5 py-0.5 rounded bg-[rgba(0,217,255,0.1)] text-[#00D9FF]">Selected range</div>
+        )}
+        {[
+          { label: "Duration", val: formatTime(displayStats.duration) },
+          { label: "NP", val: `${displayStats.np}`, sup: "®" },
+          { label: "TSS", val: `${displayStats.tss}`, sup: "®", extra: !selStats ? undefined : `/ ${fullStats.tss}` },
+          { label: "IF", val: displayStats.iff, sup: "®", extra: !selStats ? undefined : `/ ${fullStats.iff}` },
+          { label: "kJ (Cal)", val: `${displayStats.kj}`, extra: !selStats ? undefined : `/ ${fullStats.kj}` },
+          { label: "Power", val: `${displayStats.power}` },
+          { label: "Distance", val: `${displayStats.distance} mi` },
+          { label: "Speed", val: `${displayStats.speed} mph` },
+          { label: "HR", val: `${displayStats.hr}` },
+          { label: "Cadence", val: `${displayStats.cadence} rpm` },
+          { label: "Elev. Gain", val: `${displayStats.elevGain} ft` },
+        ].map((row, i) => (
+          <div key={i} className="flex justify-between py-1 border-b border-[#00D9FF]/5">
+            <span>{row.label}{row.sup ? <sup className="text-[8px]">{row.sup}</sup> : ""}</span>
+            <span className="text-[#00D9FF] font-semibold">{row.val}{row.extra ? <span className="text-[#67C7EB] ml-1 font-normal">{row.extra}</span> : ""}</span>
+          </div>
+        ))}
+        {selection && (
+          <div className="flex gap-1 mt-1.5">
+            <button
+              onClick={() => {
+                const stats = computeStats(selection[0], selection[1]);
+                setCompareIntervals((prev) => [...prev, { label: `Int ${prev.length + 1}`, range: selection, stats }]);
+                setSelection(null);
+              }}
+              className="flex-1 text-xs px-2 py-1 rounded border border-[#FFD700]/40 text-[#FFE030] hover:border-[#FFD700]/70 font-medium"
+            >
+              + Compare
+            </button>
+            <button
+              onClick={() => setSelection(null)}
+              className="flex-1 text-xs px-2 py-1 rounded border border-[#00D9FF]/30 text-[#B0E0FF] hover:text-[#00D9FF]"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        {compareIntervals.length > 0 && (
+          <button
+            onClick={() => setCompareIntervals([])}
+            className="mt-1.5 w-full text-xs px-2 py-1 rounded border border-[#FF4444]/30 text-[#FF6666] hover:border-[#FF4444]/50 hover:text-[#FF4444]"
+          >
+            Clear Comparisons
+          </button>
+        )}
+      </div>
+    </div>
+
+    {/* Interval comparison table */}
+    {compareIntervals.length > 0 && (
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full text-xs" style={{ color: "#B0E0FF" }}>
+          <thead>
+            <tr className="border-b border-[#00D9FF]/20">
+              <th className="text-left py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Interval</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Duration</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Power</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>NP</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>HR</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Speed</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Cadence</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Dist</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>Elev</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>kJ</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>TSS</th>
+              <th className="text-right py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>IF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compareIntervals.map((interval, i) => (
+              <tr key={i} className="border-b border-[#00D9FF]/10 hover:bg-[rgba(0,217,255,0.05)]">
+                <td className="py-1.5 px-2 font-semibold" style={{ color: "#00D9FF" }}>{interval.label}</td>
+                <td className="text-right py-1.5 px-2">{formatTime(interval.stats.duration)}</td>
+                <td className="text-right py-1.5 px-2 font-medium" style={{ color: "#FFE030" }}>{interval.stats.power}w</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.np}w</td>
+                <td className="text-right py-1.5 px-2 font-medium" style={{ color: "#FF3333" }}>{interval.stats.hr}</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.speed} mph</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.cadence} rpm</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.distance} mi</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.elevGain} ft</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.kj}</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.tss}</td>
+                <td className="text-right py-1.5 px-2">{interval.stats.iff}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </>
+  );
+}
 
 function LineChart({ data, color, label, unit, height = 120 }: {
   data: number[]; color: string; label: string; unit: string; height?: number;
@@ -1670,12 +2103,27 @@ export default function StravaPage() {
                           <div className="p-4 border-t border-[#00D9FF]/10">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex gap-2 flex-wrap">
-                                {/* Section toggles */}
-                                {stream?.watts && (
-                                  <button onClick={(e) => { e.stopPropagation(); toggle("power"); }} className={sectionBtnClass("power")}>Power & Cadence</button>
+                                {/* Individual chart toggles */}
+                                {stream && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("summary"); }} className={sectionBtnClass("summary")}>Summary</button>
                                 )}
-                                {(stream?.altitude || stream?.velocity_smooth) && (
-                                  <button onClick={(e) => { e.stopPropagation(); toggle("elev"); }} className={sectionBtnClass("elev")}>Elevation & Speed</button>
+                                {zones && stream?.watts && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("pzones"); }} className={sectionBtnClass("pzones")}>Power Zones</button>
+                                )}
+                                {stream?.watts && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("power"); }} className={sectionBtnClass("power")}>Power</button>
+                                )}
+                                {stream?.cadence && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("cadence"); }} className={sectionBtnClass("cadence")}>Cadence</button>
+                                )}
+                                {stream?.altitude && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("elev"); }} className={sectionBtnClass("elev")}>Elevation</button>
+                                )}
+                                {stream?.velocity_smooth && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("speed"); }} className={sectionBtnClass("speed")}>Speed</button>
+                                )}
+                                {zones && stream?.heartrate && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("hrzones"); }} className={sectionBtnClass("hrzones")}>HR Zones</button>
                                 )}
                                 {stream?.heartrate && (
                                   <button onClick={(e) => { e.stopPropagation(); toggle("hr"); }} className={sectionBtnClass("hr")}>Heart Rate</button>
@@ -1725,39 +2173,50 @@ export default function StravaPage() {
                             {isLoading && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading streams...</p>}
                             {!isLoading && !stream && <p className="text-xs" style={{ color: hubTheme.secondary }}>No stream data available for this ride.</p>}
 
-                            {/* Power & Cadence section */}
-                            {isOpen("power") && stream && (
-                              <div className="mb-2">
-                                {zones && stream.watts && (
-                                  <div className="mb-3">
-                                    <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>Power Zones</div>
-                                    <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} unit="w" />
-                                  </div>
-                                )}
-                                {stream.watts && <LineChart data={stream.watts} color="#FFD700" label="Power (watts)" unit="w" />}
-                                {stream.cadence && <LineChart data={stream.cadence} color="#00FF88" label="Cadence (rpm)" unit="rpm" />}
+                            {/* Summary */}
+                            {isOpen("summary") && stream && (
+                              <SummaryChart streams={stream} ride={ride} zones={zones} />
+                            )}
+
+                            {/* Power Zones */}
+                            {isOpen("pzones") && stream && zones && stream.watts && (
+                              <div className="mb-3">
+                                <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>Power Zones</div>
+                                <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} unit="w" />
                               </div>
                             )}
 
-                            {/* Elevation & Speed section */}
-                            {isOpen("elev") && stream && (
-                              <div className="mb-2">
-                                {stream.altitude && <LineChart data={stream.altitude.map((v) => v * METERS_TO_FEET)} color="#FF8C00" label="Elevation (ft)" unit="ft" />}
-                                {stream.velocity_smooth && <LineChart data={stream.velocity_smooth.map((v) => v * MPS_TO_MPH)} color="#67C7EB" label="Speed (mph)" unit="mph" />}
+                            {/* Power */}
+                            {isOpen("power") && stream?.watts && (
+                              <LineChart data={stream.watts} color="#FFD700" label="Power (watts)" unit="w" />
+                            )}
+
+                            {/* Cadence */}
+                            {isOpen("cadence") && stream?.cadence && (
+                              <LineChart data={stream.cadence} color="#00FF88" label="Cadence (rpm)" unit="rpm" />
+                            )}
+
+                            {/* Elevation */}
+                            {isOpen("elev") && stream?.altitude && (
+                              <LineChart data={stream.altitude.map((v) => v * METERS_TO_FEET)} color="#FF8C00" label="Elevation (ft)" unit="ft" />
+                            )}
+
+                            {/* Speed */}
+                            {isOpen("speed") && stream?.velocity_smooth && (
+                              <LineChart data={stream.velocity_smooth.map((v) => v * MPS_TO_MPH)} color="#67C7EB" label="Speed (mph)" unit="mph" />
+                            )}
+
+                            {/* HR Zones */}
+                            {isOpen("hrzones") && stream && zones && stream.heartrate && (
+                              <div className="mb-3">
+                                <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>HR Zones</div>
+                                <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} unit="bpm" />
                               </div>
                             )}
 
-                            {/* Heart Rate section */}
-                            {isOpen("hr") && stream && (
-                              <div className="mb-2">
-                                {zones && stream.heartrate && (
-                                  <div className="mb-3">
-                                    <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>HR Zones</div>
-                                    <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} unit="bpm" />
-                                  </div>
-                                )}
-                                {stream.heartrate && <LineChart data={stream.heartrate} color="#FF4444" label="Heart Rate (bpm)" unit="bpm" />}
-                              </div>
+                            {/* Heart Rate */}
+                            {isOpen("hr") && stream?.heartrate && (
+                              <LineChart data={stream.heartrate} color="#FF4444" label="Heart Rate (bpm)" unit="bpm" />
                             )}
 
                             {/* Weather section */}
