@@ -200,6 +200,56 @@ export async function deleteTireRefById(id: string): Promise<void> {
   await fetch(`/api/db/tires?id=${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+// ─── Weather ────────────────────────────────────────────────────
+
+export async function getWeatherForActivities(activityIds: number[]): Promise<Record<number, { activityId: number; temperature: number | null; feelsLike: number | null; windSpeed: number | null; windDirection: number | null; precipitation: number | null; weatherCode: number | null; humidity: number | null; timeline: { hour: number; lat: number; lng: number; temperature: number | null; feelsLike: number | null; windSpeed: number | null; windDirection: number | null; precipitation: number | null; weatherCode: number | null }[] | null }>> {
+  if (activityIds.length === 0) return {};
+  const res = await fetch("/api/db/weather", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activityIds }),
+  });
+  if (!res.ok) return {};
+  const { weather } = await res.json();
+  return weather ?? {};
+}
+
+export async function getMissingWeatherCount(): Promise<number> {
+  const res = await fetch("/api/db/weather");
+  if (!res.ok) return 0;
+  const { count } = await res.json();
+  return count ?? 0;
+}
+
+export async function backfillWeather(): Promise<{ processed: number; errors: number; remaining: number }> {
+  const res = await fetch("/api/weather/backfill", { method: "POST" });
+  if (!res.ok) throw new Error("Backfill failed");
+  return res.json();
+}
+
+export async function fetchHistoricalWeather(rides: { activityId: number; lat: number; lng: number; date: string }[]): Promise<{ saved: number; errors: { activityId: number; error: string }[] }> {
+  const res = await fetch("/api/weather/historical", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rides }),
+  });
+  if (!res.ok) throw new Error("Historical weather fetch failed");
+  return res.json();
+}
+
+export async function getForecast(lat: number, lng: number, days = 7): Promise<{ hours: { time: string; temperature: number; feelsLike: number; windSpeed: number; windDirection: number; precipitation: number; precipitationProbability: number; weatherCode: number; humidity: number }[]; timezone?: string }> {
+  const res = await fetch(`/api/weather/forecast?lat=${lat}&lng=${lng}&days=${days}`);
+  if (!res.ok) throw new Error("Forecast fetch failed");
+  return res.json();
+}
+
+export async function geocodeLocation(query: string): Promise<{ name: string; latitude: number; longitude: number; country: string; admin1?: string }[]> {
+  const res = await fetch(`/api/weather/geocode?q=${encodeURIComponent(query)}`);
+  if (!res.ok) return [];
+  const { results } = await res.json();
+  return results ?? [];
+}
+
 // ─── Migration ──────────────────────────────────────────────────
 
 export async function migrateFromLocalStorage(data: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {

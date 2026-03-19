@@ -32,6 +32,7 @@ export interface StravaActivity {
   kudos_count: number;
   map?: { summary_polyline?: string };
   description?: string;
+  start_latlng?: [number, number];
 }
 
 async function fetchAllActivities(accessToken: string): Promise<{ activities: StravaActivity[]; pages: number; rateLimitUsage: string; rateLimitLimit: string }> {

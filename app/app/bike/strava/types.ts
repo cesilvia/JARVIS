@@ -28,6 +28,7 @@ export interface StravaActivity {
   kudos_count: number;
   map?: { summary_polyline?: string };
   description?: string;
+  start_latlng?: [number, number];
 }
 
 export interface StreamData {
@@ -82,6 +83,105 @@ export const DEFAULT_GOALS: StravaGoal[] = [
   { key: "yearly-elevation", label: "Yearly Climbing", target: 130000, unit: "ft", period: "yearly" },
   { key: "yearly-rides", label: "Yearly Rides", target: 183, unit: "rides", period: "yearly" },
 ];
+
+// ─── Weather types ──────────────────────────────────────────────
+
+export interface RideWeather {
+  activityId: number;
+  temperature: number | null;   // Celsius
+  feelsLike: number | null;     // Celsius
+  windSpeed: number | null;     // km/h
+  windDirection: number | null; // degrees
+  precipitation: number | null; // mm
+  weatherCode: number | null;   // WMO code
+  humidity: number | null;      // percent
+  timeline: WeatherTimelinePoint[] | null;
+}
+
+export interface HourlyForecast {
+  time: string;
+  temperature: number;
+  feelsLike: number;
+  windSpeed: number;
+  windDirection: number;
+  precipitation: number;
+  precipitationProbability: number;
+  weatherCode: number;
+  humidity: number;
+}
+
+export interface GeoResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  country: string;
+  admin1?: string;
+}
+
+export const KMH_TO_MPH = 0.621371;
+export const C_TO_F = (c: number) => Math.round(c * 9 / 5 + 32);
+export const MM_TO_IN = (mm: number) => +(mm / 25.4).toFixed(2);
+
+export function windDirectionToCardinal(deg: number): string {
+  const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+const WMO_CODES: Record<number, string> = {
+  0: "Clear", 1: "Mostly Clear", 2: "Partly Cloudy", 3: "Overcast",
+  45: "Foggy", 48: "Rime Fog",
+  51: "Light Drizzle", 53: "Drizzle", 55: "Heavy Drizzle",
+  61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
+  66: "Light Freezing Rain", 67: "Freezing Rain",
+  71: "Light Snow", 73: "Snow", 75: "Heavy Snow", 77: "Snow Grains",
+  80: "Light Showers", 81: "Showers", 82: "Heavy Showers",
+  85: "Light Snow Showers", 86: "Snow Showers",
+  95: "Thunderstorm", 96: "Thunderstorm w/ Hail", 99: "Severe Thunderstorm",
+};
+
+export function weatherCodeToLabel(code: number): string {
+  return WMO_CODES[code] ?? "Unknown";
+}
+
+// ─── Polyline decoder ───────────────────────────────────────────
+
+export function decodePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < encoded.length) {
+    let shift = 0, result = 0, byte: number;
+    do { byte = encoded.charCodeAt(i++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { byte = encoded.charCodeAt(i++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+// Sample N evenly-spaced points along a polyline
+export function samplePolylinePoints(points: [number, number][], n: number): [number, number][] {
+  if (points.length <= n) return points;
+  const result: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const idx = Math.round((i / (n - 1)) * (points.length - 1));
+    result.push(points[idx]);
+  }
+  return result;
+}
+
+export interface WeatherTimelinePoint {
+  hour: number;       // hour into the ride (0 = start)
+  lat: number;
+  lng: number;
+  temperature: number | null;
+  feelsLike: number | null;
+  windSpeed: number | null;
+  windDirection: number | null;
+  precipitation: number | null;
+  weatherCode: number | null;
+}
 
 export const METERS_TO_MILES = 1 / 1609.34;
 export const METERS_TO_FEET = 3.28084;

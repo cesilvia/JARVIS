@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS strava_activities (
   achievement_count      INTEGER DEFAULT 0,
   kudos_count            INTEGER NOT NULL DEFAULT 0,
   map_polyline           TEXT,
-  description            TEXT
+  description            TEXT,
+  start_lat              REAL,
+  start_lng              REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_activities_start_date ON strava_activities(start_date);
@@ -135,6 +137,20 @@ CREATE TABLE IF NOT EXISTS gear_inventory (
   weather                TEXT
 );
 
+-- Ride weather (cached from Open-Meteo)
+CREATE TABLE IF NOT EXISTS ride_weather (
+  activity_id    INTEGER PRIMARY KEY,
+  temperature    REAL,
+  feels_like     REAL,
+  wind_speed     REAL,
+  wind_direction INTEGER,
+  precipitation  REAL,
+  weather_code   INTEGER,
+  humidity       REAL,
+  timeline       TEXT,
+  fetched_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Tire references
 CREATE TABLE IF NOT EXISTS tire_refs (
   id      TEXT PRIMARY KEY,
@@ -154,6 +170,19 @@ export function getDb(): Database.Database {
   _db.pragma("journal_mode = WAL");
   _db.pragma("foreign_keys = ON");
   _db.exec(SCHEMA_SQL);
+  // Migrations for existing databases
+  const migrations = [
+    "ALTER TABLE strava_activities ADD COLUMN start_lat REAL",
+    "ALTER TABLE strava_activities ADD COLUMN start_lng REAL",
+    "ALTER TABLE ride_weather ADD COLUMN timeline TEXT",
+  ];
+  for (const sql of migrations) {
+    try { _db.exec(sql); } catch { /* column already exists */ }
+  }
+  // Clean up: remove weather data for indoor/virtual rides
+  try {
+    _db.exec("DELETE FROM ride_weather WHERE activity_id IN (SELECT id FROM strava_activities WHERE trainer = 1 OR sport_type = 'VirtualRide')");
+  } catch { /* table may not exist yet */ }
   return _db;
 }
 
@@ -229,10 +258,12 @@ interface ActivityRow {
   kudos_count: number;
   map_polyline: string | null;
   description: string | null;
+  start_lat: number | null;
+  start_lng: number | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function activityToRow(a: any): [number, string, number, number, number, string, string, number, string | null, string, number, number, number, number | null, number | null, number, number | null, number | null, number | null, number, number | null, number | null, number | null, number | null, number, number, number, string | null, string | null] {
+function activityToRow(a: any) {
   return [
     a.id, a.name, a.distance ?? 0, a.moving_time ?? 0, a.elapsed_time ?? 0,
     a.type ?? "", a.sport_type ?? "", a.trainer ? 1 : 0, a.gear_id ?? null,
@@ -243,6 +274,8 @@ function activityToRow(a: any): [number, string, number, number, number, string,
     a.average_cadence ?? null, a.suffer_score ?? null, a.pr_count ?? 0,
     a.achievement_count ?? 0, a.kudos_count ?? 0,
     a.map?.summary_polyline ?? null, a.description ?? null,
+    a.start_latlng?.[0] ?? a.start_lat ?? null,
+    a.start_latlng?.[1] ?? a.start_lng ?? null,
   ];
 }
 
@@ -277,6 +310,7 @@ function rowToActivity(row: ActivityRow) {
     kudos_count: row.kudos_count,
     map: row.map_polyline ? { summary_polyline: row.map_polyline } : undefined,
     description: row.description ?? undefined,
+    start_latlng: row.start_lat != null && row.start_lng != null ? [row.start_lat, row.start_lng] : undefined,
   };
 }
 
@@ -286,8 +320,9 @@ const UPSERT_ACTIVITY_SQL = `INSERT OR REPLACE INTO strava_activities
    average_heartrate, max_heartrate, has_heartrate,
    average_watts, max_watts, weighted_average_watts, device_watts,
    kilojoules, calories, average_cadence, suffer_score,
-   pr_count, achievement_count, kudos_count, map_polyline, description)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+   pr_count, achievement_count, kudos_count, map_polyline, description,
+   start_lat, start_lng)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function upsertActivities(activities: any[]): void {
@@ -632,6 +667,73 @@ export function deleteTireRef(id: string): void {
   db.prepare("DELETE FROM tire_refs WHERE id = ?").run(id);
 }
 
+// ─── Ride Weather ────────────────────────────────────────────────
+
+export interface RideWeatherRow {
+  activity_id: number;
+  temperature: number | null;
+  feels_like: number | null;
+  wind_speed: number | null;
+  wind_direction: number | null;
+  precipitation: number | null;
+  weather_code: number | null;
+  humidity: number | null;
+  timeline: string | null; // JSON array of WeatherTimelinePoint
+}
+
+export function getWeatherForActivities(activityIds: number[]): Map<number, RideWeatherRow> {
+  const db = getDb();
+  const result = new Map<number, RideWeatherRow>();
+  if (activityIds.length === 0) return result;
+  // SQLite has a variable limit, batch in chunks of 500
+  for (let i = 0; i < activityIds.length; i += 500) {
+    const chunk = activityIds.slice(i, i + 500);
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = db.prepare(`SELECT * FROM ride_weather WHERE activity_id IN (${placeholders})`).all(...chunk) as RideWeatherRow[];
+    for (const r of rows) result.set(r.activity_id, r);
+  }
+  return result;
+}
+
+export function upsertRideWeather(rows: RideWeatherRow[]): void {
+  const db = getDb();
+  const stmt = db.prepare(`INSERT OR REPLACE INTO ride_weather
+    (activity_id, temperature, feels_like, wind_speed, wind_direction, precipitation, weather_code, humidity, timeline, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`);
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      stmt.run(r.activity_id, r.temperature, r.feels_like, r.wind_speed, r.wind_direction, r.precipitation, r.weather_code, r.humidity, r.timeline ?? null);
+    }
+  });
+  tx();
+}
+
+export function getActivitiesWithoutWeather(): { id: number; start_lat: number; start_lng: number; start_date: string; map_polyline: string | null; moving_time: number }[] {
+  const db = getDb();
+  // Rides with no weather at all
+  const noWeather = db.prepare(
+    `SELECT id, start_lat, start_lng, start_date, map_polyline, moving_time FROM strava_activities
+     WHERE start_lat IS NOT NULL AND start_lng IS NOT NULL AND trainer = 0 AND sport_type != 'VirtualRide'
+       AND id NOT IN (SELECT activity_id FROM ride_weather)
+     ORDER BY start_date DESC`
+  ).all() as { id: number; start_lat: number; start_lng: number; start_date: string; map_polyline: string | null; moving_time: number }[];
+  // Rides with weather but no timeline (and have a polyline + >1hr ride)
+  const noTimeline = db.prepare(
+    `SELECT a.id, a.start_lat, a.start_lng, a.start_date, a.map_polyline, a.moving_time FROM strava_activities a
+     INNER JOIN ride_weather w ON a.id = w.activity_id
+     WHERE a.start_lat IS NOT NULL AND a.start_lng IS NOT NULL AND a.trainer = 0 AND a.sport_type != 'VirtualRide'
+       AND a.map_polyline IS NOT NULL AND length(a.map_polyline) > 10 AND a.moving_time > 3600
+       AND (w.timeline IS NULL OR w.timeline = 'null')
+     ORDER BY a.start_date DESC`
+  ).all() as { id: number; start_lat: number; start_lng: number; start_date: string; map_polyline: string | null; moving_time: number }[];
+  return [...noWeather, ...noTimeline];
+}
+
+export function getAllRideWeather(): RideWeatherRow[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM ride_weather").all() as RideWeatherRow[];
+}
+
 // ─── Full export for backup ─────────────────────────────────────
 
 export function exportAll(): Record<string, unknown> {
@@ -651,5 +753,6 @@ export function exportAll(): Record<string, unknown> {
     bikes: getAllBikes(),
     gearItems: getAllGearItems(),
     tireRefs: getAllTireRefs(),
+    rideWeather: getAllRideWeather(),
   };
 }

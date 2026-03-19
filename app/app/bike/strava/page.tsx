@@ -6,16 +6,18 @@ import Navigation from "../../components/Navigation";
 import CircuitBackground from "../../hub/CircuitBackground";
 import CyclingIcon from "../CyclingIcon";
 import {
-  StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal,
+  StravaActivity, StreamData, Bike, ZoneConfig, StravaGoal, RideWeather, HourlyForecast, GeoResult,
   DEFAULT_GOALS,
   METERS_TO_MILES, METERS_TO_FEET, MPS_TO_MPH, AUTO_SYNC_INTERVAL_MS,
   POWER_ZONE_COLORS, HR_ZONE_COLORS,
+  KMH_TO_MPH, C_TO_F, windDirectionToCardinal, weatherCodeToLabel,
   formatTime, formatHours, formatDate, getWeekStart, getMonthStart, getYearStart,
 } from "./types";
 import * as api from "../../lib/api-client";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB", background: "#000000" };
-type Tab = "overview" | "rides" | "power" | "fitness";
+const isOutdoorRide = (a: StravaActivity) => !a.trainer && a.sport_type !== "VirtualRide";
+type Tab = "overview" | "rides" | "power" | "fitness" | "forecast";
 
 // ─── Sync helper ────────────────────────────────────────────────
 
@@ -207,8 +209,8 @@ function computeFitness(dailyTSS: Map<string, number>, days: number) {
 
 // ─── SVG Charts ─────────────────────────────────────────────────
 
-function LineChart({ data, yKey, color, label, unit, height = 120 }: {
-  data: number[]; yKey?: string; color: string; label: string; unit: string; height?: number;
+function LineChart({ data, color, label, unit, height = 120 }: {
+  data: number[]; color: string; label: string; unit: string; height?: number;
 }) {
   if (!data || data.length === 0) return null;
   const W = 700, padL = 45, padR = 10, padT = 10, padB = 20;
@@ -224,9 +226,10 @@ function LineChart({ data, yKey, color, label, unit, height = 120 }: {
   }));
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const gradId = `grad-${label.replace(/\s/g, "")}`;
+  const avg = Math.round(data.reduce((s, v) => s + v, 0) / data.length);
   return (
     <div className="mb-3">
-      <div className="text-xs mb-1" style={{ color }}>{label}</div>
+      <div className="text-xs mb-1" style={{ color }}>{label} <span style={{ opacity: 0.6 }}>Avg: {avg} {unit}</span></div>
       <svg viewBox={`0 0 ${W} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -246,9 +249,6 @@ function LineChart({ data, yKey, color, label, unit, height = 120 }: {
         })}
         <path d={`${path} L${pts[pts.length - 1].x.toFixed(1)},${padT + cH} L${pts[0].x.toFixed(1)},${padT + cH} Z`} fill={`url(#${gradId})`} />
         <path d={path} fill="none" stroke={color} strokeWidth="1.5" />
-        <text x={W - padR} y={padT + 10} textAnchor="end" fill={color} fontSize="8" opacity="0.6">
-          avg {Math.round(data.reduce((s, v) => s + v, 0) / data.length)} {unit}
-        </text>
       </svg>
     </div>
   );
@@ -788,9 +788,26 @@ export default function StravaPage() {
   const [goals, setGoals] = useState<StravaGoal[]>([]);
   const [rideDaysShown, setRideDaysShown] = useState(7);
   const [rideDescriptions, setRideDescriptions] = useState<Record<number, string>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [compareRide, setCompareRide] = useState<number | null>(null);
   const [compareStreams, setCompareStreams] = useState<Record<number, StreamData>>({});
   const [loadingCompareStreams, setLoadingCompareStreams] = useState(false);
+  // Weather state
+  const [rideWeather, setRideWeather] = useState<Record<number, RideWeather>>({});
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState("");
+  const [missingWeatherCount, setMissingWeatherCount] = useState(0);
+  // Forecast state
+  const [forecastData, setForecastData] = useState<HourlyForecast[]>([]);
+  const [forecastLat, setForecastLat] = useState<number | null>(null);
+  const [forecastLng, setForecastLng] = useState<number | null>(null);
+  const [forecastLocationName, setForecastLocationName] = useState("");
+  const [forecastDate, setForecastDate] = useState(new Date().toISOString().slice(0, 10));
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [geoQuery, setGeoQuery] = useState("");
+  const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
+  const [rideStartHour, setRideStartHour] = useState(7);
+  const [rideDurationHours, setRideDurationHours] = useState(3);
 
   // Load from SQLite
   useEffect(() => {
@@ -840,6 +857,82 @@ export default function StravaPage() {
     }
     autoSync();
   }, [connected]);
+
+  // Load weather for visible rides
+  useEffect(() => {
+    if (activities.length === 0) return;
+    const ids = activities.map((a) => a.id);
+    api.getWeatherForActivities(ids).then((w) => {
+      setRideWeather(w);
+    });
+    api.getMissingWeatherCount().then(setMissingWeatherCount);
+  }, [activities]);
+
+  // Compute default forecast location from most common ride start (clustered to ~5mi grid)
+  useEffect(() => {
+    if (forecastLat !== null) return; // already set
+    const locs = activities.filter((a) => a.start_latlng && isOutdoorRide(a)).map((a) => a.start_latlng!);
+    if (locs.length === 0) return;
+    // Cluster by rounding to ~0.07 degrees (~5 miles) and find most common
+    const buckets = new Map<string, { lat: number; lng: number; count: number }>();
+    for (const [lat, lng] of locs) {
+      const key = `${(Math.round(lat / 0.07) * 0.07).toFixed(2)},${(Math.round(lng / 0.07) * 0.07).toFixed(2)}`;
+      const b = buckets.get(key);
+      if (b) { b.lat += lat; b.lng += lng; b.count++; }
+      else buckets.set(key, { lat, lng, count: 1 });
+    }
+    let best = { lat: 0, lng: 0, count: 0 };
+    for (const b of buckets.values()) { if (b.count > best.count) best = b; }
+    if (best.count === 0) return;
+    setForecastLat(+(best.lat / best.count).toFixed(4));
+    setForecastLng(+(best.lng / best.count).toFixed(4));
+    setForecastLocationName("Usual riding area");
+  }, [activities, forecastLat]);
+
+  // Fetch forecast when tab/location/date changes
+  useEffect(() => {
+    if (tab !== "forecast" || forecastLat === null || forecastLng === null) return;
+    setForecastLoading(true);
+    api.getForecast(forecastLat, forecastLng, 16).then((data) => {
+      setForecastData(data.hours || []);
+    }).catch(() => setForecastData([])).finally(() => setForecastLoading(false));
+  }, [tab, forecastLat, forecastLng]);
+
+  // Geocode search with debounce
+  useEffect(() => {
+    if (geoQuery.length < 2) { setGeoResults([]); return; }
+    const timer = setTimeout(() => {
+      api.geocodeLocation(geoQuery).then(setGeoResults);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [geoQuery]);
+
+  // Backfill handler
+  const handleBackfill = useCallback(async () => {
+    setBackfilling(true);
+    let total = 0;
+    let remaining = 1; // start truthy
+    while (remaining > 0) {
+      try {
+        const result = await api.backfillWeather();
+        total += result.processed;
+        remaining = result.remaining;
+        setBackfillMsg(`Fetching weather: ${total} done, ${remaining} remaining...`);
+        if (result.processed === 0 && remaining > 0) break; // avoid infinite loop
+      } catch {
+        setBackfillMsg("Backfill error — try again later");
+        break;
+      }
+    }
+    setBackfillMsg(remaining === 0 ? `Done! Weather fetched for ${total} rides.` : `Paused at ${total} rides.`);
+    setBackfilling(false);
+    setMissingWeatherCount(remaining);
+    // Reload weather data
+    const ids = activities.map((a) => a.id);
+    const w = await api.getWeatherForActivities(ids);
+    setRideWeather(w);
+    setTimeout(() => setBackfillMsg(""), 5000);
+  }, [activities]);
 
   // Ride detail stream loading
   const handleExpandRide = useCallback(async (id: number) => {
@@ -1266,6 +1359,15 @@ export default function StravaPage() {
                   setActivities(acts);
                   setSyncMsg(`Synced ${acts.length} rides`);
                   setTimeout(() => setSyncMsg(""), 3000);
+                  // Auto-fetch weather for new outdoor rides
+                  const outdoor = acts.filter((a) => isOutdoorRide(a) && a.start_latlng);
+                  const existingWeather = await api.getWeatherForActivities(outdoor.map((a) => a.id));
+                  const needWeather = outdoor.filter((a) => !existingWeather[a.id]).slice(0, 10);
+                  if (needWeather.length > 0) {
+                    await api.fetchHistoricalWeather(needWeather.map((a) => ({ activityId: a.id, lat: a.start_latlng![0], lng: a.start_latlng![1], date: a.start_date })));
+                    const w = await api.getWeatherForActivities(acts.map((a) => a.id));
+                    setRideWeather(w);
+                  }
                 } catch {
                   setSyncMsg("Sync failed");
                   setTimeout(() => setSyncMsg(""), 5000);
@@ -1294,6 +1396,7 @@ export default function StravaPage() {
               <TabButton tab="Rides" active={tab === "rides"} onClick={() => setTab("rides")} />
               <TabButton tab="Power" active={tab === "power"} onClick={() => setTab("power")} />
               <TabButton tab="Fitness" active={tab === "fitness"} onClick={() => setTab("fitness")} />
+              <TabButton tab="Forecast" active={tab === "forecast"} onClick={() => setTab("forecast")} />
             </div>
 
             {/* ─── OVERVIEW TAB ─── */}
@@ -1361,11 +1464,19 @@ export default function StravaPage() {
                   <p className="text-xs" style={{ color: hubTheme.secondary }}>
                     {visibleRides.length} of {allRides.length} rides (last {rideDaysShown} days)
                   </p>
-                  {rideDaysShown > 7 && (
-                    <button onClick={() => setRideDaysShown(7)} className="text-[10px] px-2 py-0.5 rounded border border-[#00D9FF]/20 text-[#67C7EB] hover:text-[#00D9FF]">
-                      Reset to 7 days
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {rideDaysShown > 7 && (
+                      <button onClick={() => setRideDaysShown(7)} className="text-[10px] px-2 py-0.5 rounded border border-[#00D9FF]/20 text-[#67C7EB] hover:text-[#00D9FF]">
+                        Reset to 7 days
+                      </button>
+                    )}
+                    {missingWeatherCount > 0 && !backfilling && (
+                      <button onClick={handleBackfill} className="text-[10px] px-2 py-0.5 rounded border border-[#FFD700]/30 text-[#FFD700] hover:border-[#FFD700]/60">
+                        Fetch Weather ({missingWeatherCount} rides)
+                      </button>
+                    )}
+                    {backfillMsg && <span className="text-[10px]" style={{ color: backfilling ? "#FFD700" : "#00FF88" }}>{backfillMsg}</span>}
+                  </div>
                 </div>
                 {visibleRides.map((ride) => {
                   const isExpanded = expandedRide === ride.id;
@@ -1377,10 +1488,10 @@ export default function StravaPage() {
                   const workoutName = nameOnMatch ? nameOnMatch[1] : ride.name;
                   const routeName = nameOnMatch ? nameOnMatch[2] : desc || "";
                   return (
-                    <div key={ride.id}>
+                    <div key={ride.id} className={isExpanded ? "rounded-lg border-2 border-[#00D9FF] overflow-hidden" : ""}>
                       <button
                         onClick={() => handleExpandRide(ride.id)}
-                        className="w-full text-left grid gap-x-6 px-4 py-3 rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)] hover:bg-[rgba(0,217,255,0.08)] transition-colors"
+                        className={`w-full text-left grid gap-x-6 px-4 py-3 transition-colors ${isExpanded ? "bg-[rgba(0,217,255,0.03)]" : "rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)] hover:bg-[rgba(0,217,255,0.08)]"}`}
                         style={{ gridTemplateColumns: "minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(140px, 1fr)" }}
                       >
                         {/* Column 1: Name, Route, Date */}
@@ -1406,6 +1517,18 @@ export default function StravaPage() {
                           <div className="flex justify-between"><span>Cadence:</span><span>{ride.average_cadence ? Math.round(ride.average_cadence) : "--"}</span></div>
                           <div className="flex justify-between"><span>Average Heart Rate:</span><span>{ride.average_heartrate ? Math.round(ride.average_heartrate) : "--"}</span></div>
                         </div>
+                        {/* Weather summary on card (outdoor rides only, single line) */}
+                        {rideWeather[ride.id] && isOutdoorRide(ride) && (() => {
+                          const w = rideWeather[ride.id];
+                          return (
+                            <div className="col-span-3 pt-2 mt-2 border-t border-[#00D9FF]/10 text-[10px] flex gap-3 flex-wrap" style={{ color: hubTheme.secondary }}>
+                              {w.temperature != null && <span>{C_TO_F(w.temperature)}°F{w.feelsLike != null ? ` (feels ${C_TO_F(w.feelsLike)}°F)` : ""}</span>}
+                              {w.windSpeed != null && <span>Wind: {Math.round(w.windSpeed * KMH_TO_MPH)}mph{w.windDirection != null ? ` ${windDirectionToCardinal(w.windDirection)}` : ""}</span>}
+                              {w.precipitation != null && w.precipitation > 0 ? <span>Precip: {w.precipitation.toFixed(1)}mm</span> : <span>Dry</span>}
+                              {w.weatherCode != null && w.weatherCode > 3 && <span>{weatherCodeToLabel(w.weatherCode)}</span>}
+                            </div>
+                          );
+                        })()}
                       </button>
                       {/* Comparison view — rendered directly below the ride card */}
                       {compareRide === ride.id && (() => {
@@ -1534,73 +1657,153 @@ export default function StravaPage() {
                           </div>
                         );
                       })()}
-                      {isExpanded && (
-                        <div className="hud-card rounded-lg p-4 mt-1 mb-2 border border-[#00D9FF]/20">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex gap-2">
-                              {allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "workout"); }}
-                                  className="px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
-                                >
-                                  Compare Workout
-                                </button>
-                              )}
-                              {(() => {
-                                const targetPoly = ride.map?.summary_polyline;
-                                if (!targetPoly || targetPoly.length <= 10) return null;
-                                const hasRouteMatch = allRides.some((r) => {
-                                  if (r.id === ride.id) return false;
-                                  const poly = r.map?.summary_polyline;
-                                  if (!poly || poly.length < 10) return false;
-                                  const minLen = Math.min(targetPoly.length, poly.length);
-                                  let match = 0;
-                                  for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
-                                  return match / minLen > 0.6;
-                                });
-                                if (!hasRouteMatch) return null;
-                                return (
+                      {isExpanded && (() => {
+                        const sectionKey = (name: string) => `${ride.id}-${name}`;
+                        const isOpen = (name: string) => expandedSections[sectionKey(name)] ?? false;
+                        const toggle = (name: string) => setExpandedSections((prev) => ({ ...prev, [sectionKey(name)]: !prev[sectionKey(name)] }));
+                        const sectionBtnClass = (name: string) => `px-3 py-1.5 rounded text-xs transition-colors ${isOpen(name) ? "bg-[rgba(0,217,255,0.25)] text-[#00D9FF] border border-[#00D9FF]/50" : "text-[#67C7EB] hover:text-[#00D9FF] border border-[#00D9FF]/20"}`;
+                        const w = rideWeather[ride.id];
+                        const tl = w?.timeline;
+                        const hasWeather = w && isOutdoorRide(ride);
+
+                        return (
+                          <div className="p-4 border-t border-[#00D9FF]/10">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex gap-2 flex-wrap">
+                                {/* Section toggles */}
+                                {stream?.watts && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("power"); }} className={sectionBtnClass("power")}>Power & Cadence</button>
+                                )}
+                                {(stream?.altitude || stream?.velocity_smooth) && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("elev"); }} className={sectionBtnClass("elev")}>Elevation & Speed</button>
+                                )}
+                                {stream?.heartrate && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("hr"); }} className={sectionBtnClass("hr")}>Heart Rate</button>
+                                )}
+                                {hasWeather && (
+                                  <button onClick={(e) => { e.stopPropagation(); toggle("weather"); }} className={sectionBtnClass("weather")}>Weather</button>
+                                )}
+                                {/* Compare buttons */}
+                                {allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0 && (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "route"); }}
+                                    onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "workout"); }}
                                     className="px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
                                   >
-                                    Compare Route
+                                    Compare Workout
                                   </button>
-                                );
-                              })()}
+                                )}
+                                {(() => {
+                                  const targetPoly = ride.map?.summary_polyline;
+                                  if (!targetPoly || targetPoly.length <= 10) return null;
+                                  const hasRouteMatch = allRides.some((r) => {
+                                    if (r.id === ride.id) return false;
+                                    const poly = r.map?.summary_polyline;
+                                    if (!poly || poly.length < 10) return false;
+                                    const minLen = Math.min(targetPoly.length, poly.length);
+                                    let match = 0;
+                                    for (let i = 0; i < minLen; i++) { if (targetPoly[i] === poly[i]) match++; else break; }
+                                    return match / minLen > 0.6;
+                                  });
+                                  if (!hasRouteMatch) return null;
+                                  return (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleCompare(ride.id, "route"); }}
+                                      className="px-3 py-1.5 rounded text-xs border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)]"
+                                    >
+                                      Compare Route
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedRide(null); }}
+                                className="px-2 py-1 rounded text-xs border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF] hover:border-[#00D9FF]/50 flex-shrink-0"
+                              >
+                                Close
+                              </button>
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setExpandedRide(null); }}
-                              className="px-2 py-1 rounded text-xs border border-[#00D9FF]/30 text-[#67C7EB] hover:text-[#00D9FF] hover:border-[#00D9FF]/50"
-                            >
-                              Close
-                            </button>
+                            {isLoading && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading streams...</p>}
+                            {!isLoading && !stream && <p className="text-xs" style={{ color: hubTheme.secondary }}>No stream data available for this ride.</p>}
+
+                            {/* Power & Cadence section */}
+                            {isOpen("power") && stream && (
+                              <div className="mb-2">
+                                {zones && stream.watts && (
+                                  <div className="mb-3">
+                                    <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>Power Zones</div>
+                                    <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} unit="w" />
+                                  </div>
+                                )}
+                                {stream.watts && <LineChart data={stream.watts} color="#FFD700" label="Power (watts)" unit="w" />}
+                                {stream.cadence && <LineChart data={stream.cadence} color="#00FF88" label="Cadence (rpm)" unit="rpm" />}
+                              </div>
+                            )}
+
+                            {/* Elevation & Speed section */}
+                            {isOpen("elev") && stream && (
+                              <div className="mb-2">
+                                {stream.altitude && <LineChart data={stream.altitude.map((v) => v * METERS_TO_FEET)} color="#FF8C00" label="Elevation (ft)" unit="ft" />}
+                                {stream.velocity_smooth && <LineChart data={stream.velocity_smooth.map((v) => v * MPS_TO_MPH)} color="#67C7EB" label="Speed (mph)" unit="mph" />}
+                              </div>
+                            )}
+
+                            {/* Heart Rate section */}
+                            {isOpen("hr") && stream && (
+                              <div className="mb-2">
+                                {zones && stream.heartrate && (
+                                  <div className="mb-3">
+                                    <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>HR Zones</div>
+                                    <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} unit="bpm" />
+                                  </div>
+                                )}
+                                {stream.heartrate && <LineChart data={stream.heartrate} color="#FF4444" label="Heart Rate (bpm)" unit="bpm" />}
+                              </div>
+                            )}
+
+                            {/* Weather section */}
+                            {isOpen("weather") && hasWeather && (() => {
+                              if (tl && tl.length > 1) {
+                                return (
+                                  <div className="mb-2">
+                                    <table className="w-full text-[10px]" style={{ color: hubTheme.secondary }}>
+                                      <thead>
+                                        <tr className="border-b border-[#00D9FF]/10">
+                                          <th className="text-left py-0.5 pr-2">Hour</th>
+                                          <th className="text-right py-0.5 px-1">Temp</th>
+                                          <th className="text-right py-0.5 px-1">Feels</th>
+                                          <th className="text-right py-0.5 px-1">Wind</th>
+                                          <th className="text-center py-0.5 px-1">Dir</th>
+                                          <th className="text-left py-0.5 pl-1">Conditions</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {tl.map((p, i) => (
+                                          <tr key={i} className="border-b border-[#00D9FF]/5">
+                                            <td className="py-0.5 pr-2">{i === 0 ? "Start" : `+${p.hour}hr`}</td>
+                                            <td className="text-right py-0.5 px-1">{p.temperature != null ? `${C_TO_F(p.temperature)}°F` : "—"}</td>
+                                            <td className="text-right py-0.5 px-1">{p.feelsLike != null ? `${C_TO_F(p.feelsLike)}°F` : "—"}</td>
+                                            <td className="text-right py-0.5 px-1">{p.windSpeed != null ? `${Math.round(p.windSpeed * KMH_TO_MPH)}mph` : "—"}</td>
+                                            <td className="text-center py-0.5 px-1">{p.windDirection != null ? windDirectionToCardinal(p.windDirection) : "—"}</td>
+                                            <td className="py-0.5 pl-1">{p.precipitation != null && p.precipitation > 0 ? `${p.precipitation.toFixed(1)}mm` : "Dry"}{p.weatherCode != null && p.weatherCode > 3 ? ` · ${weatherCodeToLabel(p.weatherCode)}` : ""}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="mb-2 text-[10px] flex gap-3 flex-wrap" style={{ color: hubTheme.secondary }}>
+                                  {w.temperature != null && <span>{C_TO_F(w.temperature)}°F{w.feelsLike != null ? ` (feels ${C_TO_F(w.feelsLike)}°F)` : ""}</span>}
+                                  {w.windSpeed != null && <span>Wind: {Math.round(w.windSpeed * KMH_TO_MPH)}mph{w.windDirection != null ? ` ${windDirectionToCardinal(w.windDirection)}` : ""}</span>}
+                                  {w.precipitation != null && w.precipitation > 0 ? <span>Precip: {w.precipitation.toFixed(1)}mm</span> : <span>Dry</span>}
+                                  {w.weatherCode != null && w.weatherCode > 3 && <span>{weatherCodeToLabel(w.weatherCode)}</span>}
+                                </div>
+                              );
+                            })()}
                           </div>
-                          {isLoading && <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading streams...</p>}
-                          {!isLoading && !stream && <p className="text-xs" style={{ color: hubTheme.secondary }}>No stream data available for this ride.</p>}
-                          {stream && (
-                            <>
-                              {stream.watts && <LineChart data={stream.watts} color="#FFD700" label="Power (watts)" unit="w" />}
-                              {stream.heartrate && <LineChart data={stream.heartrate} color="#FF4444" label="Heart Rate (bpm)" unit="bpm" />}
-                              {stream.cadence && <LineChart data={stream.cadence} color="#00FF88" label="Cadence (rpm)" unit="rpm" />}
-                              {stream.velocity_smooth && <LineChart data={stream.velocity_smooth.map((v) => v * MPS_TO_MPH)} color="#67C7EB" label="Speed (mph)" unit="mph" />}
-                              {stream.altitude && <LineChart data={stream.altitude.map((v) => v * METERS_TO_FEET)} color="#FF8C00" label="Elevation (ft)" unit="ft" />}
-                              {zones && stream.watts && (
-                                <div className="mt-3">
-                                  <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>Power Zones</div>
-                                  <ZoneBar zones={zones.powerZones} times={computeZoneTime(stream.watts, zones.powerZones)} colors={POWER_ZONE_COLORS} unit="w" />
-                                </div>
-                              )}
-                              {zones && stream.heartrate && (
-                                <div className="mt-3">
-                                  <div className="text-xs mb-2" style={{ color: hubTheme.primary }}>HR Zones</div>
-                                  <ZoneBar zones={zones.hrZones} times={computeZoneTime(stream.heartrate, zones.hrZones)} colors={HR_ZONE_COLORS} unit="bpm" />
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -1743,6 +1946,180 @@ export default function StravaPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* ─── FORECAST TAB ─── */}
+            {tab === "forecast" && (
+              <div className="space-y-4">
+                {/* Location selector */}
+                <div className="hud-card rounded-lg p-4 border border-[#00D9FF]/20 relative z-20" style={{ overflow: "visible" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold" style={{ color: hubTheme.primary }}>Location</h3>
+                    <span className="text-xs" style={{ color: hubTheme.secondary }}>{forecastLocationName}{forecastLat ? ` (${forecastLat}, ${forecastLng})` : ""}</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={geoQuery}
+                      onChange={(e) => setGeoQuery(e.target.value)}
+                      placeholder="Search city or zip..."
+                      className="w-full px-3 py-2 rounded-lg bg-[rgba(0,217,255,0.05)] border border-[#00D9FF]/20 text-sm text-[#00D9FF] placeholder-[#67C7EB]/50 focus:outline-none focus:border-[#00D9FF]/50"
+                    />
+                    {geoResults.length > 0 && (
+                      <div className="absolute z-50 mt-1 w-full rounded-lg border border-[#00D9FF]/30 bg-[#0a0a0a] max-h-48 overflow-y-auto shadow-lg">
+                        {geoResults.map((r, i) => (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setForecastLat(r.latitude);
+                              setForecastLng(r.longitude);
+                              setForecastLocationName(`${r.name}${r.admin1 ? `, ${r.admin1}` : ""}, ${r.country}`);
+                              setGeoQuery("");
+                              setGeoResults([]);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-[rgba(0,217,255,0.1)] transition-colors"
+                            style={{ color: hubTheme.secondary }}
+                          >
+                            {r.name}{r.admin1 ? `, ${r.admin1}` : ""}, {r.country}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ride window inputs + Date strip */}
+                <div className="flex flex-wrap items-end gap-4 mb-1">
+                  <div>
+                    <label className="text-[10px] block mb-1" style={{ color: hubTheme.secondary }}>Start Time</label>
+                    <select
+                      value={rideStartHour}
+                      onChange={(e) => setRideStartHour(Number(e.target.value))}
+                      className="px-2 py-1.5 rounded-lg bg-[rgba(0,217,255,0.05)] border border-[#00D9FF]/20 text-xs text-[#00D9FF] focus:outline-none focus:border-[#00D9FF]/50"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i === 0 ? "12am" : i < 12 ? `${i}am` : i === 12 ? "12pm" : `${i - 12}pm`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] block mb-1" style={{ color: hubTheme.secondary }}>Duration</label>
+                    <select
+                      value={rideDurationHours}
+                      onChange={(e) => setRideDurationHours(Number(e.target.value))}
+                      className="px-2 py-1.5 rounded-lg bg-[rgba(0,217,255,0.05)] border border-[#00D9FF]/20 text-xs text-[#00D9FF] focus:outline-none focus:border-[#00D9FF]/50"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((h) => (
+                        <option key={h} value={h}>{h} hr{h > 1 ? "s" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Date strip */}
+                <div className="flex gap-1 overflow-x-auto pb-1">
+                  {Array.from({ length: 16 }, (_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + i);
+                    const dateStr = d.toISOString().slice(0, 10);
+                    const isActive = forecastDate === dateStr;
+                    const dayLabel = i === 0 ? "Today" : i === 1 ? "Tmrw" : d.toLocaleDateString("en-US", { weekday: "short" });
+                    const dateLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    return (
+                      <button
+                        key={dateStr}
+                        onClick={() => setForecastDate(dateStr)}
+                        className={`flex-shrink-0 px-2 py-1.5 rounded text-[10px] text-center transition-colors ${isActive ? "bg-[rgba(0,217,255,0.25)] text-[#00D9FF] border border-[#00D9FF]/50" : "text-[#67C7EB] hover:text-[#00D9FF] border border-transparent"}`}
+                      >
+                        <div className="font-medium">{dayLabel}</div>
+                        <div className="opacity-70">{dateLabel}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Hourly forecast for ride window */}
+                {forecastLoading ? (
+                  <p className="text-xs" style={{ color: hubTheme.secondary }}>Loading forecast...</p>
+                ) : (() => {
+                  const dayHours = forecastData.filter((h) => h.time.startsWith(forecastDate));
+                  if (dayHours.length === 0) return <p className="text-xs" style={{ color: hubTheme.secondary }}>No forecast data available.</p>;
+
+                  const rideEndHour = Math.min(rideStartHour + rideDurationHours, 24);
+                  const rideHours = dayHours.filter((h) => {
+                    const hr = new Date(h.time).getHours();
+                    return hr >= rideStartHour && hr < rideEndHour;
+                  });
+
+                  const displayHours = rideHours.length > 0 ? rideHours : dayHours;
+                  const isRideWindow = rideHours.length > 0;
+
+                  // Summary based on ride window
+                  const temps = displayHours.map((h) => h.temperature);
+                  const winds = displayHours.map((h) => h.windSpeed);
+                  const totalPrecip = displayHours.reduce((s, h) => s + h.precipitation, 0);
+                  const maxPrecipProb = Math.max(...displayHours.map((h) => h.precipitationProbability));
+
+                  return (
+                    <>
+                      {/* Ride window summary cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="hud-card rounded-lg p-3 border border-[#00D9FF]/20 text-center">
+                          <div className="text-[10px] mb-1" style={{ color: hubTheme.secondary }}>{isRideWindow ? "Ride Temp" : "Temp Range"}</div>
+                          <div className="text-sm font-semibold" style={{ color: hubTheme.primary }}>{C_TO_F(Math.min(...temps))}° – {C_TO_F(Math.max(...temps))}°F</div>
+                        </div>
+                        <div className="hud-card rounded-lg p-3 border border-[#00D9FF]/20 text-center">
+                          <div className="text-[10px] mb-1" style={{ color: hubTheme.secondary }}>Max Wind</div>
+                          <div className="text-sm font-semibold" style={{ color: hubTheme.primary }}>{Math.round(Math.max(...winds) * KMH_TO_MPH)} mph</div>
+                        </div>
+                        <div className="hud-card rounded-lg p-3 border border-[#00D9FF]/20 text-center">
+                          <div className="text-[10px] mb-1" style={{ color: hubTheme.secondary }}>Precipitation</div>
+                          <div className="text-sm font-semibold" style={{ color: totalPrecip > 0 ? "#FFD700" : "#00FF88" }}>{totalPrecip > 0 ? `${totalPrecip.toFixed(1)}mm` : "Dry"}</div>
+                        </div>
+                        <div className="hud-card rounded-lg p-3 border border-[#00D9FF]/20 text-center">
+                          <div className="text-[10px] mb-1" style={{ color: hubTheme.secondary }}>Rain Chance</div>
+                          <div className="text-sm font-semibold" style={{ color: maxPrecipProb > 50 ? "#FFD700" : maxPrecipProb > 20 ? "#67C7EB" : "#00FF88" }}>{maxPrecipProb}%</div>
+                        </div>
+                      </div>
+
+                      {/* Hourly table — ride window only */}
+                      <div className="hud-card rounded-lg border border-[#00D9FF]/20 overflow-x-auto">
+                        <table className="w-full text-xs" style={{ color: hubTheme.secondary }}>
+                          <thead>
+                            <tr className="border-b border-[#00D9FF]/10">
+                              <th className="text-left px-3 py-2 font-medium" style={{ color: hubTheme.primary }}>Hour</th>
+                              <th className="text-right px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Temp</th>
+                              <th className="text-right px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Feels</th>
+                              <th className="text-right px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Wind</th>
+                              <th className="text-center px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Dir</th>
+                              <th className="text-right px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Precip</th>
+                              <th className="text-right px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>%</th>
+                              <th className="text-left px-2 py-2 font-medium" style={{ color: hubTheme.primary }}>Conditions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayHours.map((h) => {
+                              const hr = new Date(h.time).getHours();
+                              return (
+                                <tr key={h.time} className="border-b border-[#00D9FF]/5">
+                                  <td className="px-3 py-1.5 font-medium">{hr === 0 ? "12am" : hr < 12 ? `${hr}am` : hr === 12 ? "12pm" : `${hr - 12}pm`}</td>
+                                  <td className="text-right px-2 py-1.5">{C_TO_F(h.temperature)}°F</td>
+                                  <td className="text-right px-2 py-1.5">{C_TO_F(h.feelsLike)}°F</td>
+                                  <td className="text-right px-2 py-1.5">{Math.round(h.windSpeed * KMH_TO_MPH)}mph</td>
+                                  <td className="text-center px-2 py-1.5">{windDirectionToCardinal(h.windDirection)}</td>
+                                  <td className="text-right px-2 py-1.5" style={{ color: h.precipitation > 0 ? "#FFD700" : undefined }}>{h.precipitation > 0 ? `${h.precipitation.toFixed(1)}mm` : "—"}</td>
+                                  <td className="text-right px-2 py-1.5" style={{ color: h.precipitationProbability > 50 ? "#FFD700" : undefined }}>{h.precipitationProbability}%</td>
+                                  <td className="px-2 py-1.5">{weatherCodeToLabel(h.weatherCode)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             )}
           </>
         )}
