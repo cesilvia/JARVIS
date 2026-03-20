@@ -1235,7 +1235,7 @@ export default function StravaPage() {
   const [forecastLat, setForecastLat] = useState<number | null>(null);
   const [forecastLng, setForecastLng] = useState<number | null>(null);
   const [forecastLocationName, setForecastLocationName] = useState("");
-  const [forecastDate, setForecastDate] = useState(new Date().toISOString().slice(0, 10));
+  const [forecastDate, setForecastDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
   const [forecastLoading, setForecastLoading] = useState(false);
   const [geoQuery, setGeoQuery] = useState("");
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
@@ -2480,7 +2480,7 @@ export default function StravaPage() {
                   {Array.from({ length: 16 }, (_, i) => {
                     const d = new Date();
                     d.setDate(d.getDate() + i);
-                    const dateStr = d.toISOString().slice(0, 10);
+                    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
                     const isActive = forecastDate === dateStr;
                     const dayLabel = i === 0 ? "Today" : i === 1 ? "Tmrw" : d.toLocaleDateString("en-US", { weekday: "short" });
                     const dateLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -2506,7 +2506,7 @@ export default function StravaPage() {
 
                   const rideEndHour = Math.min(rideStartHour + rideDurationHours, 24);
                   const rideHours = dayHours.filter((h) => {
-                    const hr = new Date(h.time).getHours();
+                    const hr = parseInt(h.time.slice(11, 13), 10);
                     return hr >= rideStartHour && hr < rideEndHour;
                   });
 
@@ -2558,7 +2558,7 @@ export default function StravaPage() {
                           </thead>
                           <tbody>
                             {displayHours.map((h) => {
-                              const hr = new Date(h.time).getHours();
+                              const hr = parseInt(h.time.slice(11, 13), 10);
                               return (
                                 <tr key={h.time} className="border-b border-[#00D9FF]/5">
                                   <td className="px-3 py-1.5 font-medium">{hr === 0 ? "12am" : hr < 12 ? `${hr}am` : hr === 12 ? "12pm" : `${hr - 12}pm`}</td>

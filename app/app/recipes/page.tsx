@@ -778,10 +778,16 @@ function RecipesPageInner() {
               <input
                 type="number"
                 min="1"
-                value={currentRecipe.servings || 1}
-                onChange={(e) =>
-                  setCurrentRecipe({ ...currentRecipe, servings: parseInt(e.target.value) || 1 })
-                }
+                value={currentRecipe.servings ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCurrentRecipe({ ...currentRecipe, servings: val === "" ? (undefined as any) : parseInt(val) });
+                }}
+                onBlur={() => {
+                  if (!currentRecipe.servings || currentRecipe.servings < 1) {
+                    setCurrentRecipe({ ...currentRecipe, servings: 1 });
+                  }
+                }}
                 className="w-full md:w-32 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF]"
               />
             </div>
