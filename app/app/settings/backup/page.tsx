@@ -139,7 +139,7 @@ export default function BackupSettingsPage() {
 
         <h1 className="text-3xl font-bold font-mono mt-4">Backup</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-6">
-          Full JARVIS backup to R2 Drive.
+          Full JARVIS backup to Cloudflare R2.
         </p>
 
         {/* Status banner */}
@@ -169,11 +169,9 @@ export default function BackupSettingsPage() {
           >
             {loading ? "Backing up..." : "Backup to R2"}
           </button>
-          {backupDir && (
-            <p className="text-slate-500 font-mono text-[10px] mt-3 break-all">
-              Saves to: {backupDir}
+          <p className="text-slate-500 font-mono text-[10px] mt-3 break-all">
+              Saves to: Cloudflare R2 (jarvis-backups bucket)
             </p>
-          )}
         </div>
 
         {/* Backup list */}

@@ -702,16 +702,7 @@ export default function HubPage() {
         if (unverified.length === 0) {
           setSettingsSummary(["All pages verified"]);
         } else {
-          const lines: string[] = [`${unverified.length} page${unverified.length !== 1 ? "s" : ""} need verification`];
-          // Show up to 3 unverified page names (5 lines max fits wedge without taper issues)
-          for (const p of unverified.slice(0, 3)) {
-            const name = p.path.replace(/^\//, "").replace(/\//g, " / ") || "home";
-            lines.push(name);
-          }
-          if (unverified.length > 3) {
-            lines.push(`+${unverified.length - 3} more`);
-          }
-          setSettingsSummary(lines);
+          setSettingsSummary([`${unverified.length} page${unverified.length !== 1 ? "s" : ""} need verification`]);
         }
       } catch {
         setSettingsSummary([]);
