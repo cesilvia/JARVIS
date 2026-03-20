@@ -225,12 +225,12 @@ export default function AlertsPage() {
         {fullBackupOverdue && (
           <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
             <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
-              Daily reminder: Back up JARVIS to iCloud
+              Daily reminder: Back up JARVIS to R2
             </h2>
             <p className="text-slate-400 font-mono text-sm mb-4">
               {lastFullBackup
                 ? `Your last full backup was ${new Date(lastFullBackup).toLocaleDateString()}. Back up daily until N8N automates this.`
-                : "You haven't done a full JARVIS backup yet. Back up all your data to iCloud Drive."}
+                : "You haven't done a full JARVIS backup yet. Back up all your data to Cloudflare R2."}
             </p>
             <Link
               href="/settings/backup"

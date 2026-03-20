@@ -102,7 +102,7 @@ const categories = [
   },
   {
     name: "Backup",
-    description: "Full JARVIS backup to iCloud Drive",
+    description: "Full JARVIS backup to Cloudflare R2",
     href: "/settings/backup",
     icon: BackupIcon,
     color: "text-cyan-400",

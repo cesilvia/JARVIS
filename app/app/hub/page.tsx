@@ -498,11 +498,11 @@ async function hubGetAlertSummaries(): Promise<string[]> {
   // Daily full JARVIS backup check
   const lastFullBackup = await api.getKV<string>("last-full-backup");
   if (!lastFullBackup) {
-    lines.push("Back up JARVIS to iCloud");
+    lines.push("Back up JARVIS to R2");
   } else {
     const fullDays = (Date.now() - new Date(lastFullBackup).getTime()) / (1000 * 60 * 60 * 24);
     if (fullDays >= FULL_BACKUP_REMINDER_DAYS) {
-      lines.push("Back up JARVIS to iCloud");
+      lines.push("Back up JARVIS to R2");
     }
   }
   try {
