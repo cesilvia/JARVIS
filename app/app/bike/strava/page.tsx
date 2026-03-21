@@ -1378,6 +1378,44 @@ export default function StravaPage() {
     setLoadingStream(null);
   }, [expandedRide, rideStreams]);
 
+  // Auto-expand ride from URL query param (?ride=123)
+  const autoExpandedRef = useRef<number | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rideParam = params.get("ride");
+    if (rideParam) {
+      const rideId = parseInt(rideParam, 10);
+      if (!isNaN(rideId)) autoExpandedRef.current = rideId;
+    }
+  }, []);
+  useEffect(() => {
+    const targetId = autoExpandedRef.current;
+    if (!targetId || activities.length === 0) return;
+    const ride = activities.find((a) => a.id === targetId);
+    if (ride && expandedRide !== targetId) {
+      autoExpandedRef.current = null;
+      // Expand date range to include this ride if needed
+      const rideAge = (Date.now() - new Date(ride.start_date).getTime()) / (1000 * 60 * 60 * 24);
+      if (rideAge > rideDaysShown) {
+        setRideDaysShown(Math.ceil(rideAge) + 1);
+      }
+      setTab("rides");
+      setExpandedRide(targetId);
+      // Fetch stream
+      if (!rideStreams[targetId]) {
+        setLoadingStream(targetId);
+        fetchStream(targetId).then((stream) => {
+          if (stream) setRideStreams((prev) => ({ ...prev, [targetId]: stream }));
+          setLoadingStream(null);
+        });
+      }
+      // Scroll to the ride card after render
+      setTimeout(() => {
+        document.getElementById(`ride-${targetId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    }
+  }, [activities]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Build power curve in two phases: cached streams first, then API fetches
   const handleBuildCurve = useCallback(async () => {
     setBuildingCurve(true);
@@ -1921,7 +1959,7 @@ export default function StravaPage() {
                   const workoutName = nameOnMatch ? nameOnMatch[1] : ride.name;
                   const routeName = nameOnMatch ? nameOnMatch[2] : desc || "";
                   return (
-                    <div key={ride.id} className={isExpanded ? "rounded-lg border-2 border-[#00D9FF] overflow-hidden" : ""}>
+                    <div key={ride.id} id={`ride-${ride.id}`} className={isExpanded ? "rounded-lg border-2 border-[#00D9FF] overflow-hidden" : ""}>
                       <button
                         onClick={() => handleExpandRide(ride.id)}
                         className={`w-full text-left grid gap-x-6 px-4 py-3 transition-colors ${isExpanded ? "bg-[rgba(0,217,255,0.03)]" : "rounded-lg border border-[#00D9FF]/10 bg-[rgba(0,217,255,0.03)] hover:bg-[rgba(0,217,255,0.08)]"}`}
