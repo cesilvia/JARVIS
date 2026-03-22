@@ -15,12 +15,14 @@
 - **MCP server** — Expose JARVIS data as MCP tools for Claude ("How many miles this week?", "Add journal entry")
 - **Ollama (local LLM)** — Run on Mac Mini for Research page RAG without API costs
 - **SQLite FTS5** — Full-text search across all JARVIS data (recipes, vocab, gear, notes, journal)
-- **Command palette (Cmd+K)** — Spotlight-style overlay from any page. Quick-add, search, navigate.
+- ~~**Command palette (Cmd+K)**~~ — DONE (2026-03-20): Spotlight-style overlay from any page. Fuzzy search across navigation, actions, and data (recipes, vocab, gear, bikes, rides). Recent items persist via KV.
+- **Chat widget in JARVIS** — Embedded Claude conversation on the hub or as a panel. Full multi-turn chat with access to MCP tools for complex queries and follow-ups. Richer than command palette AI mode.
 - **Global search** — Search across all modules, powered by FTS5
 - **Uptime Kuma** — Service monitor, pings JARVIS/N8N every minute, alerts on downtime
 - **Caddy** — Reverse proxy with auto-HTTPS (if needed beyond Cloudflare Tunnel)
 - **Offline / PWA** — Service worker + local cache for when Mac Mini is unreachable
 - **Mobile layout** — Touch-friendly alternative to wedge interaction
+- **React Native app** — Full native iOS app for JARVIS. Real push notifications, native feel, App Store/TestFlight distribution. Build after PWA if more native capabilities are needed. Skills transfer from Higgins React Native work.
 - **Push notifications** — Web push for alerts (helmet, backup, zone review)
 
 ## New Pages

@@ -820,13 +820,97 @@ export default function HubPage() {
     [router]
   );
 
+  // All modules for mobile view
+  const allModules = [
+    ...modules.map((m) => ({ id: m.id, name: m.name, description: m.description, href: m.href })),
+    ...bottomModules.map((m) => ({ id: m.id, name: m.name, description: "", href: m.href })),
+  ];
+
+  // Get summary for mobile card
+  const getMobileSummary = (id: string): string | undefined => {
+    if (id === "strava" && stravaSummary.length > 0) return stravaSummary.join(" · ");
+    if (id === "german" && germanSummary.length > 0) return germanSummary.join(" · ");
+    if (id === "alerts" && alertSummaries.length > 0) return alertSummaries.join(" · ");
+    if (id === "settings" && settingsSummary.length > 0) return settingsSummary.join(" · ");
+    return undefined;
+  };
+
   return (
-    <div className="min-h-screen hud-scifi-bg" style={{ 
+    <div className="min-h-screen hud-scifi-bg" style={{
       backgroundColor: currentTheme.background,
       color: currentTheme.primary
     }}>
       <CircuitBackground />
-      <main className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-8 relative z-10 overflow-visible">
+
+      {/* ─── Mobile Hub (< md) ─── */}
+      <main className="md:hidden w-full min-h-screen px-4 py-6 relative z-10">
+        {/* Header */}
+        <div className="flex items-center justify-center mb-6">
+          <img
+            src="/assets/jarvis-frame.png"
+            alt="JARVIS"
+            className="w-16 h-16 object-contain"
+            style={{ filter: `drop-shadow(0 0 8px ${currentTheme.primary}40)` }}
+          />
+          <h1 className="ml-3 text-xl font-mono font-bold tracking-wider" style={{ color: currentTheme.primary }}>
+            J.A.R.V.I.S.
+          </h1>
+        </div>
+
+        {/* Module cards */}
+        <div className="space-y-3 max-w-md mx-auto">
+          {allModules.map((module) => {
+            const isAlert = module.id === "alerts" && hasAlerts;
+            const isUnverified = module.id === "settings" && hasUnverified;
+            const accentColor = (isAlert || isUnverified) ? ALERT_ICON_ORANGE : currentTheme.primary;
+            const summary = getMobileSummary(module.id);
+            return (
+              <button
+                key={module.id}
+                onClick={() => router.push(module.href)}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border text-left transition-all active:scale-[0.98]"
+                style={{
+                  borderColor: `${accentColor}30`,
+                  backgroundColor: `${accentColor}08`,
+                }}
+              >
+                <div
+                  className="w-10 h-10 flex items-center justify-center rounded-full shrink-0"
+                  style={{
+                    backgroundColor: `${accentColor}15`,
+                    filter: `drop-shadow(0 0 4px ${accentColor}40)`,
+                  }}
+                >
+                  <StylizedIcon moduleId={module.id} size="text-lg" iconColor={accentColor} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm font-medium" style={{ color: accentColor }}>
+                    {module.name}
+                  </div>
+                  {summary && (
+                    <div className="font-mono text-xs truncate mt-0.5" style={{ color: currentTheme.secondary }}>
+                      {summary}
+                    </div>
+                  )}
+                </div>
+                <svg className="w-4 h-4 shrink-0 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Cmd+K hint */}
+        <div className="text-center mt-6">
+          <span className="font-mono text-[10px]" style={{ color: currentTheme.secondary, opacity: 0.5 }}>
+            ⌘K to search
+          </span>
+        </div>
+      </main>
+
+      {/* ─── Desktop Hub (≥ md) ─── */}
+      <main className="hidden md:flex w-full min-h-screen flex-col items-center justify-center px-4 py-8 relative z-10 overflow-visible">
         <div ref={contentAreaRef} className="flex-1 w-full max-w-4xl flex flex-col items-center justify-center gap-6 relative overflow-visible">
             {/* Top Module Frames - z-30 so icons stay clickable above wedge overlay */}
             <div className="flex-shrink-0 mb-4 relative z-30">
