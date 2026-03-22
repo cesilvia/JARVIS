@@ -75,10 +75,15 @@ export default function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
+  const [aiResponse, setAiResponse] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const isAiQuery = query.startsWith("?");
+  const aiQuestion = isAiQuery ? query.slice(1).trim() : "";
 
   // Load recents on mount
   useEffect(() => {
@@ -105,6 +110,8 @@ export default function CommandPalette() {
       setQuery("");
       setSelectedIndex(0);
       setSearchResults([]);
+      setAiResponse("");
+      setAiLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -117,10 +124,10 @@ export default function CommandPalette() {
     }
   }, [open]);
 
-  // Debounced search
+  // Debounced search (skip if AI query)
   useEffect(() => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    if (query.length < 2) {
+    if (isAiQuery || query.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -134,10 +141,42 @@ export default function CommandPalette() {
       } catch { /* ignore */ }
     }, 200);
     return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+  }, [query, isAiQuery]);
+
+  // Clear AI response when query changes
+  useEffect(() => {
+    setAiResponse("");
   }, [query]);
+
+  // Ask AI
+  const askAi = useCallback(async (question: string) => {
+    if (!question || aiLoading) return;
+    setAiLoading(true);
+    setAiResponse("");
+    try {
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      if (res.ok) {
+        const { answer } = await res.json();
+        setAiResponse(answer || "No response.");
+      } else {
+        const { error } = await res.json().catch(() => ({ error: "Request failed" }));
+        setAiResponse(`Error: ${error}`);
+      }
+    } catch {
+      setAiResponse("Error: Could not reach AI.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiLoading]);
 
   // Build the visible items list
   const getItems = useCallback((): CommandItem[] => {
+    if (isAiQuery) return []; // AI mode shows no items
+
     const items: CommandItem[] = [];
 
     if (!query) {
@@ -176,7 +215,7 @@ export default function CommandPalette() {
     }
 
     return items;
-  }, [query, recents, searchResults]);
+  }, [query, recents, searchResults, isAiQuery]);
 
   const items = getItems();
 
@@ -220,7 +259,11 @@ export default function CommandPalette() {
       setSelectedIndex((prev) => Math.max(prev - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (items[selectedIndex]) executeItem(items[selectedIndex]);
+      if (isAiQuery && aiQuestion) {
+        askAi(aiQuestion);
+      } else if (items[selectedIndex]) {
+        executeItem(items[selectedIndex]);
+      }
     } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
@@ -277,15 +320,19 @@ export default function CommandPalette() {
       >
         {/* Input */}
         <div className="flex items-center border-b border-cyan-400/20 px-4">
-          <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          {isAiQuery ? (
+            <span className="w-4 h-4 text-amber-400 shrink-0 text-xs font-bold">AI</span>
+          ) : (
+            <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          )}
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search pages, actions, data..."
+            placeholder="Search or ? to ask AI..."
             className="w-full px-3 py-3.5 bg-transparent text-slate-100 font-mono text-sm placeholder-slate-500 focus:outline-none"
           />
           <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-slate-500 bg-slate-800 border border-slate-700 rounded">
@@ -293,15 +340,43 @@ export default function CommandPalette() {
           </kbd>
         </div>
 
-        {/* Results */}
+        {/* Results or AI response */}
         <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-2">
-          {items.length === 0 && query && (
+          {/* AI Mode */}
+          {isAiQuery && (
+            <div className="px-4 py-3">
+              {!aiResponse && !aiLoading && aiQuestion && (
+                <p className="text-slate-500 font-mono text-sm">
+                  Press Enter to ask JARVIS
+                </p>
+              )}
+              {aiLoading && (
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 border-2 border-amber-400/40 border-t-amber-400 rounded-full animate-spin" />
+                  <span className="text-amber-400 font-mono text-sm">Thinking...</span>
+                </div>
+              )}
+              {aiResponse && (
+                <div className="font-mono text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+                  {aiResponse}
+                </div>
+              )}
+              {!aiQuestion && (
+                <p className="text-slate-500 font-mono text-sm">
+                  Type a question after ? — e.g., ?how many miles this week
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Normal mode */}
+          {!isAiQuery && items.length === 0 && query && (
             <p className="px-4 py-6 text-center text-slate-500 font-mono text-sm">
               No results for &ldquo;{query}&rdquo;
             </p>
           )}
 
-          {groups.map((group) => (
+          {!isAiQuery && groups.map((group) => (
             <div key={group.label}>
               <div className="px-4 pt-2 pb-1">
                 <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">
@@ -341,6 +416,7 @@ export default function CommandPalette() {
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>
+          <span className="ml-auto">? ask AI</span>
         </div>
       </div>
     </div>
