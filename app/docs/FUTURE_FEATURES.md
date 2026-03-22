@@ -26,13 +26,13 @@
 - **Push notifications** — Web push for alerts (helmet, backup, zone review)
 - **Things3 integration** — Sync tasks from Things3 via Apple Shortcuts + N8N. Things3 has URL scheme and Shortcuts support but no public API.
 - **Welcome message extras** — German flashcards due count, streak tracking (riding/German), motivational cycling quote of the day, calendar events. Add as data sources become available.
-- **Research page** — Readwise integration: AI-powered search of highlights, quote of the day on hub wedge, tag/topic browser, reading stats (books/articles per month), highlight export to JARVIS Notes.
+- **Research page (Readwise tab)** — Readwise integration: AI-powered search of highlights, quote of the day on hub wedge, tag/topic browser, reading stats (books/articles per month), highlight export to Notes tab.
+- **Research page (Journal tab)** — Daily entries with mood/energy tags stored in SQLite. Correlate with training load. Initial build done, UX needs revisit.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub. Full multi-turn chat with MCP tools. Richer than command palette AI mode.
 
 ## New Pages
 
-- **Journal page** — Daily entries with mood/energy tags stored in SQLite. Correlate with training load.
-- **Research page** — Readwise API + RAG. Pull highlights/annotations, embed locally (Ollama), semantic search.
+- ~~**Research page**~~ — RESTRUCTURED (2026-03-22): Hub icon renamed from Notes to Research. Now an umbrella page with tabs: Readwise, Notes, Journal.
 
 ## App Integrations
 

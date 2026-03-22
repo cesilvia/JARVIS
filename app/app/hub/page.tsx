@@ -65,8 +65,8 @@ const modules: Module[] = [
   },
   {
     id: "notes",
-    name: "Notes",
-    description: "Notes connected to Craft",
+    name: "Research",
+    description: "Readwise, Notes, and Journal",
     icon: "◇",
     href: "/notes",
     color: "red",

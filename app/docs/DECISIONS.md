@@ -582,3 +582,73 @@
 - **Rationale:** The staggered label layout (shortest labels furthest left) didn't look balanced — `v:` needed to shift left and `n:` needed a rightward nudge to create better visual spacing between the three word rows.
 - **Implementation:** `labelStartX()` in WedgeSummaryCard applies per-label offsets: `n:` nudged right by 0.75 × CHAR_WIDTH, `v:` nudged left by 0.5 × CHAR_WIDTH. Iteratively tuned through visual feedback.
 - **Status:** Implemented
+
+## 2026-03-22
+
+### Command Palette (Cmd+K)
+
+**Decision:** Add a Raycast-style command palette accessible from any page via Cmd+K
+- **Rationale:** JARVIS required navigating to a page before taking action. Command palette enables "just do it" from anywhere — search, navigate, run actions, and query data instantly.
+- **Implementation:** Single client component in root layout. Fuzzy search across 21 navigation targets + 2 quick actions. Server-side /api/search endpoint queries SQLite across recipes, vocab, gear, bikes, rides. Recent items persist via KV. AI mode (type ?) calls Claude API with MCP tools. Deep-links to Strava rides with auto-expand.
+- **Status:** Implemented
+
+### MCP Server
+
+**Decision:** Expose JARVIS data as MCP tools via /api/mcp route
+- **Rationale:** Enables Claude (in Claude Code, Claude app, or any MCP client) to query and update JARVIS data conversationally without opening the browser.
+- **Implementation:** 9 tools (get_rides, get_ride_stats, get_german_words_due, get_recipes, get_gear, get_bikes, run_backup, get_alerts, search). Shared tool definitions in mcp-tools.ts used by both MCP server and AI chat route. Web-standard StreamableHTTP transport. Requires ANTHROPIC_API_KEY for AI mode.
+- **Status:** Implemented (AI mode pending API key setup)
+
+### PWA Support
+
+**Decision:** Add Progressive Web App support for iPhone home screen access
+- **Rationale:** Makes JARVIS feel like a native app on iPhone — full screen, own icon, no browser bar. Much less work than building a React Native app.
+- **Implementation:** Web manifest, service worker (network-first with cache fallback), apple-touch-icon. Service worker registered in root layout.
+- **Status:** Implemented
+
+### Mobile Hub Layout
+
+**Decision:** Add responsive mobile layout for hub page below md breakpoint (768px)
+- **Rationale:** Radial wedge layout designed for desktop is unusable on phone — only center icons visible, no scrolling. Mobile needs a touch-friendly alternative.
+- **Implementation:** Scrollable card list with module icons, names, and summary info. Dark cards with cyan accents (HUD aesthetic preserved). Desktop layout completely unchanged — mobile layout is a separate `<main>` that shows via `md:hidden`. Single tap navigates (no wedge interaction).
+- **Status:** Implemented
+
+### Summary Chart Line Toggles
+
+**Decision:** Make summary chart legend items clickable to show/hide data series
+- **Rationale:** With 5 overlapping series (power, HR, cadence, speed, elevation), the chart can be noisy. Toggling lets user focus on specific data.
+- **Implementation:** `hiddenSeries` state (Set) in SummaryChart. Legend items toggle on click, hidden series render at 0.3 opacity in legend. Data lines, elevation fill, and FTP line conditionally rendered.
+- **Status:** Implemented
+
+### Comparison Ride Colors
+
+**Decision:** Change comparison ride colors from fading blues to distinct colors
+- **Rationale:** Progressively lighter shades of cyan were hard to distinguish, especially on mobile.
+- **Implementation:** Changed from `["#00D9FF", "rgba(0,217,255,0.5)", ...]` to `["#00D9FF", "#FF6B6B", "#FFD93D", "#6BCB77"]` (cyan, coral, gold, green).
+- **Status:** Implemented
+
+### Backup Labels Fix
+
+**Decision:** Update all backup-related labels from "iCloud" to "Cloudflare R2"
+- **Rationale:** Backups moved from iCloud Drive to Cloudflare R2 in a prior session, but UI labels in hub alerts, alerts page, settings page, and backup page still referenced iCloud.
+- **Implementation:** Updated 4 references across hub, alerts, settings pages. Backup page "Saves to" path changed from iCloud filesystem path to "Cloudflare R2 (jarvis-backups bucket)". Subtitle changed from "R2 Drive" to "Cloudflare R2".
+- **Status:** Implemented
+
+### Settings Wedge Simplification
+
+**Decision:** Reduce settings wedge to show only count, not page names
+- **Rationale:** Listing page names (hub, calendar, tasks, +34 more) caused layout issues in the wedge shape and wasn't useful information.
+- **Implementation:** Removed page name bullets and "+N more" line. Wedge now shows single line: "37 pages need verification".
+- **Status:** Implemented
+
+### Weather Removed from Hub
+
+**Decision:** Remove weather icon from hub modules
+- **Rationale:** Weather page is a utility, not a daily destination. Weather data will appear in the welcome message instead. Page remains accessible via Cmd+K.
+- **Status:** Implemented
+
+### Research Hub Icon (formerly Notes)
+
+**Decision:** Rename Notes hub icon to Research, umbrella for Readwise, Notes, and Journal
+- **Rationale:** Notes as a standalone module was underutilized. Research groups three related features (Readwise highlights, personal notes, journal entries) under one hub icon with sub-pages or tabs.
+- **Status:** Renamed; sub-pages to be built
