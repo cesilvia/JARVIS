@@ -220,6 +220,12 @@ function SummaryChart({ streams, ride, zones }: {
   const [selection, setSelection] = useState<[number, number] | null>(null);
   const [dragging, setDragging] = useState(false);
   const [compareIntervals, setCompareIntervals] = useState<{ label: string; range: [number, number]; stats: ReturnType<typeof computeStatsRef.current> }[]>([]);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = (key: string) => setHiddenSeries((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   // Use ref so compareIntervals callback can access computeStats without circular dependency
   const computeStatsRef = useRef<(s: number, e: number) => { duration: number; np: number; tss: number; iff: string; kj: number; power: number; maxPower: number; speed: string; hr: number; maxHr: number; cadence: number; elevGain: number; distance: string }>(null!);
 
@@ -448,18 +454,19 @@ function SummaryChart({ streams, ride, zones }: {
           {/* Legend */}
           {(() => {
             const items = [
-              ...(power ? [{ color: "#FFE030", label: "Power" }] : []),
-              ...(hr ? [{ color: "#FF3333", label: "HR" }] : []),
-              ...(cadence ? [{ color: "#FFFFFF", label: "Cadence" }] : []),
-              ...(speed ? [{ color: "#00D9FF", label: "Speed" }] : []),
-              ...(elev ? [{ color: "#888888", label: "Elevation" }] : []),
+              ...(power ? [{ key: "power", color: "#FFE030", label: "Power" }] : []),
+              ...(hr ? [{ key: "hr", color: "#FF3333", label: "HR" }] : []),
+              ...(cadence ? [{ key: "cadence", color: "#FFFFFF", label: "Cadence" }] : []),
+              ...(speed ? [{ key: "speed", color: "#00D9FF", label: "Speed" }] : []),
+              ...(elev ? [{ key: "elev", color: "#888888", label: "Elevation" }] : []),
             ];
             let x = padL;
             return items.map((item, i) => {
               const startX = x;
               x += item.label.length * 8 + 32;
+              const isHidden = hiddenSeries.has(item.key);
               return (
-                <g key={i}>
+                <g key={i} onClick={() => toggleSeries(item.key)} style={{ cursor: "pointer" }} opacity={isHidden ? 0.3 : 1}>
                   <line x1={startX} y1={10} x2={startX + 18} y2={10} stroke={item.color} strokeWidth="2.5" />
                   <text x={startX + 22} y={14} fill={item.color} fontSize="12" fontWeight="500">{item.label}</text>
                 </g>
@@ -473,10 +480,10 @@ function SummaryChart({ streams, ride, zones }: {
           ))}
 
           {/* Elevation fill (gray) */}
-          {elev && <path d={mkArea(elev, elevScale)} fill="rgba(160,160,160,0.3)" />}
+          {elev && !hiddenSeries.has("elev") && <path d={mkArea(elev, elevScale)} fill="rgba(160,160,160,0.3)" />}
 
           {/* FTP line */}
-          {ftpY !== null && ftpY >= padT && ftpY <= padT + cH && (
+          {ftpY !== null && ftpY >= padT && ftpY <= padT + cH && !hiddenSeries.has("power") && (
             <>
               <line x1={padL} y1={ftpY} x2={padL + cW} y2={ftpY} stroke="#FF8C00" strokeWidth="1" strokeDasharray="4,3" strokeOpacity="0.6" />
               <text x={padL + cW + 3} y={ftpY + 3} fill="#FF8C00" fontSize="8" opacity="0.7">{zones!.ftp} FTP</text>
@@ -506,10 +513,10 @@ function SummaryChart({ streams, ride, zones }: {
           )}
 
           {/* Data lines */}
-          {power && <path d={mkPath(power, pScale)} fill="none" stroke="#FFE030" strokeWidth="1.4" />}
-          {hr && <path d={mkPath(hr, hrScale)} fill="none" stroke="#FF3333" strokeWidth="1.2" />}
-          {cadence && <path d={mkPath(cadence, cadScale)} fill="none" stroke="#FFFFFF" strokeWidth="1" strokeOpacity="0.85" />}
-          {speed && <path d={mkPath(speed, spdScale)} fill="none" stroke="#00D9FF" strokeWidth="0.8" strokeOpacity="0.9" />}
+          {power && !hiddenSeries.has("power") && <path d={mkPath(power, pScale)} fill="none" stroke="#FFE030" strokeWidth="1.4" />}
+          {hr && !hiddenSeries.has("hr") && <path d={mkPath(hr, hrScale)} fill="none" stroke="#FF3333" strokeWidth="1.2" />}
+          {cadence && !hiddenSeries.has("cadence") && <path d={mkPath(cadence, cadScale)} fill="none" stroke="#FFFFFF" strokeWidth="1" strokeOpacity="0.85" />}
+          {speed && !hiddenSeries.has("speed") && <path d={mkPath(speed, spdScale)} fill="none" stroke="#00D9FF" strokeWidth="0.8" strokeOpacity="0.9" />}
 
           {/* Time axis */}
           {timeLabels.map((t, i) => (
@@ -739,7 +746,7 @@ function ZoneCompareGrouped({ title, zones, allTimes, dateLabels, colors }: {
   title: string; zones: { name: string }[]; allTimes: number[][]; dateLabels: string[]; colors: string[];
 }) {
   // For each zone, show grouped bars (one per ride)
-  const rideColors = ["#00D9FF", "rgba(0,217,255,0.5)", "rgba(0,217,255,0.3)", "rgba(0,217,255,0.15)"];
+  const rideColors = ["#00D9FF", "#FF6B6B", "#FFD93D", "#6BCB77"];
   const allTotals = allTimes.map((times) => times.reduce((s, t) => s + t, 0) || 1);
   const maxPct = Math.max(...allTimes.flatMap((times, ri) => times.map((t) => (t / allTotals[ri]) * 100)), 1);
   return (

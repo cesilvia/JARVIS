@@ -64,15 +64,6 @@ const modules: Module[] = [
     available: true,
   },
   {
-    id: "weather",
-    name: "Weather",
-    description: "Weather forecast and conditions",
-    icon: "◇",
-    href: "/weather",
-    color: "red",
-    available: true,
-  },
-  {
     id: "notes",
     name: "Notes",
     description: "Notes connected to Craft",
@@ -922,11 +913,10 @@ export default function HubPage() {
                   const isStrava = module.id === "strava";
                   const isCalendar = module.id === "calendar";
                   const isTasks = module.id === "tasks";
-                  const isWeather = module.id === "weather";
                   const isNotes = module.id === "notes";
                   const isHealth = module.id === "health";
                   const isGerman = module.id === "german";
-                  const frameSize = (isNutrition || isStrava || isCalendar || isTasks || isWeather || isNotes || isHealth || isGerman) ? 90 : 50;
+                  const frameSize = (isNutrition || isStrava || isCalendar || isTasks || isNotes || isHealth || isGerman) ? 90 : 50;
                   return (
                     <button
                       key={module.id}

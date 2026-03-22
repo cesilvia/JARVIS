@@ -24,6 +24,10 @@
 - **Mobile layout** — Touch-friendly alternative to wedge interaction
 - **React Native app** — Full native iOS app for JARVIS. Real push notifications, native feel, App Store/TestFlight distribution. Build after PWA if more native capabilities are needed. Skills transfer from Higgins React Native work.
 - **Push notifications** — Web push for alerts (helmet, backup, zone review)
+- **Things3 integration** — Sync tasks from Things3 via Apple Shortcuts + N8N. Things3 has URL scheme and Shortcuts support but no public API.
+- **Welcome message extras** — German flashcards due count, streak tracking (riding/German), motivational cycling quote of the day, calendar events. Add as data sources become available.
+- **Research page** — Readwise integration: AI-powered search of highlights, quote of the day on hub wedge, tag/topic browser, reading stats (books/articles per month), highlight export to JARVIS Notes.
+- **Chat widget in JARVIS** — Embedded Claude conversation on the hub. Full multi-turn chat with MCP tools. Richer than command palette AI mode.
 
 ## New Pages
 
