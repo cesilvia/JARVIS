@@ -26,7 +26,18 @@ function getReplaceDate(item: GearItem): Date | null {
   return d;
 }
 
+// In dev (localhost), N8N-managed alerts (backup, Strava sync) are irrelevant
+// because N8N runs against the prod Docker instance, not the local SQLite DB.
+function useIsDevMode() {
+  const [isDev, setIsDev] = useState(false);
+  useEffect(() => {
+    setIsDev(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  }, []);
+  return isDev;
+}
+
 export default function AlertsPage() {
+  const isDev = useIsDevMode();
   const [lastFullBackup, setLastFullBackup] = useState<string | null>(null);
   const [fullBackupOverdue, setFullBackupOverdue] = useState(false);
   const [helmetReminders, setHelmetReminders] = useState<{ item: GearItem; replaceDate: Date }[]>([]);
@@ -222,7 +233,7 @@ export default function AlertsPage() {
           </section>
         )}
 
-        {fullBackupOverdue && (
+        {fullBackupOverdue && !isDev && (
           <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
             <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
               Daily reminder: Back up JARVIS to R2
@@ -241,7 +252,7 @@ export default function AlertsPage() {
           </section>
         )}
 
-        {!fullBackupOverdue && lastFullBackup && (
+        {!fullBackupOverdue && lastFullBackup && !isDev && (
           <section className="border border-slate-700 rounded-lg p-6 mb-6">
             <p className="text-slate-400 font-mono text-sm">
               JARVIS backup is up to date. Last backup: {new Date(lastFullBackup).toLocaleDateString()}. You can manage backups in <Link href="/settings/backup" className="text-slate-300 underline hover:text-white">Settings → Backup</Link>.
@@ -249,7 +260,7 @@ export default function AlertsPage() {
           </section>
         )}
 
-        {stravaSyncStale && (
+        {stravaSyncStale && !isDev && (
           <section className="border border-amber-600/50 rounded-lg p-6 bg-amber-950/20 mb-6">
             <h2 className="text-lg font-semibold font-mono text-amber-200 mb-2">
               Strava auto-sync is stale

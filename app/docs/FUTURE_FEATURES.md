@@ -20,12 +20,14 @@
 - **Global search** — Search across all modules, powered by FTS5
 - **Uptime Kuma** — Service monitor, pings JARVIS/N8N every minute, alerts on downtime
 - **Caddy** — Reverse proxy with auto-HTTPS (if needed beyond Cloudflare Tunnel)
+- ~~**Dev mode alert suppression**~~ — DONE (2026-03-22): Backup and Strava sync alerts hidden on localhost (N8N runs against prod Docker, not local SQLite).
 - **Offline / PWA** — Service worker + local cache for when Mac Mini is unreachable
 - **Mobile layout** — Touch-friendly alternative to wedge interaction
 - **React Native app** — Full native iOS app for JARVIS. Real push notifications, native feel, App Store/TestFlight distribution. Build after PWA if more native capabilities are needed. Skills transfer from Higgins React Native work.
 - **Push notifications** — Web push for alerts (helmet, backup, zone review)
 - **Things3 integration** — Sync tasks from Things3 via Apple Shortcuts + N8N. Things3 has URL scheme and Shortcuts support but no public API.
-- **Welcome message extras** — German flashcards due count, streak tracking (riding/German), motivational cycling quote of the day, calendar events. Add as data sources become available.
+- ~~**Welcome banner**~~ — DONE (2026-03-22): "Good Morning/Afternoon/Evening, Chris" with 3 info cards (Training TSB, Weather + ride window, Today with German cards due). Auto-collapses 10s. Toggle via JARVIS frame tap. Training load extracted to shared lib. Calendar/tasks placeholders until Fantastical + Things 3 integrated.
+- **Welcome message extras** — Fantastical events, Things 3 tasks, streak tracking (riding/German), motivational cycling quote of the day. Add as integrations become available.
 - **Research page (Readwise tab)** — Readwise integration: AI-powered search of highlights, quote of the day on hub wedge, tag/topic browser, reading stats (books/articles per month), highlight export to Notes tab.
 - **Research page (Journal tab)** — Daily entries with mood/energy tags stored in SQLite. Correlate with training load. Initial build done, UX needs revisit.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub. Full multi-turn chat with MCP tools. Richer than command palette AI mode.
@@ -58,7 +60,7 @@
 
 ## Cross-Module Intelligence
 
-- **Morning briefing** — Single "today" view: weather, calendar, tasks due, German cards due, training status.
+- ~~**Morning briefing**~~ — DONE (2026-03-22): Welcome banner on hub. Training TSB + weather + German cards due. Placeholders for calendar/tasks.
 - **Pre-ride briefing** — Weather at ride time + TSB/freshness + TrainerRoad workout + calendar conflicts.
 - **Ride planner** — Weather + training load + calendar free time → best ride window.
 - **Weekly review** — Auto-generated: miles ridden, words learned, recipes cooked, tasks completed.

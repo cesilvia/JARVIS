@@ -652,3 +652,29 @@
 **Decision:** Rename Notes hub icon to Research, umbrella for Readwise, Notes, and Journal
 - **Rationale:** Notes as a standalone module was underutilized. Research groups three related features (Readwise highlights, personal notes, journal entries) under one hub icon with sub-pages or tabs.
 - **Status:** Renamed; sub-pages to be built
+
+### Welcome Banner
+
+**Decision:** Add a "Good Morning/Afternoon/Evening, Chris" banner to the hub with three info cards (Training, Weather, Today)
+- **Rationale:** At-a-glance daily status without navigating to individual pages. Shows TSB/form, current weather + ride window, and German cards due. Calendar and tasks are placeholders until Fantastical and Things 3 are integrated.
+- **Implementation:** `WelcomeBanner.tsx` component fetches data in parallel (Strava activities for TSB, Open-Meteo forecast, German vocab for cards due). Auto-collapses after 10 seconds. Tap the center JARVIS frame (desktop) or header frame (mobile) to toggle. Training load functions extracted to shared `lib/training-load.ts` (eliminates duplication between hub and Strava page).
+- **Status:** Implemented
+
+### Shared Training Load Library
+
+**Decision:** Extract `computeDailyTSS` and `computeFitness` from Strava page into `lib/training-load.ts`
+- **Rationale:** Same TSS/CTL/ATL/TSB computation was duplicated in `bike/strava/page.tsx` and inline in `hub/page.tsx`. Welcome banner needs it too.
+- **Status:** Implemented
+
+### Dev Mode Alert Suppression
+
+**Decision:** Suppress backup and Strava sync alerts when running on localhost
+- **Rationale:** N8N runs backups and Strava syncs against the production Docker instance on the Mac Mini. The local dev SQLite has different timestamps, causing false alerts. Detected via `window.location.hostname === "localhost"`.
+- **Status:** Implemented
+
+### PWA Icon Update
+
+**Decision:** Replace Iron Man helmet outline icons with the JARVIS arc reactor frame image
+- **Rationale:** The helmet icon was showing as a generic "J" on iPhone home screen. The arc reactor frame matches the in-app branding and has a solid black background (avoids iOS transparent PNG issues).
+- **Implementation:** Resized `jarvis-frame.png` (1024×1024) to apple-touch-icon (180), icon-192, and icon-512. Users must delete and re-add the home screen bookmark to pick up the new icon.
+- **Status:** Implemented

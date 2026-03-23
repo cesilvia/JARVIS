@@ -13,8 +13,10 @@ import {
   getYearStart,
 } from "../bike/strava/types";
 import * as api from "../lib/api-client";
+import { computeDailyTSS, computeFitness } from "../lib/training-load";
 import { getWordsOfTheDay, formatWotdForWedge, getNewWotdWords } from "../lib/word-of-the-day";
 import type { VocabWord } from "../lib/german-types";
+import WelcomeBanner from "./WelcomeBanner";
 
 interface Module {
   id: string;
@@ -469,8 +471,14 @@ const FULL_BACKUP_REMINDER_DAYS = 1;
 const HELMET_REMINDER_DAYS = 30;
 const ZONE_REVIEW_DAYS = 28;
 
+function isDevMode(): boolean {
+  return typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+}
+
 async function hubGetAlertSummaries(): Promise<string[]> {
   const lines: string[] = [];
+  const isDev = isDevMode();
   // localStorage → SQLite migration check
   let jarvisKeyCount = 0;
   for (let i = 0; i < localStorage.length; i++) {
@@ -486,14 +494,16 @@ async function hubGetAlertSummaries(): Promise<string[]> {
       lines.push("Migrate localStorage to SQLite");
     }
   }
-  // Daily full JARVIS backup check
-  const lastFullBackup = await api.getKV<string>("last-full-backup");
-  if (!lastFullBackup) {
-    lines.push("Back up JARVIS to R2");
-  } else {
-    const fullDays = (Date.now() - new Date(lastFullBackup).getTime()) / (1000 * 60 * 60 * 24);
-    if (fullDays >= FULL_BACKUP_REMINDER_DAYS) {
+  // Daily full JARVIS backup check (skip in dev — N8N backs up the prod instance)
+  if (!isDev) {
+    const lastFullBackup = await api.getKV<string>("last-full-backup");
+    if (!lastFullBackup) {
       lines.push("Back up JARVIS to R2");
+    } else {
+      const fullDays = (Date.now() - new Date(lastFullBackup).getTime()) / (1000 * 60 * 60 * 24);
+      if (fullDays >= FULL_BACKUP_REMINDER_DAYS) {
+        lines.push("Back up JARVIS to R2");
+      }
     }
   }
   try {
@@ -522,16 +532,19 @@ async function hubGetAlertSummaries(): Promise<string[]> {
   } catch {
     // ignore
   }
-  try {
-    const lastSync = await api.getKV<string>("strava-last-sync");
-    if (lastSync) {
-      const hours = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
-      if (hours >= 3) {
-        lines.push("Strava sync stale");
+  // Strava sync staleness (skip in dev — N8N syncs the prod instance)
+  if (!isDev) {
+    try {
+      const lastSync = await api.getKV<string>("strava-last-sync");
+      if (lastSync) {
+        const hours = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
+        if (hours >= 3) {
+          lines.push("Strava sync stale");
+        }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
   return lines;
 }
@@ -550,9 +563,22 @@ export default function HubPage() {
   const [germanDefinitions, setGermanDefinitions] = useState<(string | undefined)[]>([]);
   const [nutritionSummary] = useState<string[]>(["Fuel for the", "work required"]);
   const [hasUnverified, setHasUnverified] = useState(false);
+  const [bannerOpen, setBannerOpen] = useState(true);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const centerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const iconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Auto-collapse welcome banner after 10 seconds
+  useEffect(() => {
+    bannerTimerRef.current = setTimeout(() => setBannerOpen(false), 10000);
+    return () => clearTimeout(bannerTimerRef.current);
+  }, []);
+
+  const toggleBanner = useCallback(() => {
+    clearTimeout(bannerTimerRef.current);
+    setBannerOpen((prev) => !prev);
+  }, []);
 
   // Load nutrition stats
   useEffect(() => {
@@ -593,28 +619,12 @@ export default function HubPage() {
           const zones = await api.getKV<{ ftp?: number }>("strava-zones");
           const ftp = zones?.ftp;
           if (ftp) {
-            let ctl = 0, atl = 0;
-            const dailyTSS = new Map<string, number>();
-            for (const a of activities) {
-              const np = a.weighted_average_watts;
-              if (!np) continue;
-              const iff = np / ftp;
-              const tss = (a.moving_time * np * iff) / (ftp * 3600) * 100;
-              const day = a.start_date.slice(0, 10);
-              dailyTSS.set(day, (dailyTSS.get(day) || 0) + tss);
-            }
-            const sorted = Array.from(dailyTSS.keys()).sort();
-            if (sorted.length > 0) {
-              const start = new Date(sorted[0]);
-              for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
-                const key = d.toISOString().slice(0, 10);
-                const tss = dailyTSS.get(key) || 0;
-                ctl = ctl + (tss - ctl) / 42;
-                atl = atl + (tss - atl) / 7;
-              }
-              const tsb = ctl - atl;
-              const status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
-              tsbLabel = `TSB: ${Math.round(tsb)} (${status})`;
+            const dailyTSS = computeDailyTSS(activities, ftp);
+            const fitness = computeFitness(dailyTSS, 1);
+            const today = fitness[fitness.length - 1];
+            if (today) {
+              const status = today.tsb > -10 ? "Fresh" : today.tsb > -30 ? "Training" : "Overreaching";
+              tsbLabel = `TSB: ${Math.round(today.tsb)} (${status})`;
             }
           }
         } catch { /* ignore */ }
@@ -840,13 +850,17 @@ export default function HubPage() {
           <img
             src="/assets/jarvis-frame.png"
             alt="JARVIS"
-            className="w-16 h-16 object-contain"
+            className="w-16 h-16 object-contain cursor-pointer"
             style={{ filter: `drop-shadow(0 0 8px ${currentTheme.primary}40)` }}
+            onClick={toggleBanner}
           />
           <h1 className="ml-3 text-xl font-mono font-bold tracking-wider" style={{ color: currentTheme.primary }}>
             J.A.R.V.I.S.
           </h1>
         </div>
+
+        {/* Welcome Banner */}
+        <WelcomeBanner isOpen={bannerOpen} />
 
         {/* Module cards */}
         <div className="space-y-3 max-w-md mx-auto">
@@ -958,12 +972,16 @@ export default function HubPage() {
               </div>
             </div>
 
+            {/* Welcome Banner */}
+            <WelcomeBanner isOpen={bannerOpen} />
+
             {/* Main Content Area - Center Frame Only (no left panel) */}
             <div className="flex-1 flex items-center justify-center min-h-0 relative overflow-visible">
               <div
                 ref={centerRef}
-                className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center flex-shrink-0 overflow-visible"
+                className="w-80 h-80 md:w-96 md:h-96 flex items-center justify-center flex-shrink-0 overflow-visible cursor-pointer"
                 style={{ background: "transparent" }}
+                onClick={toggleBanner}
               >
                 <img
                   src="/assets/jarvis-frame.png"
