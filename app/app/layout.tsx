@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import CommandPalette from "./components/CommandPalette";
+import FloatingAskButton from "./components/FloatingAskButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
       >
         {children}
         <CommandPalette />
+        <FloatingAskButton />
         <script
           dangerouslySetInnerHTML={{
             __html: `if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js")}`,

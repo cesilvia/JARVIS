@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { getKV, setKV } from "@/app/lib/api-client";
 
 // --- Types ---
@@ -37,6 +37,7 @@ const NAV_ITEMS: CommandItem[] = [
   { id: "nav-tasks", title: "Tasks", subtitle: "Task manager", category: "navigation", href: "/tasks" },
   { id: "nav-weather", title: "Weather", subtitle: "Weather forecast", category: "navigation", href: "/weather" },
   { id: "nav-notes", title: "Notes", subtitle: "Notes", category: "navigation", href: "/notes" },
+  { id: "nav-research", title: "Research", subtitle: "Knowledge base & RAG search", category: "navigation", href: "/research" },
   { id: "nav-health", title: "Health", subtitle: "Health metrics", category: "navigation", href: "/health" },
   { id: "nav-inventory", title: "Gear Inventory", subtitle: "Bike gear and clothing", category: "navigation", href: "/bike/inventory" },
   { id: "nav-components", title: "Bike Components", subtitle: "Component tracking", category: "navigation", href: "/bike/components" },
@@ -80,7 +81,17 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Determine RAG scope based on current page
+  const ragScope = pathname.startsWith("/bike") || pathname.startsWith("/bike/strava")
+    ? "cycling"
+    : pathname.startsWith("/nutrition") || pathname.startsWith("/recipes")
+      ? "nutrition"
+      : pathname.startsWith("/health")
+        ? "health"
+        : "all";
 
   const isAiQuery = query.startsWith("?");
   const aiQuestion = isAiQuery ? query.slice(1).trim() : "";
@@ -148,30 +159,46 @@ export default function CommandPalette() {
     setAiResponse("");
   }, [query]);
 
-  // Ask AI
+  // Ask AI — enhanced with RAG knowledge base search
   const askAi = useCallback(async (question: string) => {
     if (!question || aiLoading) return;
     setAiLoading(true);
     setAiResponse("");
     try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
-      if (res.ok) {
-        const { answer } = await res.json();
-        setAiResponse(answer || "No response.");
-      } else {
-        const { error } = await res.json().catch(() => ({ error: "Request failed" }));
-        setAiResponse(`Error: ${error}`);
+      // Try RAG search (LightRAG) in parallel with MCP tools
+      const [ragRes, aiRes] = await Promise.allSettled([
+        fetch("/api/rag/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, scope: ragScope }),
+        }).then(r => r.ok ? r.json() : null),
+        fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        }).then(r => r.ok ? r.json() : null),
+      ]);
+
+      const ragResult = ragRes.status === "fulfilled" ? ragRes.value : null;
+      const aiResult = aiRes.status === "fulfilled" ? aiRes.value : null;
+
+      // Combine: RAG for knowledge base answers, MCP tools for live data
+      const parts: string[] = [];
+      if (ragResult?.answer && !ragResult.error) {
+        parts.push(ragResult.answer);
       }
+      if (aiResult?.answer) {
+        if (parts.length > 0) parts.push("\n\n---\n\n" + aiResult.answer);
+        else parts.push(aiResult.answer);
+      }
+
+      setAiResponse(parts.join("") || "No response.");
     } catch {
       setAiResponse("Error: Could not reach AI.");
     } finally {
       setAiLoading(false);
     }
-  }, [aiLoading]);
+  }, [aiLoading, ragScope]);
 
   // Build the visible items list
   const getItems = useCallback((): CommandItem[] => {

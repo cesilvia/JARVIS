@@ -1,4 +1,4 @@
-import { getDb, kvGet, getAllRecipes, getAllGearItems, getAllBikes } from "./db";
+import { getDb, kvGet, getAllRecipes, getAllGearItems, getAllBikes, getResearchStats, getAllResearchSources } from "./db";
 
 // ─── Tool definitions ───────────────────────────────────────────
 
@@ -277,6 +277,57 @@ export const jarvisTools: ToolDef[] = [
       for (const a of activities) results.push({ type: "ride", name: a.name, date: a.start_date });
 
       return JSON.stringify(results, null, 2);
+    },
+  },
+  {
+    name: "query_knowledge",
+    description: "Search the JARVIS knowledge base (Readwise articles, podcast transcripts, highlights). Returns relevant text chunks with source information. Use this for questions about training, nutrition, cycling science, or any topic from the user's reading library.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query (natural language or keywords)" },
+        scope: { type: "string", description: "Optional topic filter: cycling, nutrition, health, training-science, gear, or all", enum: ["all", "cycling", "nutrition", "health", "training-science", "gear"] },
+        limit: { type: "number", description: "Max results, default 10" },
+      },
+      required: ["query"],
+    },
+    execute: async ({ query }) => {
+      if (!query) return JSON.stringify({ error: "query required" });
+      const lightragUrl = process.env.LIGHTRAG_URL || "http://localhost:9621";
+      try {
+        const res = await fetch(`${lightragUrl}/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: query as string,
+            mode: "mix",
+            only_need_context: true,
+          }),
+        });
+        if (!res.ok) return JSON.stringify({ error: "LightRAG query failed", status: res.status });
+        const data = await res.json();
+        const context = typeof data === "string" ? data : (data.response ?? data.context ?? "");
+        if (!context) return JSON.stringify({ message: "No matching content found." });
+        // Truncate for tool response
+        return context.slice(0, 3000);
+      } catch {
+        return JSON.stringify({ error: "LightRAG server unreachable. Is it running?" });
+      }
+    },
+  },
+
+  {
+    name: "get_knowledge_stats",
+    description: "Get statistics about the JARVIS knowledge base: document count, chunk count, active sources, tags.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+    execute: async () => {
+      const stats = getResearchStats();
+      const sources = getAllResearchSources();
+      return JSON.stringify({ ...stats, sources: sources.map(s => ({ name: s.name, type: s.sourceType, active: s.active })) }, null, 2);
     },
   },
 ];

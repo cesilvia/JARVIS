@@ -13,8 +13,9 @@
 ### Planned
 - **N8N workflow expansion** — Strava auto-sync (hourly), power curve builder (overnight), weather prefetch, German vocab backup
 - **MCP server** — Expose JARVIS data as MCP tools for Claude ("How many miles this week?", "Add journal entry")
-- **Ollama (local LLM)** — Run on Mac Mini for Research page RAG without API costs
-- **SQLite FTS5** — Full-text search across all JARVIS data (recipes, vocab, gear, notes, journal)
+- ~~**LightRAG + OpenRouter**~~ — DONE (2026-03-24): LightRAG Docker container on Mac Mini for knowledge graph RAG. OpenRouter for embeddings (text-embedding-3-small) and LLM (Gemini 2.5 Flash). Semantic search across Readwise articles, podcast transcripts, highlights.
+- **Full Convex migration** — Consider migrating all JARVIS data from SQLite to Convex for real-time sync, native vector search, and shared infrastructure with Higgins. Currently Convex is not used; LightRAG handles vector/graph search. Evaluate after Higgins is stable and if multi-device sync becomes important.
+- **Global search (FTS5)** — Full-text search across all JARVIS data (recipes, vocab, gear, notes, journal). Separate from RAG semantic search.
 - ~~**Command palette (Cmd+K)**~~ — DONE (2026-03-20): Spotlight-style overlay from any page. Fuzzy search across navigation, actions, and data (recipes, vocab, gear, bikes, rides). Recent items persist via KV.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub or as a panel. Full multi-turn chat with access to MCP tools for complex queries and follow-ups. Richer than command palette AI mode.
 - **Global search** — Search across all modules, powered by FTS5
@@ -28,7 +29,7 @@
 - **Things3 integration** — Sync tasks from Things3 via Apple Shortcuts + N8N. Things3 has URL scheme and Shortcuts support but no public API.
 - ~~**Welcome banner**~~ — DONE (2026-03-22): "Good Morning/Afternoon/Evening, Chris" with 3 info cards (Training TSB, Weather + ride window, Today with German cards due). Auto-collapses 10s. Toggle via JARVIS frame tap. Training load extracted to shared lib. Calendar/tasks placeholders until Fantastical + Things 3 integrated.
 - **Welcome message extras** — Fantastical events, Things 3 tasks, streak tracking (riding/German), motivational cycling quote of the day. Add as integrations become available.
-- **Research page (Readwise tab)** — Readwise integration: AI-powered search of highlights, quote of the day on hub wedge, tag/topic browser, reading stats (books/articles per month), highlight export to Notes tab.
+- ~~**Research page (Readwise tab)**~~ — DONE (2026-03-24): Full Research page with RAG search (LightRAG + Gemini Flash), Readwise sync, library browser with tag filtering, source management (YouTube/RSS/Blog feeds for N8N), tag review workflow (auto-classify + user verification). AskJarvis component embeddable on any page. Cmd+K enhanced with semantic search. Mobile floating Ask button. Still needed: quote of the day on hub wedge, reading stats.
 - **Research page (Journal tab)** — Daily entries with mood/energy tags stored in SQLite. Correlate with training load. Initial build done, UX needs revisit.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub. Full multi-turn chat with MCP tools. Richer than command palette AI mode.
 

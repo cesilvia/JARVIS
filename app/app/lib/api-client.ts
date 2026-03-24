@@ -250,6 +250,121 @@ export async function geocodeLocation(query: string): Promise<{ name: string; la
   return results ?? [];
 }
 
+// ─── Research / RAG ─────────────────────────────────────────
+
+export async function getResearchDocuments(opts?: { source?: string; tag?: string; limit?: number; offset?: number }): Promise<{ id: string; title: string; author?: string; source?: string; sourceUrl?: string; category?: string; summary?: string; wordCount: number; syncedAt: string; tags: string[] }[]> {
+  const params = new URLSearchParams();
+  if (opts?.source) params.set("source", opts.source);
+  if (opts?.tag) params.set("tag", opts.tag);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  if (opts?.offset) params.set("offset", String(opts.offset));
+  const res = await fetch(`/api/db/research/documents?${params.toString()}`);
+  if (!res.ok) return [];
+  const { documents } = await res.json();
+  return documents ?? [];
+}
+
+export async function getResearchDocument(id: string) {
+  const res = await fetch(`/api/db/research/documents?id=${encodeURIComponent(id)}`);
+  if (!res.ok) return null;
+  const { document } = await res.json();
+  return document ?? null;
+}
+
+export async function getResearchStats(): Promise<{ documents: number; activeSources: number; unreviewedTags: number; tags: { tag: string; count: number }[] }> {
+  const res = await fetch("/api/db/research/documents?stats=true");
+  if (!res.ok) return { documents: 0, activeSources: 0, unreviewedTags: 0, tags: [] };
+  const { stats } = await res.json();
+  return stats;
+}
+
+export async function getResearchSources(): Promise<{ id: string; name: string; url?: string; sourceType: string; active: boolean; createdAt: string }[]> {
+  const res = await fetch("/api/db/research/sources");
+  if (!res.ok) return [];
+  const { sources } = await res.json();
+  return sources ?? [];
+}
+
+export async function saveResearchSources(sources: { id: string; name: string; url?: string; sourceType: string; active?: boolean }[]): Promise<void> {
+  await fetch("/api/db/research/sources", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sources }),
+  });
+}
+
+export async function deleteResearchSourceById(id: string): Promise<void> {
+  await fetch(`/api/db/research/sources?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function getResearchTags(): Promise<{ tag: string; count: number }[]> {
+  const res = await fetch("/api/db/research/tags");
+  if (!res.ok) return [];
+  const { tags } = await res.json();
+  return tags ?? [];
+}
+
+export async function getUnreviewedTags(): Promise<{ id: string; title: string; source: string | null; category: string | null; tags: string[] }[]> {
+  const res = await fetch("/api/db/research/tags?unreviewed=true");
+  if (!res.ok) return [];
+  const { items } = await res.json();
+  return items ?? [];
+}
+
+export async function confirmTag(documentId: string, tag: string): Promise<void> {
+  await fetch("/api/db/research/tags", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documentId, tag, action: "confirm" }),
+  });
+}
+
+export async function setDocumentTags(documentId: string, tags: string[]): Promise<void> {
+  await fetch("/api/db/research/tags", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documentId, tags }),
+  });
+}
+
+export async function syncReadwise(fullSync = false): Promise<{ success: boolean; processed: number; indexed: number; error?: string }> {
+  const res = await fetch("/api/readwise/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fullSync }),
+  });
+  return res.json();
+}
+
+export async function getReadwiseSyncStatus(): Promise<{ lastSync: string | null; configured: boolean; openrouterConfigured?: boolean; lightragHealthy?: boolean }> {
+  const res = await fetch("/api/readwise/sync");
+  if (!res.ok) return { lastSync: null, configured: false };
+  return res.json();
+}
+
+export interface RagResult {
+  answer: string;
+  citations: {
+    index: number;
+    title: string;
+    author?: string;
+    source?: string;
+    sourceUrl?: string;
+    chunkIndex: number;
+    timestamp?: string;
+  }[];
+  error?: string;
+}
+
+export async function queryRag(question: string, scope?: string): Promise<RagResult> {
+  const res = await fetch("/api/rag/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, scope }),
+  });
+  return res.json();
+}
+
 // ─── Migration ──────────────────────────────────────────────────
 
 export async function migrateFromLocalStorage(data: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {

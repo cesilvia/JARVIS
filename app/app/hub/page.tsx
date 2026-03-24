@@ -68,9 +68,9 @@ const modules: Module[] = [
   {
     id: "notes",
     name: "Research",
-    description: "Readwise, Notes, and Journal",
+    description: "Knowledge base & RAG search",
     icon: "◇",
-    href: "/notes",
+    href: "/research",
     color: "red",
     available: true,
   },

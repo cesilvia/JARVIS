@@ -160,6 +160,49 @@ CREATE TABLE IF NOT EXISTS tire_refs (
   min_psi INTEGER NOT NULL,
   max_psi INTEGER NOT NULL
 );
+
+-- ─── Research / RAG tables ────────────────────────────────────
+
+-- Documents synced from Readwise (articles, podcasts, books, highlights)
+CREATE TABLE IF NOT EXISTS research_documents (
+  id              TEXT PRIMARY KEY,
+  readwise_id     TEXT UNIQUE,
+  title           TEXT NOT NULL,
+  author          TEXT,
+  source          TEXT,
+  source_url      TEXT,
+  category        TEXT,
+  content         TEXT,
+  summary         TEXT,
+  image_url       TEXT,
+  word_count      INTEGER DEFAULT 0,
+  readwise_updated_at TEXT,
+  synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_research_docs_source ON research_documents(source);
+CREATE INDEX IF NOT EXISTS idx_research_docs_category ON research_documents(category);
+
+-- Tags (many-to-many, supports multiple tags per document)
+CREATE TABLE IF NOT EXISTS research_tags (
+  document_id TEXT NOT NULL REFERENCES research_documents(id) ON DELETE CASCADE,
+  tag         TEXT NOT NULL,
+  auto        INTEGER NOT NULL DEFAULT 1,
+  confirmed   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (document_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tags_tag ON research_tags(tag);
+
+-- Podcast / content sources (managed on Research page)
+CREATE TABLE IF NOT EXISTS research_sources (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  url         TEXT,
+  source_type TEXT NOT NULL,
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 export function getDb(): Database.Database {
@@ -734,6 +777,226 @@ export function getAllRideWeather(): RideWeatherRow[] {
   return db.prepare("SELECT * FROM ride_weather").all() as RideWeatherRow[];
 }
 
+// ─── Research Documents ─────────────────────────────────────
+
+export interface ResearchDocument {
+  id: string;
+  readwiseId?: string;
+  title: string;
+  author?: string;
+  source?: string;
+  sourceUrl?: string;
+  category?: string;
+  content?: string;
+  summary?: string;
+  imageUrl?: string;
+  wordCount?: number;
+  readwiseUpdatedAt?: string;
+  syncedAt?: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function upsertResearchDocuments(docs: any[]): void {
+  const db = getDb();
+  const stmt = db.prepare(`INSERT INTO research_documents
+    (id, readwise_id, title, author, source, source_url, category, content, summary, image_url, word_count, readwise_updated_at, synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      readwise_id = excluded.readwise_id,
+      title = excluded.title,
+      author = excluded.author,
+      source = excluded.source,
+      source_url = excluded.source_url,
+      category = excluded.category,
+      content = excluded.content,
+      summary = excluded.summary,
+      image_url = excluded.image_url,
+      word_count = excluded.word_count,
+      readwise_updated_at = excluded.readwise_updated_at,
+      synced_at = datetime('now')`);
+  const tx = db.transaction(() => {
+    for (const d of docs) {
+      stmt.run(
+        d.id, d.readwiseId ?? d.readwise_id ?? null,
+        d.title, d.author ?? null, d.source ?? null,
+        d.sourceUrl ?? d.source_url ?? null, d.category ?? null,
+        d.content ?? null, d.summary ?? null,
+        d.imageUrl ?? d.image_url ?? null, d.wordCount ?? d.word_count ?? 0,
+        d.readwiseUpdatedAt ?? d.readwise_updated_at ?? null,
+      );
+    }
+  });
+  tx();
+}
+
+export function getAllResearchDocuments(opts?: { source?: string; tag?: string; limit?: number; offset?: number }) {
+  const db = getDb();
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (opts?.source) { conditions.push("d.source = ?"); params.push(opts.source); }
+  if (opts?.tag) {
+    conditions.push("d.id IN (SELECT document_id FROM research_tags WHERE tag = ?)");
+    params.push(opts.tag);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const limit = opts?.limit ?? 50;
+  const offset = opts?.offset ?? 0;
+
+  const rows = db.prepare(
+    `SELECT d.*, GROUP_CONCAT(DISTINCT t.tag) as tags
+     FROM research_documents d
+     LEFT JOIN research_tags t ON d.id = t.document_id
+     ${where}
+     GROUP BY d.id
+     ORDER BY d.synced_at DESC
+     LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset) as (Record<string, unknown> & { tags: string | null })[];
+
+  return rows.map(r => ({
+    id: r.id as string,
+    readwiseId: r.readwise_id as string | undefined,
+    title: r.title as string,
+    author: r.author as string | undefined,
+    source: r.source as string | undefined,
+    sourceUrl: r.source_url as string | undefined,
+    category: r.category as string | undefined,
+    summary: r.summary as string | undefined,
+    imageUrl: r.image_url as string | undefined,
+    wordCount: r.word_count as number,
+    syncedAt: r.synced_at as string,
+    tags: r.tags ? r.tags.split(",") : [],
+  }));
+}
+
+export function getResearchDocument(id: string) {
+  const db = getDb();
+  const row = db.prepare("SELECT * FROM research_documents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  const tags = db.prepare("SELECT tag, auto, confirmed FROM research_tags WHERE document_id = ?").all(id) as { tag: string; auto: number; confirmed: number }[];
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    author: row.author as string | undefined,
+    source: row.source as string | undefined,
+    sourceUrl: row.source_url as string | undefined,
+    category: row.category as string | undefined,
+    content: row.content as string | undefined,
+    summary: row.summary as string | undefined,
+    wordCount: row.word_count as number,
+    syncedAt: row.synced_at as string,
+    tags: tags.map(t => ({ tag: t.tag, auto: t.auto === 1, confirmed: t.confirmed === 1 })),
+  };
+}
+
+export function deleteResearchDocument(id: string): void {
+  const db = getDb();
+  db.prepare("DELETE FROM research_documents WHERE id = ?").run(id);
+}
+
+// ─── Research Tags ──────────────────────────────────────────
+
+export function setResearchTags(documentId: string, tags: { tag: string; auto?: boolean; confirmed?: boolean }[]): void {
+  const db = getDb();
+  db.prepare("DELETE FROM research_tags WHERE document_id = ?").run(documentId);
+  const stmt = db.prepare(
+    "INSERT INTO research_tags (document_id, tag, auto, confirmed) VALUES (?, ?, ?, ?)"
+  );
+  const tx = db.transaction(() => {
+    for (const t of tags) {
+      stmt.run(documentId, t.tag, t.auto !== false ? 1 : 0, t.confirmed ? 1 : 0);
+    }
+  });
+  tx();
+}
+
+export function confirmResearchTag(documentId: string, tag: string): void {
+  const db = getDb();
+  db.prepare("UPDATE research_tags SET confirmed = 1 WHERE document_id = ? AND tag = ?").run(documentId, tag);
+}
+
+export function getUnreviewedTags(limit = 20) {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT d.id, d.title, d.source, d.category, GROUP_CONCAT(t.tag) as tags
+     FROM research_documents d
+     JOIN research_tags t ON t.document_id = d.id
+     WHERE t.auto = 1 AND t.confirmed = 0
+     GROUP BY d.id
+     ORDER BY d.synced_at DESC
+     LIMIT ?`
+  ).all(limit) as { id: string; title: string; source: string | null; category: string | null; tags: string }[];
+  return rows.map(r => ({
+    id: r.id,
+    title: r.title,
+    source: r.source,
+    category: r.category,
+    tags: r.tags.split(","),
+  }));
+}
+
+export function getAllTags() {
+  const db = getDb();
+  const rows = db.prepare(
+    "SELECT tag, COUNT(*) as count FROM research_tags GROUP BY tag ORDER BY count DESC"
+  ).all() as { tag: string; count: number }[];
+  return rows;
+}
+
+// ─── Research Sources ───────────────────────────────────────
+
+export function upsertResearchSources(sources: { id: string; name: string; url?: string; sourceType: string; active?: boolean }[]): void {
+  const db = getDb();
+  const stmt = db.prepare(
+    `INSERT OR REPLACE INTO research_sources (id, name, url, source_type, active, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`
+  );
+  const tx = db.transaction(() => {
+    for (const s of sources) {
+      stmt.run(s.id, s.name, s.url ?? null, s.sourceType, s.active !== false ? 1 : 0);
+    }
+  });
+  tx();
+}
+
+export function getAllResearchSources() {
+  const db = getDb();
+  const rows = db.prepare("SELECT * FROM research_sources ORDER BY name").all() as {
+    id: string; name: string; url: string | null; source_type: string; active: number; created_at: string;
+  }[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    url: r.url ?? undefined,
+    sourceType: r.source_type,
+    active: r.active === 1,
+    createdAt: r.created_at,
+  }));
+}
+
+export function deleteResearchSource(id: string): void {
+  const db = getDb();
+  db.prepare("DELETE FROM research_sources WHERE id = ?").run(id);
+}
+
+// ─── Research Stats ─────────────────────────────────────────
+
+export function getResearchStats() {
+  const db = getDb();
+  const docs = db.prepare("SELECT COUNT(*) as count FROM research_documents").get() as { count: number };
+  const sources = db.prepare("SELECT COUNT(*) as count FROM research_sources WHERE active = 1").get() as { count: number };
+  const unreviewed = db.prepare(
+    "SELECT COUNT(DISTINCT document_id) as count FROM research_tags WHERE auto = 1 AND confirmed = 0"
+  ).get() as { count: number };
+  const tags = getAllTags();
+  return {
+    documents: docs.count,
+    activeSources: sources.count,
+    unreviewedTags: unreviewed.count,
+    tags,
+  };
+}
+
 // ─── Full export for backup ─────────────────────────────────────
 
 export function exportAll(): Record<string, unknown> {
@@ -754,5 +1017,8 @@ export function exportAll(): Record<string, unknown> {
     gearItems: getAllGearItems(),
     tireRefs: getAllTireRefs(),
     rideWeather: getAllRideWeather(),
+    researchDocuments: getAllResearchDocuments({ limit: 10000 }),
+    researchSources: getAllResearchSources(),
+    researchTags: getAllTags(),
   };
 }
