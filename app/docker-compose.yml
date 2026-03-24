@@ -29,28 +29,18 @@ services:
       - N8N_SECURE_COOKIE=false
 
   lightrag:
-    image: lightrag/lightrag:latest
+    image: ghcr.io/hkuds/lightrag:latest
     container_name: lightrag
     restart: unless-stopped
     ports:
       - "9621:9621"
     volumes:
-      - lightrag-data:/app/data
+      - lightrag-data:/app/data/rag_storage
+      - lightrag-inputs:/app/data/inputs
+      - ./lightrag.env:/app/.env:ro
     environment:
-      - LLM_MODEL=google/gemini-2.5-flash
-      - LLM_BINDING=openai
-      - LLM_BINDING_HOST=https://openrouter.ai/api/v1
-      - LLM_BINDING_API_KEY=${OPENROUTER_API_KEY}
-      - EMBEDDING_MODEL=openai/text-embedding-3-small
-      - EMBEDDING_BINDING=openai
-      - EMBEDDING_BINDING_HOST=https://openrouter.ai/api/v1
-      - EMBEDDING_BINDING_API_KEY=${OPENROUTER_API_KEY}
-      - EMBEDDING_DIM=1536
-      - MAX_TOKENS=8192
-      - LIGHTRAG_HOST=0.0.0.0
-      - LIGHTRAG_PORT=9621
+      - WORKING_DIR=/app/data/rag_storage
       - INPUT_DIR=/app/data/inputs
-      - WORKING_DIR=/app/data/working
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -64,3 +54,4 @@ volumes:
   jarvis-data:
   n8n-data:
   lightrag-data:
+  lightrag-inputs:
