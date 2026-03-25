@@ -176,7 +176,7 @@ function computeZoneTime(data: number[], zones: { min: number; max: number }[]):
 }
 
 // ─── TSS / CTL / ATL / TSB ──────────────────────────────────────
-import { computeDailyTSS, computeFitness } from "../../lib/training-load";
+import { computeDailyTSS, computeFitness, type FtpEntry } from "../../lib/training-load";
 import { getIntervalsFitness, type WellnessEntry } from "../../lib/api-client";
 
 // ─── SVG Charts ─────────────────────────────────────────────────
@@ -1197,6 +1197,7 @@ export default function StravaPage() {
   const [buildingCurve, setBuildingCurve] = useState(false);
   const [curveProgress, setCurveProgress] = useState("");
   const [fitnessRange, setFitnessRange] = useState(90);
+  const [ftpHistory, setFtpHistory] = useState<FtpEntry[]>([]);
   const [goals, setGoals] = useState<StravaGoal[]>([]);
   const [rideDaysShown, setRideDaysShown] = useState(7);
   const [rideDescriptions, setRideDescriptions] = useState<Record<number, string>>({});
@@ -1224,13 +1225,14 @@ export default function StravaPage() {
   // Load from SQLite
   useEffect(() => {
     async function loadData() {
-      const [storedActivities, tokens, storedBikes, storedZones, curveStored, storedGoals] = await Promise.all([
+      const [storedActivities, tokens, storedBikes, storedZones, curveStored, storedGoals, storedFtpHistory] = await Promise.all([
         api.getActivities<StravaActivity>(),
         api.getKV("strava-tokens"),
         api.getBikes<Bike>(),
         api.getKV<ZoneConfig>("strava-zones"),
         api.getKV<Record<number, number>>("strava-power-curve"),
         api.getKV<StravaGoal[]>("strava-goals"),
+        api.getKV<FtpEntry[]>("ftp-history"),
       ]);
       if (storedActivities.length > 0) setActivities(storedActivities);
       setConnected(!!tokens);
@@ -1238,6 +1240,7 @@ export default function StravaPage() {
       setZones(storedZones || null);
       if (curveStored) setPowerCurve(curveStored);
       setGoals(storedGoals || DEFAULT_GOALS);
+      if (storedFtpHistory) setFtpHistory(storedFtpHistory);
     }
     loadData();
   }, []);
@@ -1784,12 +1787,13 @@ export default function StravaPage() {
         tss: w.ctlLoad,
       }));
     }
-    // Fallback to local calculation
-    const ftp = zones?.ftp;
-    if (!ftp || activities.length === 0) return [];
-    const daily = computeDailyTSS(activities, ftp);
+    // Fallback to local calculation using FTP history (TR method)
+    if (activities.length === 0) return [];
+    const ftpSource = ftpHistory.length > 0 ? ftpHistory : zones?.ftp;
+    if (!ftpSource) return [];
+    const daily = computeDailyTSS(activities, ftpSource);
     return computeFitness(daily, fitnessRange);
-  }, [intervalsData, activities, zones, fitnessRange]);
+  }, [intervalsData, activities, zones, ftpHistory, fitnessRange]);
 
   const noData = activities.length === 0;
 
