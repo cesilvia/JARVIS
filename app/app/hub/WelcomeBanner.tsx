@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import * as api from "../lib/api-client";
 import { computeDailyTSS, computeFitness } from "../lib/training-load";
+import { getIntervalsFitness } from "../lib/api-client";
 import { METERS_TO_MILES } from "../bike/strava/types";
 import type { StravaActivity } from "../bike/strava/types";
 
@@ -295,16 +296,27 @@ async function loadTraining(): Promise<TrainingData | null> {
     ]);
     if (!activities?.length) return null;
 
-    const ftp = zones?.ftp;
+    // Prefer intervals.icu for CTL/ATL/TSB
     let tsb = 0;
     let status = "Fresh";
-    if (ftp) {
-      const dailyTSS = computeDailyTSS(activities, ftp);
-      const fitness = computeFitness(dailyTSS, 1);
-      const latest = fitness[fitness.length - 1];
+    try {
+      const wellness = await getIntervalsFitness(7);
+      const latest = wellness[wellness.length - 1];
       if (latest) {
         tsb = latest.tsb;
         status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
+      }
+    } catch {
+      // Fallback to local calculation
+      const ftp = zones?.ftp;
+      if (ftp) {
+        const dailyTSS = computeDailyTSS(activities, ftp);
+        const fitness = computeFitness(dailyTSS, 1);
+        const latest = fitness[fitness.length - 1];
+        if (latest) {
+          tsb = latest.tsb;
+          status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
+        }
       }
     }
 

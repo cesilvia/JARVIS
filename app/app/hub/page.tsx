@@ -613,21 +613,31 @@ export default function HubPage() {
         const ytdMiles = Math.round(ytd.reduce((s, a) => s + a.distance * METERS_TO_MILES, 0));
         const ytdElev = Math.round(ytd.reduce((s, a) => s + a.total_elevation_gain * METERS_TO_FEET, 0));
 
-        // CTL/ATL/TSB
+        // CTL/ATL/TSB — prefer intervals.icu
         let tsbLabel = "";
         try {
-          const zones = await api.getKV<{ ftp?: number }>("strava-zones");
-          const ftp = zones?.ftp;
-          if (ftp) {
-            const dailyTSS = computeDailyTSS(activities, ftp);
-            const fitness = computeFitness(dailyTSS, 1);
-            const today = fitness[fitness.length - 1];
-            if (today) {
-              const status = today.tsb > -10 ? "Fresh" : today.tsb > -30 ? "Training" : "Overreaching";
-              tsbLabel = `TSB: ${Math.round(today.tsb)} (${status})`;
-            }
+          const wellness = await api.getIntervalsFitness(7);
+          const latest = wellness[wellness.length - 1];
+          if (latest) {
+            const status = latest.tsb > -10 ? "Fresh" : latest.tsb > -30 ? "Training" : "Overreaching";
+            tsbLabel = `TSB: ${Math.round(latest.tsb)} (${status})`;
           }
         } catch { /* ignore */ }
+        if (!tsbLabel) {
+          try {
+            const zones = await api.getKV<{ ftp?: number }>("strava-zones");
+            const ftp = zones?.ftp;
+            if (ftp) {
+              const dailyTSS = computeDailyTSS(activities, ftp);
+              const fitness = computeFitness(dailyTSS, 1);
+              const today = fitness[fitness.length - 1];
+              if (today) {
+                const status = today.tsb > -10 ? "Fresh" : today.tsb > -30 ? "Training" : "Overreaching";
+                tsbLabel = `TSB: ${Math.round(today.tsb)} (${status})`;
+              }
+            }
+          } catch { /* ignore */ }
+        }
 
         // Sync status dot color
         try {

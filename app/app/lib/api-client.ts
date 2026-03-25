@@ -365,6 +365,25 @@ export async function queryRag(question: string, scope?: string): Promise<RagRes
   return res.json();
 }
 
+// ─── intervals.icu ──────────────────────────────────────────
+
+export interface WellnessEntry {
+  date: string;
+  ctl: number;
+  atl: number;
+  tsb: number;
+  ctlLoad: number;
+  atlLoad: number;
+  rampRate: number;
+}
+
+export async function getIntervalsFitness(days = 90): Promise<WellnessEntry[]> {
+  const res = await fetch(`/api/intervals/wellness?days=${days}`);
+  if (!res.ok) return [];
+  const { wellness } = await res.json();
+  return wellness ?? [];
+}
+
 // ─── Migration ──────────────────────────────────────────────────
 
 export async function migrateFromLocalStorage(data: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {

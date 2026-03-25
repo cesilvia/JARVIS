@@ -177,6 +177,7 @@ function computeZoneTime(data: number[], zones: { min: number; max: number }[]):
 
 // ─── TSS / CTL / ATL / TSB ──────────────────────────────────────
 import { computeDailyTSS, computeFitness } from "../../lib/training-load";
+import { getIntervalsFitness, type WellnessEntry } from "../../lib/api-client";
 
 // ─── SVG Charts ─────────────────────────────────────────────────
 
@@ -1765,13 +1766,30 @@ export default function StravaPage() {
     return total.some((t) => t > 0) ? total : null;
   }, [zoneRides, zoneStreams, zones]);
 
-  // Fitness data
+  // Fitness data — prefer intervals.icu, fall back to local calculation
+  const [intervalsData, setIntervalsData] = useState<WellnessEntry[]>([]);
+  useEffect(() => {
+    getIntervalsFitness(Math.max(fitnessRange, 180)).then(setIntervalsData).catch(() => {});
+  }, [fitnessRange]);
+
   const fitnessData = useMemo(() => {
+    // Use intervals.icu data if available
+    if (intervalsData.length > 0) {
+      const sliced = intervalsData.slice(-fitnessRange);
+      return sliced.map(w => ({
+        date: w.date,
+        ctl: w.ctl,
+        atl: w.atl,
+        tsb: w.tsb,
+        tss: w.ctlLoad,
+      }));
+    }
+    // Fallback to local calculation
     const ftp = zones?.ftp;
     if (!ftp || activities.length === 0) return [];
     const daily = computeDailyTSS(activities, ftp);
     return computeFitness(daily, fitnessRange);
-  }, [activities, zones, fitnessRange]);
+  }, [intervalsData, activities, zones, fitnessRange]);
 
   const noData = activities.length === 0;
 
