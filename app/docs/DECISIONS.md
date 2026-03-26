@@ -713,3 +713,46 @@
 - **Rationale:** 444 episodes of Ask a Cycling Coach. Whisper chosen over YouTube auto-captions for cycling jargon accuracy. Chosen over cloud APIs ($155-216) because user prefers free.
 - **Implementation:** Shell script on Mac Mini. Downloads audio via yt-dlp, transcribes with whisper.cpp (medium.en), pushes to LightRAG. Runs 8pm-6am during backfill, 3am cron after. Newest episodes first.
 - **Status:** Running (backfill in progress)
+
+## 2026-03-26
+
+### Research Page: 3-Level Tag Hierarchy
+
+**Decision:** Replace flat tag classification with a hierarchical taxonomy (up to 4 levels)
+- **Rationale:** Flat tags (cycling, nutrition, gear, etc.) were insufficient for browsing a growing knowledge base. User wanted drill-down navigation and the ability to create new tags at any level.
+- **Implementation:** New `tag_hierarchy` table with slug-path IDs (e.g., `cycling/training/sweet-spot`). Library tab has breadcrumb drill-down (All > Cycling > Training) with doc counts. Tag Review tab shows document summaries and a hierarchical tag picker. Inline "+" buttons to create tags at any level. Prefix-match queries (`WHERE tag LIKE 'cycling/%'`) for hierarchical filtering. Auto-classification uses hierarchy keywords at most specific level.
+- **Hierarchy (v2):** Cycling (Training, Metrics, Racing, Bike Fit & Aero, Gear, Training Science), Nutrition (Macros, Fueling, Diet), Health (Recovery, Injury, Mental), Uncategorized. Gear and Training Science moved under Cycling with Level 4 leaf tags.
+- **Status:** Implemented
+
+**Decision:** Add title and summary fallbacks for Readwise documents
+- **Rationale:** Many Readwise highlights had "Untitled" as title and no summary, making tag review impossible.
+- **Implementation:** Title fallback uses first 80 chars of content. Summary fallback uses first 150 chars of content. Applied in both `getAllResearchDocuments` and `getUnreviewedTags` queries.
+- **Status:** Implemented
+
+### Mileage-Based Component Replacement Alerts
+
+**Decision:** Add progress bars and status indicators for component service intervals
+- **Rationale:** Components had `serviceIntervalMiles` and `mileageAtInstall` fields but no visual feedback on wear status.
+- **Implementation:** `getComponentStatus()` computes usage percentage from bike's Strava mileage. Color-coded: cyan (ok), amber (80%+ check soon), orange (100% due), red (110%+ overdue). Progress bar on each component in Components page. Maintenance Alerts banner at top of Components page. Hub welcome banner Today card shows up to 3 component alerts.
+- **Status:** Implemented
+
+### Watchtower for Automatic Docker Updates
+
+**Decision:** Add Watchtower container to auto-update N8N, LightRAG, and cloudflared
+- **Rationale:** User received N8N update notification and wanted automated updates for all containers. Cron job approach would require separate entries per container. Watchtower handles all pulled-image containers automatically.
+- **Implementation:** Watchtower container in docker-compose.yml. Checks for new images every Sunday 3am Pacific. Auto-pulls, restarts, and cleans up old images. JARVIS container excluded via label (built from source, updated by auto-deploy). N8N image updated to official registry `docker.n8n.io/n8nio/n8n:latest`.
+- **Status:** Implemented
+
+### N8N Workflow Backup
+
+**Decision:** Include N8N workflows in the nightly JARVIS backup
+- **Rationale:** N8N workflows lived only in the `n8n-data` Docker volume. If the Mac Mini died, workflows would be lost and need manual recreation.
+- **Implementation:** Backup POST endpoint now fetches all workflows via N8N's REST API (`http://n8n:5678/api/v1/workflows`) and includes them as `jarvis-n8n-workflows` in the backup JSON. Saved to local file + uploaded to R2. N8N triggers a backup that backs up its own workflows.
+- **Status:** Implemented
+
+### Disaster Recovery Documentation
+
+**Decision:** Create comprehensive restore guide and pin it on GitHub
+- **Rationale:** User wanted assurance that JARVIS could be fully rebuilt on a new machine, with clear instructions.
+- **Implementation:** `docs/RESTORE.md` with 10-step recovery process (clone, env vars, tunnel, Docker, restore from R2, re-sync services, N8N import, podcast pipeline, auto-deploy, Tailscale). Pinned GitHub Issue #1 links to the guide. Estimated 30-minute recovery time.
+- **Status:** Implemented

@@ -9,6 +9,9 @@
 - ~~**Off-device backup (Cloudflare R2)**~~ — DONE (2026-03-17): Backup POST saves locally + uploads to R2 bucket. Survives Mac Mini disk failure. Free tier (10 GB).
 - ~~**Page verification checklist**~~ — DONE (2026-03-16): /settings/verification with file hash tracking, auto-invalidation, hub wedge integration.
 - ~~**Auto-deploy**~~ — DONE: deploy.sh + launchd polls GitHub every 2min, auto-rebuilds Docker.
+- ~~**Watchtower auto-updates**~~ — DONE (2026-03-26): Watchtower container checks N8N, LightRAG, cloudflared for newer images every Sunday 3am. JARVIS excluded (built from source). Old images cleaned up.
+- ~~**N8N workflow backup**~~ — DONE (2026-03-26): Nightly backup POST now fetches N8N workflows via REST API and includes them in R2 backup. N8N backs up its own workflows.
+- ~~**Disaster recovery docs**~~ — DONE (2026-03-26): docs/RESTORE.md with 10-step rebuild guide. GitHub Issue #1 pinned with summary.
 
 ### Planned
 - **N8N workflow expansion** — Strava auto-sync (hourly), power curve builder (overnight), weather prefetch, German vocab backup
@@ -85,7 +88,7 @@
 ## Bike Enhancements
 
 ### Maintenance Tracker
-- Mileage-based component alerts: chain (3,000 mi), brake pads (5,000 mi), etc. Wire components + Strava mileage.
+- ~~**Mileage-based component alerts**~~ — DONE (2026-03-26): Progress bars on Components page with color-coded status (ok/check/due/overdue). Maintenance Alerts banner at top. Hub welcome banner shows up to 3 alerts in Today card.
 
 ### Strava Dashboard
 - Improve polyline route matching (edit distance / lat-lng proximity)
