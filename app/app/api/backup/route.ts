@@ -149,13 +149,31 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Fetch N8N workflows via its REST API (containers share Docker network)
+async function exportN8nWorkflows(): Promise<unknown[] | null> {
+  try {
+    const n8nUrl = process.env.N8N_URL || "http://n8n:5678";
+    const res = await fetch(`${n8nUrl}/api/v1/workflows`, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const { data } = await res.json();
+    return Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 // POST: save a backup (reads all data from SQLite server-side)
 export async function POST() {
   try {
     ensureBackupDir();
 
-    // Export everything from SQLite
-    const exported = exportAll();
+    // Export everything from SQLite + N8N workflows in parallel
+    const [exported, n8nWorkflows] = await Promise.all([
+      Promise.resolve(exportAll()),
+      exportN8nWorkflows(),
+    ]);
 
     // Format with jarvis- prefix keys for backward compatibility with restore/migration
     const data: Record<string, unknown> = {};
@@ -188,6 +206,11 @@ export async function POST() {
       for (const [key, value] of Object.entries(exported.kv as Record<string, unknown>)) {
         data[`jarvis-${key}`] = value;
       }
+    }
+
+    // N8N workflows
+    if (n8nWorkflows && n8nWorkflows.length > 0) {
+      data["jarvis-n8n-workflows"] = n8nWorkflows;
     }
 
     const timestamp = new Date().toISOString().split("T")[0];
