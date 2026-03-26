@@ -238,10 +238,20 @@ export function getDb(): Database.Database {
   try {
     _db.exec("DELETE FROM ride_weather WHERE activity_id IN (SELECT id FROM strava_activities WHERE trainer = 1 OR sport_type = 'VirtualRide')");
   } catch { /* table may not exist yet */ }
-  // Seed tag hierarchy if empty
+  // Seed tag hierarchy if empty, or migrate if outdated
   try {
     const count = _db.prepare("SELECT COUNT(*) as c FROM tag_hierarchy").get() as { c: number };
-    if (count.c === 0) seedTagHierarchy(_db);
+    if (count.c === 0) {
+      seedTagHierarchy(_db);
+    } else {
+      // Migration: move gear and training-science under cycling (v2 hierarchy)
+      const hasOldGear = _db.prepare("SELECT 1 FROM tag_hierarchy WHERE id = 'gear' AND parent IS NULL").get();
+      if (hasOldGear) {
+        _db.exec("DELETE FROM tag_hierarchy");
+        _db.exec("DELETE FROM research_tags");
+        seedTagHierarchy(_db);
+      }
+    }
   } catch { /* table may not exist yet */ }
   return _db;
 }
@@ -252,8 +262,6 @@ const TAG_HIERARCHY_SEED: { id: string; label: string; level: number; parent: st
   // Level 1
   { id: "cycling", label: "Cycling", level: 1, parent: null, keywords: "cycling,cyclist,trainerroad,trainer road" },
   { id: "nutrition", label: "Nutrition", level: 1, parent: null, keywords: "nutrition,calorie,macro,diet,food" },
-  { id: "training-science", label: "Training Science", level: 1, parent: null, keywords: "periodization,physiology" },
-  { id: "gear", label: "Gear", level: 1, parent: null, keywords: "bike setup,gear" },
   { id: "health", label: "Health", level: 1, parent: null, keywords: "health,wellness" },
   { id: "uncategorized", label: "Uncategorized", level: 1, parent: null, keywords: "" },
 
@@ -262,6 +270,8 @@ const TAG_HIERARCHY_SEED: { id: string; label: string; level: number; parent: st
   { id: "cycling/metrics", label: "Metrics", level: 2, parent: "cycling", keywords: "ftp,tss,ctl,atl,vo2max,vo2,watts,watt,power zone,heart rate zone,cadence" },
   { id: "cycling/racing", label: "Racing", level: 2, parent: "cycling", keywords: "race prep,taper,peak,criterium,gran fondo,time trial" },
   { id: "cycling/bike-fit-aero", label: "Bike Fit & Aero", level: 2, parent: "cycling", keywords: "bike fit,aero" },
+  { id: "cycling/gear", label: "Gear", level: 2, parent: "cycling", keywords: "bike setup,gear" },
+  { id: "cycling/training-science", label: "Training Science", level: 2, parent: "cycling", keywords: "periodization,physiology" },
 
   // Cycling > Training > Level 3
   { id: "cycling/training/sweet-spot", label: "Sweet Spot", level: 3, parent: "cycling/training", keywords: "sweet spot" },
@@ -300,6 +310,52 @@ const TAG_HIERARCHY_SEED: { id: string; label: string; level: number; parent: st
   { id: "cycling/bike-fit-aero/bike-fit", label: "Bike Fit", level: 3, parent: "cycling/bike-fit-aero", keywords: "bike fit" },
   { id: "cycling/bike-fit-aero/aero", label: "Aero", level: 3, parent: "cycling/bike-fit-aero", keywords: "aero" },
 
+  // Cycling > Gear > Level 3
+  { id: "cycling/gear/components", label: "Components", level: 3, parent: "cycling/gear", keywords: "wheel,tire,groupset,drivetrain,saddle,handlebar,stem,seatpost" },
+  { id: "cycling/gear/apparel", label: "Apparel", level: 3, parent: "cycling/gear", keywords: "helmet,shoes,cleats" },
+  { id: "cycling/gear/tech", label: "Tech", level: 3, parent: "cycling/gear", keywords: "power meter,head unit,garmin,wahoo" },
+
+  // Cycling > Gear > Components > Level 4
+  { id: "cycling/gear/components/wheel", label: "Wheel", level: 4, parent: "cycling/gear/components", keywords: "wheel" },
+  { id: "cycling/gear/components/tire", label: "Tire", level: 4, parent: "cycling/gear/components", keywords: "tire" },
+  { id: "cycling/gear/components/groupset", label: "Groupset", level: 4, parent: "cycling/gear/components", keywords: "groupset" },
+  { id: "cycling/gear/components/drivetrain", label: "Drivetrain", level: 4, parent: "cycling/gear/components", keywords: "drivetrain" },
+  { id: "cycling/gear/components/saddle", label: "Saddle", level: 4, parent: "cycling/gear/components", keywords: "saddle" },
+  { id: "cycling/gear/components/handlebar", label: "Handlebar", level: 4, parent: "cycling/gear/components", keywords: "handlebar" },
+  { id: "cycling/gear/components/stem", label: "Stem", level: 4, parent: "cycling/gear/components", keywords: "stem" },
+  { id: "cycling/gear/components/seatpost", label: "Seatpost", level: 4, parent: "cycling/gear/components", keywords: "seatpost" },
+
+  // Cycling > Gear > Apparel > Level 4
+  { id: "cycling/gear/apparel/helmet", label: "Helmet", level: 4, parent: "cycling/gear/apparel", keywords: "helmet" },
+  { id: "cycling/gear/apparel/shoes", label: "Shoes", level: 4, parent: "cycling/gear/apparel", keywords: "shoes" },
+  { id: "cycling/gear/apparel/cleats", label: "Cleats", level: 4, parent: "cycling/gear/apparel", keywords: "cleats" },
+
+  // Cycling > Gear > Tech > Level 4
+  { id: "cycling/gear/tech/power-meter", label: "Power Meter", level: 4, parent: "cycling/gear/tech", keywords: "power meter" },
+  { id: "cycling/gear/tech/head-unit", label: "Head Unit", level: 4, parent: "cycling/gear/tech", keywords: "head unit" },
+  { id: "cycling/gear/tech/garmin", label: "Garmin", level: 4, parent: "cycling/gear/tech", keywords: "garmin" },
+  { id: "cycling/gear/tech/wahoo", label: "Wahoo", level: 4, parent: "cycling/gear/tech", keywords: "wahoo" },
+
+  // Cycling > Training Science > Level 3
+  { id: "cycling/training-science/physiology", label: "Physiology", level: 3, parent: "cycling/training-science", keywords: "aerobic,anaerobic,lactate,mitochondria,muscle fiber,fast twitch,slow twitch" },
+  { id: "cycling/training-science/periodization", label: "Periodization", level: 3, parent: "cycling/training-science", keywords: "periodization,adaptation,fatigue,overtraining,deload" },
+
+  // Cycling > Training Science > Physiology > Level 4
+  { id: "cycling/training-science/physiology/aerobic", label: "Aerobic", level: 4, parent: "cycling/training-science/physiology", keywords: "aerobic" },
+  { id: "cycling/training-science/physiology/anaerobic", label: "Anaerobic", level: 4, parent: "cycling/training-science/physiology", keywords: "anaerobic" },
+  { id: "cycling/training-science/physiology/lactate", label: "Lactate", level: 4, parent: "cycling/training-science/physiology", keywords: "lactate" },
+  { id: "cycling/training-science/physiology/mitochondria", label: "Mitochondria", level: 4, parent: "cycling/training-science/physiology", keywords: "mitochondria" },
+  { id: "cycling/training-science/physiology/muscle-fiber", label: "Muscle Fiber", level: 4, parent: "cycling/training-science/physiology", keywords: "muscle fiber" },
+  { id: "cycling/training-science/physiology/fast-twitch", label: "Fast Twitch", level: 4, parent: "cycling/training-science/physiology", keywords: "fast twitch" },
+  { id: "cycling/training-science/physiology/slow-twitch", label: "Slow Twitch", level: 4, parent: "cycling/training-science/physiology", keywords: "slow twitch" },
+
+  // Cycling > Training Science > Periodization > Level 4
+  { id: "cycling/training-science/periodization/periodization", label: "Periodization", level: 4, parent: "cycling/training-science/periodization", keywords: "periodization" },
+  { id: "cycling/training-science/periodization/adaptation", label: "Adaptation", level: 4, parent: "cycling/training-science/periodization", keywords: "adaptation" },
+  { id: "cycling/training-science/periodization/fatigue", label: "Fatigue", level: 4, parent: "cycling/training-science/periodization", keywords: "fatigue" },
+  { id: "cycling/training-science/periodization/overtraining", label: "Overtraining", level: 4, parent: "cycling/training-science/periodization", keywords: "overtraining" },
+  { id: "cycling/training-science/periodization/deload", label: "Deload", level: 4, parent: "cycling/training-science/periodization", keywords: "deload" },
+
   // Nutrition > Level 2
   { id: "nutrition/macros", label: "Macros", level: 2, parent: "nutrition", keywords: "carbohydrate,protein,calorie,macro" },
   { id: "nutrition/fueling", label: "Fueling", level: 2, parent: "nutrition", keywords: "hydration,electrolyte,glycogen,pre-ride,during ride,post-ride,recovery nutrition,fueling" },
@@ -324,52 +380,6 @@ const TAG_HIERARCHY_SEED: { id: string; label: string; level: number; parent: st
   { id: "nutrition/diet/food", label: "Food", level: 3, parent: "nutrition/diet", keywords: "food" },
   { id: "nutrition/diet/diet", label: "Diet", level: 3, parent: "nutrition/diet", keywords: "diet" },
   { id: "nutrition/diet/supplement", label: "Supplement", level: 3, parent: "nutrition/diet", keywords: "supplement" },
-
-  // Training Science > Level 2
-  { id: "training-science/physiology", label: "Physiology", level: 2, parent: "training-science", keywords: "aerobic,anaerobic,lactate,mitochondria,muscle fiber,fast twitch,slow twitch" },
-  { id: "training-science/periodization", label: "Periodization", level: 2, parent: "training-science", keywords: "periodization,adaptation,fatigue,overtraining,deload" },
-
-  // Training Science > Physiology > Level 3
-  { id: "training-science/physiology/aerobic", label: "Aerobic", level: 3, parent: "training-science/physiology", keywords: "aerobic" },
-  { id: "training-science/physiology/anaerobic", label: "Anaerobic", level: 3, parent: "training-science/physiology", keywords: "anaerobic" },
-  { id: "training-science/physiology/lactate", label: "Lactate", level: 3, parent: "training-science/physiology", keywords: "lactate" },
-  { id: "training-science/physiology/mitochondria", label: "Mitochondria", level: 3, parent: "training-science/physiology", keywords: "mitochondria" },
-  { id: "training-science/physiology/muscle-fiber", label: "Muscle Fiber", level: 3, parent: "training-science/physiology", keywords: "muscle fiber" },
-  { id: "training-science/physiology/fast-twitch", label: "Fast Twitch", level: 3, parent: "training-science/physiology", keywords: "fast twitch" },
-  { id: "training-science/physiology/slow-twitch", label: "Slow Twitch", level: 3, parent: "training-science/physiology", keywords: "slow twitch" },
-
-  // Training Science > Periodization > Level 3
-  { id: "training-science/periodization/periodization", label: "Periodization", level: 3, parent: "training-science/periodization", keywords: "periodization" },
-  { id: "training-science/periodization/adaptation", label: "Adaptation", level: 3, parent: "training-science/periodization", keywords: "adaptation" },
-  { id: "training-science/periodization/fatigue", label: "Fatigue", level: 3, parent: "training-science/periodization", keywords: "fatigue" },
-  { id: "training-science/periodization/overtraining", label: "Overtraining", level: 3, parent: "training-science/periodization", keywords: "overtraining" },
-  { id: "training-science/periodization/deload", label: "Deload", level: 3, parent: "training-science/periodization", keywords: "deload" },
-
-  // Gear > Level 2
-  { id: "gear/components", label: "Components", level: 2, parent: "gear", keywords: "wheel,tire,groupset,drivetrain,saddle,handlebar,stem,seatpost" },
-  { id: "gear/apparel", label: "Apparel", level: 2, parent: "gear", keywords: "helmet,shoes,cleats" },
-  { id: "gear/tech", label: "Tech", level: 2, parent: "gear", keywords: "power meter,head unit,garmin,wahoo" },
-
-  // Gear > Components > Level 3
-  { id: "gear/components/wheel", label: "Wheel", level: 3, parent: "gear/components", keywords: "wheel" },
-  { id: "gear/components/tire", label: "Tire", level: 3, parent: "gear/components", keywords: "tire" },
-  { id: "gear/components/groupset", label: "Groupset", level: 3, parent: "gear/components", keywords: "groupset" },
-  { id: "gear/components/drivetrain", label: "Drivetrain", level: 3, parent: "gear/components", keywords: "drivetrain" },
-  { id: "gear/components/saddle", label: "Saddle", level: 3, parent: "gear/components", keywords: "saddle" },
-  { id: "gear/components/handlebar", label: "Handlebar", level: 3, parent: "gear/components", keywords: "handlebar" },
-  { id: "gear/components/stem", label: "Stem", level: 3, parent: "gear/components", keywords: "stem" },
-  { id: "gear/components/seatpost", label: "Seatpost", level: 3, parent: "gear/components", keywords: "seatpost" },
-
-  // Gear > Apparel > Level 3
-  { id: "gear/apparel/helmet", label: "Helmet", level: 3, parent: "gear/apparel", keywords: "helmet" },
-  { id: "gear/apparel/shoes", label: "Shoes", level: 3, parent: "gear/apparel", keywords: "shoes" },
-  { id: "gear/apparel/cleats", label: "Cleats", level: 3, parent: "gear/apparel", keywords: "cleats" },
-
-  // Gear > Tech > Level 3
-  { id: "gear/tech/power-meter", label: "Power Meter", level: 3, parent: "gear/tech", keywords: "power meter" },
-  { id: "gear/tech/head-unit", label: "Head Unit", level: 3, parent: "gear/tech", keywords: "head unit" },
-  { id: "gear/tech/garmin", label: "Garmin", level: 3, parent: "gear/tech", keywords: "garmin" },
-  { id: "gear/tech/wahoo", label: "Wahoo", level: 3, parent: "gear/tech", keywords: "wahoo" },
 
   // Health > Level 2
   { id: "health/recovery", label: "Recovery", level: 2, parent: "health", keywords: "sleep,recovery,foam roll,massage" },
@@ -1114,20 +1124,29 @@ export function getAllResearchDocuments(opts?: { source?: string; tag?: string; 
      LIMIT ? OFFSET ?`
   ).all(...params, limit, offset) as (Record<string, unknown> & { tags: string | null })[];
 
-  return rows.map(r => ({
-    id: r.id as string,
-    readwiseId: r.readwise_id as string | undefined,
-    title: r.title as string,
-    author: r.author as string | undefined,
-    source: r.source as string | undefined,
-    sourceUrl: r.source_url as string | undefined,
-    category: r.category as string | undefined,
-    summary: r.summary as string | undefined,
-    imageUrl: r.image_url as string | undefined,
-    wordCount: r.word_count as number,
-    syncedAt: r.synced_at as string,
-    tags: r.tags ? r.tags.split(",") : [],
-  }));
+  return rows.map(r => {
+    const rawTitle = r.title as string;
+    const content = r.content as string | null;
+    const title = (!rawTitle || rawTitle === "Untitled") && content
+      ? content.slice(0, 80).trim() + (content.length > 80 ? "..." : "")
+      : rawTitle;
+    const summary = (r.summary as string | undefined) ||
+      (content ? content.slice(0, 150).trim() + (content.length > 150 ? "..." : "") : undefined);
+    return {
+      id: r.id as string,
+      readwiseId: r.readwise_id as string | undefined,
+      title,
+      author: r.author as string | undefined,
+      source: r.source as string | undefined,
+      sourceUrl: r.source_url as string | undefined,
+      category: r.category as string | undefined,
+      summary,
+      imageUrl: r.image_url as string | undefined,
+      wordCount: r.word_count as number,
+      syncedAt: r.synced_at as string,
+      tags: r.tags ? r.tags.split(",") : [],
+    };
+  });
 }
 
 export function getResearchDocument(id: string) {
@@ -1179,22 +1198,29 @@ export function confirmResearchTag(documentId: string, tag: string): void {
 export function getUnreviewedTags(limit = 20) {
   const db = getDb();
   const rows = db.prepare(
-    `SELECT d.id, d.title, d.source, d.category, d.summary, GROUP_CONCAT(t.tag) as tags
+    `SELECT d.id, d.title, d.source, d.category, d.summary, d.content, GROUP_CONCAT(t.tag) as tags
      FROM research_documents d
      JOIN research_tags t ON t.document_id = d.id
      WHERE t.auto = 1 AND t.confirmed = 0
      GROUP BY d.id
      ORDER BY d.synced_at DESC
      LIMIT ?`
-  ).all(limit) as { id: string; title: string; source: string | null; category: string | null; summary: string | null; tags: string }[];
-  return rows.map(r => ({
-    id: r.id,
-    title: r.title,
-    source: r.source,
-    category: r.category,
-    summary: r.summary,
-    tags: r.tags.split(","),
-  }));
+  ).all(limit) as { id: string; title: string; source: string | null; category: string | null; summary: string | null; content: string | null; tags: string }[];
+  return rows.map(r => {
+    const title = (!r.title || r.title === "Untitled") && r.content
+      ? r.content.slice(0, 80).trim() + (r.content.length > 80 ? "..." : "")
+      : r.title;
+    const summary = r.summary ||
+      (r.content ? r.content.slice(0, 150).trim() + (r.content.length > 150 ? "..." : "") : null);
+    return {
+      id: r.id,
+      title,
+      source: r.source,
+      category: r.category,
+      summary,
+      tags: r.tags.split(","),
+    };
+  });
 }
 
 export function getAllTags() {
