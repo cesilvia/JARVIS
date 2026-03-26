@@ -15,6 +15,11 @@
 - **MCP server** — Expose JARVIS data as MCP tools for Claude ("How many miles this week?", "Add journal entry")
 - ~~**LightRAG + OpenRouter**~~ — DONE (2026-03-24): LightRAG Docker container on Mac Mini for knowledge graph RAG. OpenRouter for embeddings (text-embedding-3-small) and LLM (Gemini 2.5 Flash). Semantic search across Readwise articles, podcast transcripts, highlights.
 - **Full Convex migration** — Consider migrating all JARVIS data from SQLite to Convex for real-time sync, native vector search, and shared infrastructure with Higgins. Currently Convex is not used; LightRAG handles vector/graph search. Evaluate after Higgins is stable and if multi-device sync becomes important.
+- ~~**intervals.icu integration**~~ — DONE (2026-03-25): CTL/ATL/TSB pulled from intervals.icu wellness API instead of local computation. Matches TrainerRoad numbers more closely. Falls back to local TR-method calculation (42-day rolling avg CTL + FTP history).
+- ~~**Podcast transcription pipeline**~~ — DONE (2026-03-25): whisper.cpp + yt-dlp on Mac Mini. Downloads and transcribes Ask a Cycling Coach episodes (444 total), pushes to LightRAG. Cron runs 8pm-6am during backfill, switching to 3am after. Newest episodes first.
+- **TSB calculation revisit** — Current TSB uses TR rolling-average CTL + EMA ATL with Strava NP. ~8% NP gap vs TR remains. User wants to revisit. Consider configurable time constants in Settings, or TR API if they ever publish one.
+- **Podcast pipeline: add more sources** — Currently only Ask a Cycling Coach. Add Successful Athletes Podcast, Science of Getting Faster, other cycling/training podcasts. Managed via Research page Sources tab.
+- **Podcast pipeline: switch to 3am cron** — After backfill completes, update cron from `0 20` to `0 3` for ongoing new-episode-only runs.
 - **Global search (FTS5)** — Full-text search across all JARVIS data (recipes, vocab, gear, notes, journal). Separate from RAG semantic search.
 - ~~**Command palette (Cmd+K)**~~ — DONE (2026-03-20): Spotlight-style overlay from any page. Fuzzy search across navigation, actions, and data (recipes, vocab, gear, bikes, rides). Recent items persist via KV.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub or as a panel. Full multi-turn chat with access to MCP tools for complex queries and follow-ups. Richer than command palette AI mode.
@@ -41,7 +46,7 @@
 
 ### High-value
 - **Fantastical / Apple Calendar** — CalDAV/iCal sync for Calendar page. Cross-reference with weather for ride scheduling.
-- **TrainerRoad** — Planned workouts, training plan progression, workout compliance.
+- **TrainerRoad** — No public API. Planned workouts, training plan progression, workout compliance. Podcast transcripts being ingested via YouTube + whisper.cpp. TSS/CTL data sourced via intervals.icu as proxy.
 - **Readwise** — Highlights, annotations, books → Research page RAG.
 - **Garmin Connect** — Sleep, HRV, body battery, stress → Health page.
 - **Ride with GPS** — Route planning, saved routes, route matching.

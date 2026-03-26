@@ -678,3 +678,38 @@
 - **Rationale:** The helmet icon was showing as a generic "J" on iPhone home screen. The arc reactor frame matches the in-app branding and has a solid black background (avoids iOS transparent PNG issues).
 - **Implementation:** Resized `jarvis-frame.png` (1024×1024) to apple-touch-icon (180), icon-192, and icon-512. Users must delete and re-add the home screen bookmark to pick up the new icon.
 - **Status:** Implemented
+
+### Research Page & LightRAG Semantic Search
+
+**Decision:** Build a Research page with RAG-powered semantic search using LightRAG, OpenRouter (embeddings + Gemini Flash), and Readwise sync
+- **Rationale:** User wants to query TrainerRoad podcast transcripts, Readwise articles/highlights, and other knowledge sources via natural language from JARVIS. Semantic search (not keyword) is essential for finding conceptually related content.
+- **Architecture:** LightRAG Docker container on Mac Mini builds a knowledge graph from ingested documents. OpenRouter provides embeddings (text-embedding-3-small) and LLM (Gemini 2.5 Flash) for synthesis. SQLite stores document metadata, tags, and sources. LightRAG handles chunking, entity extraction, embeddings, and graph-based retrieval.
+- **Key decisions:**
+  - LightRAG over simple chunk+embed RAG: knowledge graph enables cross-document reasoning
+  - OpenRouter over Ollama: avoids running another local service with security concerns, negligible cost
+  - Gemini 2.5 Flash over Claude for RAG synthesis: cheaper and faster
+  - Convex evaluated but deferred: LightRAG handles its own vector storage. Full Convex migration noted as future consideration.
+  - Auto-classification with user verification: documents auto-tagged on sync, queued for user confirmation
+- **Status:** Implemented
+
+### intervals.icu Integration for CTL/ATL/TSB
+
+**Decision:** Pull fitness data (CTL, ATL, TSB) from intervals.icu instead of computing locally
+- **Rationale:** JARVIS-computed TSS differs from TrainerRoad by ~8% per ride due to different NP calculations between Strava and TR. intervals.icu has a documented public API and calculates TSS from the same power files.
+- **Implementation:** API route `/api/intervals/wellness` fetches daily CTL/ATL. Falls back to local calculation if not configured.
+- **Status:** Implemented
+
+### TrainerRoad CTL Method & FTP History
+
+**Decision:** Use TrainerRoad's CTL formula (simple 42-day rolling average) instead of Coggan's EMA, and store FTP history for accurate per-ride TSS
+- **Rationale:** TrainerRoad uses a simplified rolling average for CTL, not the standard EMA. FTP history needed because applying current FTP to old rides produces wrong TSS.
+- **FTP history:** 2026-01-20 (266), 2026-02-16 (272), 2026-03-18 (275). Next update April 13.
+- **Open item:** User wants to revisit TSB calculation. ~8% NP gap between Strava and TR remains.
+- **Status:** Implemented (TSB revisit pending)
+
+### Podcast Transcription Pipeline
+
+**Decision:** Use whisper.cpp + yt-dlp to transcribe TrainerRoad podcast episodes and push to LightRAG
+- **Rationale:** 444 episodes of Ask a Cycling Coach. Whisper chosen over YouTube auto-captions for cycling jargon accuracy. Chosen over cloud APIs ($155-216) because user prefers free.
+- **Implementation:** Shell script on Mac Mini. Downloads audio via yt-dlp, transcribes with whisper.cpp (medium.en), pushes to LightRAG. Runs 8pm-6am during backfill, 3am cron after. Newest episodes first.
+- **Status:** Running (backfill in progress)
