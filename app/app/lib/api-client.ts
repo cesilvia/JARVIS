@@ -304,7 +304,27 @@ export async function getResearchTags(): Promise<{ tag: string; count: number }[
   return tags ?? [];
 }
 
-export async function getUnreviewedTags(): Promise<{ id: string; title: string; source: string | null; category: string | null; tags: string[] }[]> {
+export async function getTagHierarchy(): Promise<{ id: string; label: string; level: number; parent: string | null; keywords: string | null }[]> {
+  const res = await fetch("/api/db/research/hierarchy");
+  if (!res.ok) return [];
+  const { hierarchy } = await res.json();
+  return hierarchy ?? [];
+}
+
+export async function addTagHierarchyNode(node: { id: string; label: string; level: number; parent: string | null; keywords?: string }): Promise<void> {
+  await fetch("/api/db/research/hierarchy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(node),
+  });
+}
+
+export async function reclassifyDocuments(): Promise<{ count: number }> {
+  const res = await fetch("/api/db/research/hierarchy", { method: "PUT" });
+  return res.json();
+}
+
+export async function getUnreviewedTags(): Promise<{ id: string; title: string; source: string | null; category: string | null; summary: string | null; tags: string[] }[]> {
   const res = await fetch("/api/db/research/tags?unreviewed=true");
   if (!res.ok) return [];
   const { items } = await res.json();

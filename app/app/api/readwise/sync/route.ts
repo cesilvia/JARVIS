@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import {
   upsertResearchDocuments,
   setResearchTags,
+  autoClassifyWithHierarchy,
   kvGet,
   kvSet,
 } from "@/app/lib/db";
@@ -160,8 +161,8 @@ export async function POST(request: NextRequest) {
         if (success) indexed++;
       }
 
-      // Auto-classify tags (stored in SQLite for JARVIS UI filtering)
-      const tags = autoClassifyTags(doc);
+      // Auto-classify tags using hierarchy (stored in SQLite for JARVIS UI filtering)
+      const tags = autoClassifyWithHierarchy(doc);
       setResearchTags(id, tags.map(t => ({ tag: t, auto: true, confirmed: false })));
 
       processed++;

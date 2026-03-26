@@ -14,6 +14,9 @@ import {
   setDocumentTags,
   syncReadwise,
   getReadwiseSyncStatus,
+  getTagHierarchy,
+  addTagHierarchyNode,
+  reclassifyDocuments,
 } from "../lib/api-client";
 
 type Tab = "search" | "library" | "sources" | "tags";
@@ -45,7 +48,16 @@ interface TagReview {
   title: string;
   source: string | null;
   category: string | null;
+  summary: string | null;
   tags: string[];
+}
+
+interface HierarchyNode {
+  id: string;
+  label: string;
+  level: number;
+  parent: string | null;
+  keywords: string | null;
 }
 
 interface Stats {
@@ -55,15 +67,55 @@ interface Stats {
   tags: { tag: string; count: number }[];
 }
 
+// Helper: get display label for a tag path (last segment's label from hierarchy, or fallback)
+function tagLabel(tagPath: string, hierarchy: HierarchyNode[]): string {
+  const node = hierarchy.find(h => h.id === tagPath);
+  if (node) return node.label;
+  // Fallback: last segment, prettified
+  const last = tagPath.split("/").pop() ?? tagPath;
+  return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Helper: get full breadcrumb labels for a tag path
+function tagBreadcrumb(tagPath: string, hierarchy: HierarchyNode[]): string {
+  const parts = tagPath.split("/");
+  const labels: string[] = [];
+  let path = "";
+  for (const part of parts) {
+    path = path ? `${path}/${part}` : part;
+    labels.push(tagLabel(path, hierarchy));
+  }
+  return labels.join(" > ");
+}
+
+// Helper: count docs matching a hierarchy node (prefix match on tag paths)
+function countForNode(nodeId: string, tagCounts: { tag: string; count: number }[]): number {
+  let total = 0;
+  for (const t of tagCounts) {
+    if (t.tag === nodeId || t.tag.startsWith(nodeId + "/")) total += t.count;
+  }
+  return total;
+}
+
+// Helper: generate slug from label
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 export default function ResearchPage() {
   const [tab, setTab] = useState<Tab>("search");
   const [stats, setStats] = useState<Stats | null>(null);
   const [documents, setDocuments] = useState<DocSummary[]>([]);
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [unreviewed, setUnreviewed] = useState<TagReview[]>([]);
+  const [hierarchy, setHierarchy] = useState<HierarchyNode[]>([]);
   const [syncStatus, setSyncStatus] = useState<{ lastSync: string | null; configured: boolean; openrouterConfigured?: boolean; lightragHealthy?: boolean } | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [reclassifying, setReclassifying] = useState(false);
+
+  // Drill-down state: array of node ids forming the breadcrumb path
+  const [drillPath, setDrillPath] = useState<string[]>([]);
+  const filterTag = drillPath.length > 0 ? drillPath[drillPath.length - 1] : null;
 
   // New source form
   const [newSourceName, setNewSourceName] = useState("");
@@ -73,6 +125,11 @@ export default function ResearchPage() {
   const loadStats = useCallback(async () => {
     const s = await getResearchStats();
     setStats(s);
+  }, []);
+
+  const loadHierarchy = useCallback(async () => {
+    const h = await getTagHierarchy();
+    setHierarchy(h);
   }, []);
 
   const loadDocs = useCallback(async () => {
@@ -98,7 +155,8 @@ export default function ResearchPage() {
   useEffect(() => {
     loadStats();
     loadSyncStatus();
-  }, [loadStats, loadSyncStatus]);
+    loadHierarchy();
+  }, [loadStats, loadSyncStatus, loadHierarchy]);
 
   useEffect(() => {
     if (tab === "library") loadDocs();
@@ -123,6 +181,22 @@ export default function ResearchPage() {
       alert("Sync failed — check that READWISE_API_KEY is set in .env.local");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleReclassify = async () => {
+    if (!confirm("This will reclassify all documents and mark all tags for re-review. Continue?")) return;
+    setReclassifying(true);
+    try {
+      const res = await reclassifyDocuments();
+      alert(`Reclassified ${res.count} documents. All tags need re-review.`);
+      loadStats();
+      loadUnreviewed();
+      if (tab === "library") loadDocs();
+    } catch {
+      alert("Reclassification failed");
+    } finally {
+      setReclassifying(false);
     }
   };
 
@@ -159,6 +233,24 @@ export default function ResearchPage() {
     loadStats();
   };
 
+  // Drill-down: get children of current path
+  const currentParent = drillPath.length > 0 ? drillPath[drillPath.length - 1] : null;
+  const currentChildren = hierarchy.filter(h =>
+    currentParent === null ? h.parent === null : h.parent === currentParent
+  );
+
+  const handleDrillDown = (nodeId: string) => {
+    setDrillPath([...drillPath, nodeId]);
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    if (index < 0) {
+      setDrillPath([]);
+    } else {
+      setDrillPath(drillPath.slice(0, index + 1));
+    }
+  };
+
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: "search", label: "Search" },
     { id: "library", label: "Library" },
@@ -190,7 +282,7 @@ export default function ResearchPage() {
         )}
 
         {/* Sync controls */}
-        <div className="flex gap-2 mt-4">
+        <div className="flex gap-2 mt-4 flex-wrap">
           <button
             onClick={() => handleSync(false)}
             disabled={syncing || !syncStatus?.configured}
@@ -204,6 +296,13 @@ export default function ResearchPage() {
             className="px-3 py-1.5 text-xs font-mono rounded bg-slate-700/50 text-slate-400 hover:bg-slate-700 disabled:opacity-30 transition-colors"
           >
             Full Re-sync
+          </button>
+          <button
+            onClick={handleReclassify}
+            disabled={reclassifying}
+            className="px-3 py-1.5 text-xs font-mono rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 disabled:opacity-30 transition-colors"
+          >
+            {reclassifying ? "Reclassifying..." : "Reclassify All Tags"}
           </button>
           {!syncStatus?.configured && (
             <span className="text-xs font-mono text-amber-400 self-center">
@@ -256,34 +355,59 @@ export default function ResearchPage() {
           {/* ─── Library ─── */}
           {tab === "library" && (
             <div>
-              {/* Tag filter */}
-              {stats && stats.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  <button
-                    onClick={() => setFilterTag(null)}
-                    className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
-                      !filterTag ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800/50 text-slate-500 hover:text-slate-300"
-                    }`}
-                  >
-                    All
-                  </button>
-                  {stats.tags.map(t => (
+              {/* Breadcrumb trail */}
+              <div className="flex items-center gap-1 mb-3 text-xs font-mono">
+                <button
+                  onClick={() => handleBreadcrumbClick(-1)}
+                  className={`hover:text-cyan-300 transition-colors ${drillPath.length === 0 ? "text-cyan-300" : "text-slate-500"}`}
+                >
+                  All
+                </button>
+                {drillPath.map((nodeId, i) => (
+                  <span key={nodeId} className="flex items-center gap-1">
+                    <span className="text-slate-600">&gt;</span>
                     <button
-                      key={t.tag}
-                      onClick={() => setFilterTag(t.tag)}
-                      className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
-                        filterTag === t.tag ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-800/50 text-slate-500 hover:text-slate-300"
-                      }`}
+                      onClick={() => handleBreadcrumbClick(i)}
+                      className={`hover:text-cyan-300 transition-colors ${i === drillPath.length - 1 ? "text-cyan-300" : "text-slate-500"}`}
                     >
-                      {t.tag} ({t.count})
+                      {tagLabel(nodeId, hierarchy)}
                     </button>
-                  ))}
+                  </span>
+                ))}
+              </div>
+
+              {/* Category drill-down */}
+              {currentChildren.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {currentChildren.map(node => {
+                    const count = stats ? countForNode(node.id, stats.tags) : 0;
+                    return (
+                      <button
+                        key={node.id}
+                        onClick={() => handleDrillDown(node.id)}
+                        className="px-2.5 py-1.5 text-xs font-mono rounded bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors border border-slate-700/50"
+                      >
+                        {node.label}
+                        {count > 0 && <span className="ml-1 text-slate-600">({count})</span>}
+                      </button>
+                    );
+                  })}
+                  <AddNodeButton
+                    parent={currentParent}
+                    level={(currentChildren[0]?.level ?? 1)}
+                    hierarchy={hierarchy}
+                    onAdd={async (node) => {
+                      await addTagHierarchyNode(node);
+                      loadHierarchy();
+                    }}
+                  />
                 </div>
               )}
 
+              {/* Document list */}
               {documents.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 font-mono text-sm">
-                  No documents yet. Sync your Readwise library to get started.
+                  {filterTag ? "No documents match this filter." : "No documents yet. Sync your Readwise library to get started."}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -292,6 +416,9 @@ export default function ResearchPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <h3 className="font-mono text-sm text-slate-200 truncate">{doc.title}</h3>
+                          {doc.summary && (
+                            <p className="font-mono text-xs text-slate-500 mt-1 line-clamp-2">{doc.summary}</p>
+                          )}
                           <div className="flex items-center gap-2 mt-1">
                             {doc.author && <span className="font-mono text-xs text-slate-500">{doc.author}</span>}
                             {doc.category && (
@@ -302,10 +429,10 @@ export default function ResearchPage() {
                             <span className="font-mono text-[10px] text-slate-600">{doc.wordCount.toLocaleString()} words</span>
                           </div>
                           {doc.tags.length > 0 && (
-                            <div className="flex gap-1 mt-1.5">
+                            <div className="flex gap-1 mt-1.5 flex-wrap">
                               {doc.tags.map(t => (
-                                <span key={t} className="px-1.5 py-0.5 text-[10px] font-mono bg-cyan-500/10 text-cyan-400/70 rounded">
-                                  {t}
+                                <span key={t} className="px-1.5 py-0.5 text-[10px] font-mono bg-cyan-500/10 text-cyan-400/70 rounded" title={tagBreadcrumb(t, hierarchy)}>
+                                  {tagLabel(t, hierarchy)}
                                 </span>
                               ))}
                             </div>
@@ -429,9 +556,13 @@ export default function ResearchPage() {
                     <TagReviewCard
                       key={item.id}
                       item={item}
-                      allTags={stats?.tags.map(t => t.tag) ?? []}
+                      hierarchy={hierarchy}
                       onConfirm={() => handleConfirmAllTags(item)}
                       onRetag={(tags) => handleRetagDocument(item, tags)}
+                      onAddNode={async (node) => {
+                        await addTagHierarchyNode(node);
+                        loadHierarchy();
+                      }}
                     />
                   ))}
                 </div>
@@ -444,32 +575,168 @@ export default function ResearchPage() {
   );
 }
 
+// ─── Add Node Button (inline "+") ────────────────────────────
+
+function AddNodeButton({
+  parent,
+  level,
+  hierarchy,
+  onAdd,
+}: {
+  parent: string | null;
+  level: number;
+  hierarchy: HierarchyNode[];
+  onAdd: (node: { id: string; label: string; level: number; parent: string | null; keywords: string }) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+
+  const handleSubmit = async () => {
+    if (!label.trim()) return;
+    const slug = slugify(label.trim());
+    const id = parent ? `${parent}/${slug}` : slug;
+    // Check for duplicate
+    if (hierarchy.find(h => h.id === id)) {
+      alert("A tag with this name already exists at this level.");
+      return;
+    }
+    await onAdd({ id, label: label.trim(), level, parent, keywords: label.trim().toLowerCase() });
+    setLabel("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="px-2 py-1.5 text-xs font-mono rounded bg-slate-800/30 text-slate-600 hover:text-slate-400 hover:bg-slate-700/50 transition-colors border border-dashed border-slate-700/50"
+      >
+        +
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="text"
+        value={label}
+        onChange={e => setLabel(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") handleSubmit(); if (e.key === "Escape") setOpen(false); }}
+        placeholder={`New ${level === 1 ? "category" : level === 2 ? "subcategory" : "tag"}...`}
+        autoFocus
+        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400/50 w-36"
+      />
+      <button onClick={handleSubmit} className="px-2 py-1 text-xs font-mono rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors">Add</button>
+      <button onClick={() => { setOpen(false); setLabel(""); }} className="px-2 py-1 text-xs font-mono rounded bg-slate-700/50 text-slate-400 hover:bg-slate-700 transition-colors">Cancel</button>
+    </div>
+  );
+}
+
+// ─── Hierarchical Tag Picker (for tag assignment) ────────────
+
+function HierarchicalTagPicker({
+  hierarchy,
+  selectedTags,
+  onToggleTag,
+  onAddNode,
+}: {
+  hierarchy: HierarchyNode[];
+  selectedTags: string[];
+  onToggleTag: (tagId: string) => void;
+  onAddNode: (node: { id: string; label: string; level: number; parent: string | null; keywords: string }) => Promise<void>;
+}) {
+  const [pickerPath, setPickerPath] = useState<string[]>([]);
+  const currentParent = pickerPath.length > 0 ? pickerPath[pickerPath.length - 1] : null;
+  const children = hierarchy.filter(h =>
+    currentParent === null ? h.parent === null : h.parent === currentParent
+  );
+
+  return (
+    <div className="space-y-2">
+      {/* Picker breadcrumb */}
+      <div className="flex items-center gap-1 text-[10px] font-mono">
+        <button
+          onClick={() => setPickerPath([])}
+          className={`hover:text-cyan-300 transition-colors ${pickerPath.length === 0 ? "text-cyan-300" : "text-slate-500"}`}
+        >
+          All
+        </button>
+        {pickerPath.map((nodeId, i) => (
+          <span key={nodeId} className="flex items-center gap-1">
+            <span className="text-slate-600">&gt;</span>
+            <button
+              onClick={() => setPickerPath(pickerPath.slice(0, i + 1))}
+              className={`hover:text-cyan-300 transition-colors ${i === pickerPath.length - 1 ? "text-cyan-300" : "text-slate-500"}`}
+            >
+              {tagLabel(nodeId, hierarchy)}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {/* Children buttons */}
+      <div className="flex flex-wrap gap-1">
+        {children.map(node => {
+          const isSelected = selectedTags.includes(node.id);
+          const hasChildren = hierarchy.some(h => h.parent === node.id);
+          return (
+            <div key={node.id} className="flex items-center">
+              <button
+                onClick={() => onToggleTag(node.id)}
+                className={`px-2 py-1 text-[10px] font-mono rounded-l transition-colors ${
+                  isSelected
+                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
+                    : "bg-slate-800/50 text-slate-400 hover:bg-slate-700 border border-slate-700/50"
+                }`}
+              >
+                {isSelected ? "✓ " : ""}{node.label}
+              </button>
+              {hasChildren && (
+                <button
+                  onClick={() => setPickerPath([...pickerPath, node.id])}
+                  className="px-1.5 py-1 text-[10px] font-mono rounded-r bg-slate-800/50 text-slate-500 hover:text-slate-300 border border-l-0 border-slate-700/50 transition-colors"
+                >
+                  &gt;
+                </button>
+              )}
+              {!hasChildren && <span />}
+            </div>
+          );
+        })}
+        <AddNodeButton
+          parent={currentParent}
+          level={(children[0]?.level ?? (currentParent ? (currentParent.split("/").length + 1) : 1))}
+          hierarchy={hierarchy}
+          onAdd={onAddNode}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Tag Review Card ────────────────────────────────────────
 
 function TagReviewCard({
   item,
-  allTags,
+  hierarchy,
   onConfirm,
   onRetag,
+  onAddNode,
 }: {
   item: TagReview;
-  allTags: string[];
+  hierarchy: HierarchyNode[];
   onConfirm: () => void;
   onRetag: (tags: string[]) => void;
+  onAddNode: (node: { id: string; label: string; level: number; parent: string | null; keywords: string }) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [editTags, setEditTags] = useState<string[]>(item.tags);
-  const [newTag, setNewTag] = useState("");
 
-  const handleAddTag = () => {
-    if (newTag.trim() && !editTags.includes(newTag.trim())) {
-      setEditTags([...editTags, newTag.trim().toLowerCase()]);
-      setNewTag("");
-    }
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setEditTags(editTags.filter(t => t !== tag));
+  const handleToggleTag = (tagId: string) => {
+    setEditTags(prev =>
+      prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId]
+    );
   };
 
   const handleSave = () => {
@@ -482,6 +749,9 @@ function TagReviewCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="font-mono text-sm text-slate-200 truncate">{item.title}</h3>
+          {item.summary && (
+            <p className="font-mono text-xs text-slate-500 mt-1 line-clamp-2">{item.summary}</p>
+          )}
           <div className="flex items-center gap-2 mt-1">
             {item.source && <span className="font-mono text-xs text-slate-500">{item.source}</span>}
             {item.category && (
@@ -498,8 +768,8 @@ function TagReviewCard({
         <div className="flex items-center gap-2 mt-2">
           <div className="flex gap-1 flex-wrap">
             {item.tags.map(t => (
-              <span key={t} className="px-1.5 py-0.5 text-[10px] font-mono bg-amber-400/10 text-amber-400/70 rounded border border-amber-400/20">
-                {t}
+              <span key={t} className="px-1.5 py-0.5 text-[10px] font-mono bg-amber-400/10 text-amber-400/70 rounded border border-amber-400/20" title={tagBreadcrumb(t, hierarchy)}>
+                {tagLabel(t, hierarchy)}
               </span>
             ))}
           </div>
@@ -511,7 +781,7 @@ function TagReviewCard({
               Confirm
             </button>
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => { setEditing(true); setEditTags(item.tags); }}
               className="px-2 py-1 text-[10px] font-mono rounded bg-slate-700/50 text-slate-400 hover:bg-slate-700 transition-colors"
             >
               Edit
@@ -520,33 +790,31 @@ function TagReviewCard({
         </div>
       ) : (
         <div className="mt-2 space-y-2">
+          {/* Currently assigned tags */}
           <div className="flex gap-1 flex-wrap">
             {editTags.map(t => (
               <button
                 key={t}
-                onClick={() => handleRemoveTag(t)}
+                onClick={() => handleToggleTag(t)}
                 className="px-1.5 py-0.5 text-[10px] font-mono bg-cyan-500/10 text-cyan-300 rounded hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                title={tagBreadcrumb(t, hierarchy)}
               >
-                {t} ×
+                {tagLabel(t, hierarchy)} ×
               </button>
             ))}
           </div>
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={newTag}
-              onChange={e => setNewTag(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleAddTag(); }}
-              placeholder="Add tag..."
-              list="tag-suggestions"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400/50"
+
+          {/* Hierarchical picker */}
+          <div className="p-2 rounded bg-slate-900/50 border border-slate-700/50">
+            <HierarchicalTagPicker
+              hierarchy={hierarchy}
+              selectedTags={editTags}
+              onToggleTag={handleToggleTag}
+              onAddNode={onAddNode}
             />
-            <datalist id="tag-suggestions">
-              {allTags.filter(t => !editTags.includes(t)).map(t => (
-                <option key={t} value={t} />
-              ))}
-            </datalist>
-            <button onClick={handleAddTag} className="px-2 py-1 text-xs font-mono rounded bg-slate-700/50 text-slate-400 hover:bg-slate-700">+</button>
+          </div>
+
+          <div className="flex gap-1">
             <button onClick={handleSave} className="px-2 py-1 text-xs font-mono rounded bg-green-500/20 text-green-300 hover:bg-green-500/30">Save</button>
             <button onClick={() => { setEditing(false); setEditTags(item.tags); }} className="px-2 py-1 text-xs font-mono rounded bg-slate-700/50 text-slate-400 hover:bg-slate-700">Cancel</button>
           </div>
