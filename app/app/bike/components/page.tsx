@@ -16,6 +16,24 @@ const hubTheme = {
 const BIKE_TYPES = ["Road", "Gravel", "MTB", "Hybrid", "TT/Tri", "Other"];
 const COMPONENT_CATEGORIES = ["Frame", "Wheels", "Drivetrain", "Brakes", "Cockpit", "Saddle", "Pedals", "Other"];
 
+function getComponentStatus(comp: BikeComponent, bikeTotalMiles?: number): { usageMiles: number; percent: number; status: "ok" | "check" | "due" | "overdue"; label: string } | null {
+  if (comp.serviceIntervalMiles == null || comp.mileageAtInstall == null || bikeTotalMiles == null) return null;
+  const usageMiles = Math.max(0, bikeTotalMiles - comp.mileageAtInstall);
+  const percent = (usageMiles / comp.serviceIntervalMiles) * 100;
+  const remaining = comp.serviceIntervalMiles - usageMiles;
+  if (percent >= 110) return { usageMiles, percent, status: "overdue", label: `${Math.abs(Math.round(remaining))} mi overdue` };
+  if (percent >= 100) return { usageMiles, percent, status: "due", label: "Service due" };
+  if (percent >= 80) return { usageMiles, percent, status: "check", label: `${Math.round(remaining)} mi remaining` };
+  return { usageMiles, percent, status: "ok", label: `${Math.round(remaining)} mi remaining` };
+}
+
+const STATUS_COLORS = {
+  ok: { bar: "#00D9FF", text: "#67C7EB" },
+  check: { bar: "#FBBF24", text: "#FBBF24" },
+  due: { bar: "#F97316", text: "#F97316" },
+  overdue: { bar: "#EF4444", text: "#EF4444" },
+};
+
 
 interface BikeComponent {
   id: string;
@@ -479,6 +497,41 @@ export default function ComponentListPage() {
         </div>
 
 
+        {/* Component alerts banner */}
+        {(() => {
+          const alerts: { bikeName: string; compName: string; status: ReturnType<typeof getComponentStatus> }[] = [];
+          for (const bike of bikes) {
+            for (const comp of bike.components) {
+              const status = getComponentStatus(comp, bike.totalMiles);
+              if (status && (status.status === "due" || status.status === "overdue" || status.status === "check")) {
+                alerts.push({ bikeName: bike.name, compName: comp.name, status });
+              }
+            }
+          }
+          // Sort: overdue first, then due, then check
+          const order = { overdue: 0, due: 1, check: 2, ok: 3 };
+          alerts.sort((a, b) => order[a.status!.status] - order[b.status!.status]);
+          if (alerts.length === 0) return null;
+          return (
+            <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-4 mb-6">
+              <h3 className="text-sm font-semibold text-amber-400 mb-2">Maintenance Alerts</h3>
+              <div className="space-y-1">
+                {alerts.map((a, i) => {
+                  const colors = STATUS_COLORS[a.status!.status];
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.bar }} />
+                      <span className="text-[#67C7EB]">{a.bikeName}</span>
+                      <span className="text-[#00D9FF]">{a.compName}</span>
+                      <span style={{ color: colors.text }} className="font-medium">{a.status!.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
           <div className="flex items-center justify-center relative mb-4">
             <h3 className="text-lg font-semibold text-[#00D9FF]">Bikes and Components</h3>
@@ -842,12 +895,38 @@ export default function ComponentListPage() {
                                             {c.weight != null && <span>{c.weight}g</span>}
                                             {c.installDate && <span>Installed: {c.installDate}</span>}
                                             {c.serviceIntervalMiles != null && (
-                                              <span>Service every {c.serviceIntervalMiles} mi</span>
+                                              <span>Service every {c.serviceIntervalMiles.toLocaleString()} mi</span>
                                             )}
                                           </div>
                                           {c.notes && (
                                             <p className="text-xs text-[#67C7EB]/70 mt-0.5">{c.notes}</p>
                                           )}
+                                          {(() => {
+                                            const status = getComponentStatus(c, bike.totalMiles);
+                                            if (!status) return null;
+                                            const colors = STATUS_COLORS[status.status];
+                                            return (
+                                              <div className="mt-2">
+                                                <div className="flex items-center justify-between text-xs mb-1">
+                                                  <span style={{ color: colors.text }}>
+                                                    {Math.round(status.usageMiles).toLocaleString()} / {(c.serviceIntervalMiles ?? 0).toLocaleString()} mi
+                                                  </span>
+                                                  <span style={{ color: colors.text }} className="font-medium">
+                                                    {status.label}
+                                                  </span>
+                                                </div>
+                                                <div className="w-full h-1.5 rounded-full bg-[#00D9FF]/10 overflow-hidden">
+                                                  <div
+                                                    className="h-full rounded-full transition-all"
+                                                    style={{
+                                                      width: `${Math.min(status.percent, 100)}%`,
+                                                      backgroundColor: colors.bar,
+                                                    }}
+                                                  />
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                         <div className="flex flex-col gap-1 flex-shrink-0">
                                           <button

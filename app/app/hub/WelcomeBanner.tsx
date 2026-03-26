@@ -117,8 +117,16 @@ interface WeatherData {
   rideWindow: string;
 }
 
+interface ComponentAlert {
+  bikeName: string;
+  compName: string;
+  status: "check" | "due" | "overdue";
+  label: string;
+}
+
 interface TodayData {
   cardsDue: number;
+  componentAlerts: ComponentAlert[];
 }
 
 // ─── Component ──────────────────────────────────────────────────
@@ -228,12 +236,20 @@ export default function WelcomeBanner({ isOpen }: { isOpen: boolean }) {
                     German cards due
                   </span>
                 </div>
-                <p className="text-xs font-mono mt-1.5" style={{ color: theme.secondary, opacity: 0.5 }}>
-                  Calendar — coming soon
-                </p>
-                <p className="text-[10px] font-mono" style={{ color: theme.secondary, opacity: 0.5 }}>
-                  Tasks — coming soon
-                </p>
+                {today.componentAlerts.length > 0 && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {today.componentAlerts.slice(0, 3).map((a, i) => (
+                      <p key={i} className="text-[10px] font-mono" style={{ color: a.status === "overdue" ? "#EF4444" : a.status === "due" ? "#F97316" : "#FBBF24" }}>
+                        {a.compName}: {a.label}
+                      </p>
+                    ))}
+                    {today.componentAlerts.length > 3 && (
+                      <p className="text-[10px] font-mono" style={{ color: theme.secondary, opacity: 0.5 }}>
+                        +{today.componentAlerts.length - 3} more
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-xs font-mono" style={{ color: theme.secondary, opacity: 0.5 }}>No data</p>
@@ -383,10 +399,32 @@ async function loadWeather(): Promise<WeatherData | null> {
 
 async function loadToday(): Promise<TodayData | null> {
   try {
-    const vocab = (await api.getVocab()) as { nextReview: number }[];
+    const [vocab, bikes] = await Promise.all([
+      api.getVocab() as Promise<{ nextReview: number }[]>,
+      api.getBikes<{ name: string; totalMiles?: number; components: { name: string; mileageAtInstall?: number; serviceIntervalMiles?: number }[] }>(),
+    ]);
     const now = Date.now();
     const due = vocab.filter((w) => w.nextReview <= now).length;
-    return { cardsDue: due };
+
+    const componentAlerts: ComponentAlert[] = [];
+    for (const bike of bikes) {
+      if (bike.totalMiles == null) continue;
+      for (const comp of bike.components) {
+        if (comp.serviceIntervalMiles == null || comp.mileageAtInstall == null) continue;
+        const usage = bike.totalMiles - comp.mileageAtInstall;
+        const percent = (usage / comp.serviceIntervalMiles) * 100;
+        const remaining = comp.serviceIntervalMiles - usage;
+        if (percent >= 110) {
+          componentAlerts.push({ bikeName: bike.name, compName: comp.name, status: "overdue", label: `${Math.abs(Math.round(remaining))} mi overdue` });
+        } else if (percent >= 100) {
+          componentAlerts.push({ bikeName: bike.name, compName: comp.name, status: "due", label: "Service due" });
+        } else if (percent >= 80) {
+          componentAlerts.push({ bikeName: bike.name, compName: comp.name, status: "check", label: `${Math.round(remaining)} mi left` });
+        }
+      }
+    }
+
+    return { cardsDue: due, componentAlerts };
   } catch {
     return null;
   }
