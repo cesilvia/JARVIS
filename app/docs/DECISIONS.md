@@ -756,3 +756,21 @@
 - **Rationale:** User wanted assurance that JARVIS could be fully rebuilt on a new machine, with clear instructions.
 - **Implementation:** `docs/RESTORE.md` with 10-step recovery process (clone, env vars, tunnel, Docker, restore from R2, re-sync services, N8N import, podcast pipeline, auto-deploy, Tailscale). Pinned GitHub Issue #1 links to the guide. Estimated 30-minute recovery time.
 - **Status:** Implemented
+
+## 2026-03-27
+
+### Ride Notes Feature
+
+**Decision:** Add structured ride notes form to Strava ride detail view
+- **Rationale:** User wanted to record subjective data (RPE, nutrition, sleep, GI issues, etc.) alongside Strava ride data for trend analysis and correlation with performance metrics.
+- **Implementation:** New `ride_notes` table (flat, one row per activity) with 20+ fields across 5 collapsible sections: Effort (RPE slider, ride type, workout name), Nutrition (calories, carbs/hr auto-calc, bottles, fluid auto-calc, GI issues, electrolytes), Pre-Ride (meal timing, macros, leg freshness, weight), Recovery (sleep hours/quality, cramping), Notes (freeform). Auto-save with 1.5s debounce. Computed fields (carbs/hr, total fluid, w/kg) stored in DB and recalculated on every save. Copy-to-clipboard for TrainerRoad paste. Indoor/outdoor auto-detected from Strava trainer flag. LightRAG indexing on save for natural language queries.
+- **Design choices:**
+  - Flat table (not normalized): one row per activity makes trend queries trivial for a single-user dashboard
+  - Computed fields stored: enables simple SQL trend queries without re-deriving; auto-recalculated on input change so never stale
+  - Separate component (`RideNotesPanel.tsx`): keeps the 2300-line Strava page manageable
+- **Status:** Implemented
+
+**Decision:** Configurable dropdown options via Settings page
+- **Rationale:** User wanted ride type (TrainerRoad-based) and electrolyte product dropdowns to be extensible without code changes.
+- **Implementation:** New `ride_note_options` table with category/label/sort_order. Seeded with 11 ride types (Endurance, Recovery, Tempo, Sweet Spot, Threshold, VO2max, Anaerobic, Sprint, Race, Group Ride, Event) and 2 electrolyte products (Re-Lyte, LMNT). Settings > Cycling page has add/remove UI by category. Designed to support future categories.
+- **Status:** Implemented

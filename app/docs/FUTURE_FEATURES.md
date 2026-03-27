@@ -90,6 +90,11 @@
 ### Maintenance Tracker
 - ~~**Mileage-based component alerts**~~ — DONE (2026-03-26): Progress bars on Components page with color-coded status (ok/check/due/overdue). Maintenance Alerts banner at top. Hub welcome banner shows up to 3 alerts in Today card.
 
+### Ride Notes
+- ~~**Structured ride notes form**~~ — DONE (2026-03-27): Collapsible form on ride detail view with 5 sections (Effort, Nutrition, Pre-Ride, Recovery, Notes). Auto-save, copy-to-clipboard for TrainerRoad, LightRAG indexing. Configurable dropdowns (ride type, electrolyte product) managed in Settings > Cycling.
+- **Ride notes trend analysis** — Charts over time: RPE vs TSS, calories/hr vs duration, weight tracking, sleep quality vs performance, GI issue correlation with nutrition. Scatter plots and line charts using stored computed fields.
+- **RENPHO integration** — Auto-pull weight from RENPHO Health app if a reliable API becomes available. Currently manual entry.
+
 ### Strava Dashboard
 - Improve polyline route matching (edit distance / lat-lng proximity)
 - Select specific rides to compare

@@ -14,6 +14,7 @@ import {
   formatTime, formatHours, formatDate, getWeekStart, getMonthStart, getYearStart,
 } from "./types";
 import * as api from "../../lib/api-client";
+import RideNotesPanel from "./RideNotesPanel";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB", background: "#000000" };
 const isOutdoorRide = (a: StravaActivity) => !a.trainer && a.sport_type !== "VirtualRide";
@@ -2169,6 +2170,7 @@ export default function StravaPage() {
                                 {hasWeather && (
                                   <button onClick={(e) => { e.stopPropagation(); toggle("weather"); }} className={sectionBtnClass("weather")}>Weather</button>
                                 )}
+                                <button onClick={(e) => { e.stopPropagation(); toggle("notes"); }} className={sectionBtnClass("notes")}>Notes</button>
                                 {/* Compare buttons */}
                                 {allRides.filter((r) => r.id !== ride.id && r.name === ride.name).length > 0 && (
                                   <button
@@ -2298,6 +2300,17 @@ export default function StravaPage() {
                                 </div>
                               );
                             })()}
+
+                            {/* Ride Notes */}
+                            {isOpen("notes") && (
+                              <RideNotesPanel
+                                activityId={ride.id}
+                                activityName={ride.name}
+                                trainer={!!ride.trainer}
+                                movingTime={ride.moving_time}
+                                averageWatts={ride.average_watts}
+                              />
+                            )}
                           </div>
                         );
                       })()}

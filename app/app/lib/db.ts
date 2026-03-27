@@ -215,6 +215,44 @@ CREATE TABLE IF NOT EXISTS research_sources (
   active      INTEGER NOT NULL DEFAULT 1,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ─── Ride Notes ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ride_notes (
+  activity_id        INTEGER PRIMARY KEY REFERENCES strava_activities(id),
+  rpe                INTEGER,
+  ride_type          TEXT,
+  workout_name       TEXT,
+  calories_on_bike   REAL,
+  bottle_count       REAL,
+  bottle_size_oz     REAL,
+  total_fluid_oz     REAL,
+  gi_issues          TEXT,
+  electrolyte_mg     REAL,
+  electrolyte_product TEXT,
+  meal_timing        TEXT,
+  pre_carbs_g        REAL,
+  pre_protein_g      REAL,
+  pre_fat_g          REAL,
+  leg_freshness      INTEGER,
+  weight_lbs         REAL,
+  sleep_hours        REAL,
+  sleep_quality      INTEGER,
+  cramping           TEXT,
+  carbs_per_hour     REAL,
+  watts_per_kg       REAL,
+  notes              TEXT,
+  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Configurable dropdown options for ride note forms
+CREATE TABLE IF NOT EXISTS ride_note_options (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  category   TEXT NOT NULL,
+  label      TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  active     INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(category, label)
+);
 `;
 
 export function getDb(): Database.Database {
@@ -251,6 +289,13 @@ export function getDb(): Database.Database {
         _db.exec("DELETE FROM research_tags");
         seedTagHierarchy(_db);
       }
+    }
+  } catch { /* table may not exist yet */ }
+  // Seed ride note options if empty
+  try {
+    const optCount = _db.prepare("SELECT COUNT(*) as c FROM ride_note_options").get() as { c: number };
+    if (optCount.c === 0) {
+      seedRideNoteOptions(_db);
     }
   } catch { /* table may not exist yet */ }
   return _db;
@@ -411,6 +456,38 @@ function seedTagHierarchy(db: Database.Database): void {
   const tx = db.transaction(() => {
     for (const node of TAG_HIERARCHY_SEED) {
       stmt.run(node.id, node.label, node.level, node.parent, node.keywords);
+    }
+  });
+  tx();
+}
+
+// ─── Ride Note Options Seed ─────────────────────────────────────
+
+const RIDE_NOTE_OPTIONS_SEED: { category: string; label: string; sort_order: number }[] = [
+  // Ride types (TrainerRoad-based + extras)
+  { category: "ride_type", label: "Endurance", sort_order: 1 },
+  { category: "ride_type", label: "Recovery", sort_order: 2 },
+  { category: "ride_type", label: "Tempo", sort_order: 3 },
+  { category: "ride_type", label: "Sweet Spot", sort_order: 4 },
+  { category: "ride_type", label: "Threshold", sort_order: 5 },
+  { category: "ride_type", label: "VO2max", sort_order: 6 },
+  { category: "ride_type", label: "Anaerobic", sort_order: 7 },
+  { category: "ride_type", label: "Sprint", sort_order: 8 },
+  { category: "ride_type", label: "Race", sort_order: 9 },
+  { category: "ride_type", label: "Group Ride", sort_order: 10 },
+  { category: "ride_type", label: "Event", sort_order: 11 },
+  // Electrolyte products
+  { category: "electrolyte_product", label: "Re-Lyte", sort_order: 1 },
+  { category: "electrolyte_product", label: "LMNT", sort_order: 2 },
+];
+
+function seedRideNoteOptions(db: Database.Database): void {
+  const stmt = db.prepare(
+    "INSERT OR IGNORE INTO ride_note_options (category, label, sort_order) VALUES (?, ?, ?)"
+  );
+  const tx = db.transaction(() => {
+    for (const opt of RIDE_NOTE_OPTIONS_SEED) {
+      stmt.run(opt.category, opt.label, opt.sort_order);
     }
   });
   tx();
@@ -1284,6 +1361,126 @@ export function getResearchStats() {
   };
 }
 
+// ─── Ride Notes ─────────────────────────────────────────────────
+
+export interface RideNoteRow {
+  activity_id: number;
+  rpe: number | null;
+  ride_type: string | null;
+  workout_name: string | null;
+  calories_on_bike: number | null;
+  bottle_count: number | null;
+  bottle_size_oz: number | null;
+  total_fluid_oz: number | null;
+  gi_issues: string | null;
+  electrolyte_mg: number | null;
+  electrolyte_product: string | null;
+  meal_timing: string | null;
+  pre_carbs_g: number | null;
+  pre_protein_g: number | null;
+  pre_fat_g: number | null;
+  leg_freshness: number | null;
+  weight_lbs: number | null;
+  sleep_hours: number | null;
+  sleep_quality: number | null;
+  cramping: string | null;
+  carbs_per_hour: number | null;
+  watts_per_kg: number | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export function getRideNote(activityId: number): RideNoteRow | null {
+  const db = getDb();
+  return (db.prepare("SELECT * FROM ride_notes WHERE activity_id = ?").get(activityId) as RideNoteRow) ?? null;
+}
+
+export function getAllRideNotes(): RideNoteRow[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM ride_notes ORDER BY updated_at DESC").all() as RideNoteRow[];
+}
+
+export function upsertRideNote(activityId: number, data: Partial<RideNoteRow>): void {
+  const db = getDb();
+  db.prepare(`INSERT INTO ride_notes
+    (activity_id, rpe, ride_type, workout_name, calories_on_bike,
+     bottle_count, bottle_size_oz, total_fluid_oz, gi_issues,
+     electrolyte_mg, electrolyte_product, meal_timing,
+     pre_carbs_g, pre_protein_g, pre_fat_g, leg_freshness, weight_lbs,
+     sleep_hours, sleep_quality, cramping, carbs_per_hour, watts_per_kg, notes, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(activity_id) DO UPDATE SET
+      rpe = excluded.rpe, ride_type = excluded.ride_type, workout_name = excluded.workout_name,
+      calories_on_bike = excluded.calories_on_bike, bottle_count = excluded.bottle_count,
+      bottle_size_oz = excluded.bottle_size_oz, total_fluid_oz = excluded.total_fluid_oz,
+      gi_issues = excluded.gi_issues, electrolyte_mg = excluded.electrolyte_mg,
+      electrolyte_product = excluded.electrolyte_product, meal_timing = excluded.meal_timing,
+      pre_carbs_g = excluded.pre_carbs_g, pre_protein_g = excluded.pre_protein_g,
+      pre_fat_g = excluded.pre_fat_g, leg_freshness = excluded.leg_freshness,
+      weight_lbs = excluded.weight_lbs, sleep_hours = excluded.sleep_hours,
+      sleep_quality = excluded.sleep_quality, cramping = excluded.cramping,
+      carbs_per_hour = excluded.carbs_per_hour, watts_per_kg = excluded.watts_per_kg,
+      notes = excluded.notes, updated_at = datetime('now')
+  `).run(
+    activityId,
+    data.rpe ?? null, data.ride_type ?? null, data.workout_name ?? null,
+    data.calories_on_bike ?? null, data.bottle_count ?? null, data.bottle_size_oz ?? null,
+    data.total_fluid_oz ?? null, data.gi_issues ?? null, data.electrolyte_mg ?? null,
+    data.electrolyte_product ?? null, data.meal_timing ?? null,
+    data.pre_carbs_g ?? null, data.pre_protein_g ?? null, data.pre_fat_g ?? null,
+    data.leg_freshness ?? null, data.weight_lbs ?? null, data.sleep_hours ?? null,
+    data.sleep_quality ?? null, data.cramping ?? null,
+    data.carbs_per_hour ?? null, data.watts_per_kg ?? null, data.notes ?? null
+  );
+}
+
+export function rideNoteExists(activityIds: number[]): Record<number, boolean> {
+  const db = getDb();
+  const result: Record<number, boolean> = {};
+  if (activityIds.length === 0) return result;
+  const placeholders = activityIds.map(() => "?").join(",");
+  const rows = db.prepare(`SELECT activity_id FROM ride_notes WHERE activity_id IN (${placeholders})`).all(...activityIds) as { activity_id: number }[];
+  for (const id of activityIds) result[id] = false;
+  for (const r of rows) result[r.activity_id] = true;
+  return result;
+}
+
+// ─── Ride Note Options ──────────────────────────────────────────
+
+export interface RideNoteOptionRow {
+  id: number;
+  category: string;
+  label: string;
+  sort_order: number;
+  active: number;
+}
+
+export function getRideNoteOptions(category?: string): RideNoteOptionRow[] {
+  const db = getDb();
+  if (category) {
+    return db.prepare("SELECT * FROM ride_note_options WHERE category = ? AND active = 1 ORDER BY sort_order, label").all(category) as RideNoteOptionRow[];
+  }
+  return db.prepare("SELECT * FROM ride_note_options WHERE active = 1 ORDER BY category, sort_order, label").all() as RideNoteOptionRow[];
+}
+
+export function getAllRideNoteOptions(): RideNoteOptionRow[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM ride_note_options ORDER BY category, sort_order, label").all() as RideNoteOptionRow[];
+}
+
+export function upsertRideNoteOption(category: string, label: string, sortOrder: number): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO ride_note_options (category, label, sort_order) VALUES (?, ?, ?)
+     ON CONFLICT(category, label) DO UPDATE SET sort_order = excluded.sort_order, active = 1`
+  ).run(category, label, sortOrder);
+}
+
+export function deleteRideNoteOption(id: number): void {
+  const db = getDb();
+  db.prepare("DELETE FROM ride_note_options WHERE id = ?").run(id);
+}
+
 // ─── Full export for backup ─────────────────────────────────────
 
 export function exportAll(): Record<string, unknown> {
@@ -1304,6 +1501,8 @@ export function exportAll(): Record<string, unknown> {
     gearItems: getAllGearItems(),
     tireRefs: getAllTireRefs(),
     rideWeather: getAllRideWeather(),
+    rideNotes: getAllRideNotes(),
+    rideNoteOptions: getAllRideNoteOptions(),
     researchDocuments: getAllResearchDocuments({ limit: 10000 }),
     researchSources: getAllResearchSources(),
     researchTags: getAllTags(),

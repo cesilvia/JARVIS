@@ -84,6 +84,52 @@ export const DEFAULT_GOALS: StravaGoal[] = [
   { key: "yearly-rides", label: "Yearly Rides", target: 183, unit: "rides", period: "yearly" },
 ];
 
+// ─── Ride Notes types ───────────────────────────────────────────
+
+export interface RideNote {
+  activity_id: number;
+  rpe: number | null;
+  ride_type: string | null;
+  workout_name: string | null;
+  calories_on_bike: number | null;
+  bottle_count: number | null;
+  bottle_size_oz: number | null;
+  total_fluid_oz: number | null;
+  gi_issues: string | null;
+  electrolyte_mg: number | null;
+  electrolyte_product: string | null;
+  meal_timing: string | null;
+  pre_carbs_g: number | null;
+  pre_protein_g: number | null;
+  pre_fat_g: number | null;
+  leg_freshness: number | null;
+  weight_lbs: number | null;
+  sleep_hours: number | null;
+  sleep_quality: number | null;
+  cramping: string | null;
+  carbs_per_hour: number | null;
+  watts_per_kg: number | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export interface RideNoteOption {
+  id: number;
+  category: string;
+  label: string;
+  sort_order: number;
+  active: number;
+}
+
+export const MEAL_TIMING_OPTIONS = [
+  "Fasted", "30min", "1hr", "1.5hr", "2hr", "2.5hr", "3hr", "3hr+",
+] as const;
+
+export const GI_SEVERITY_OPTIONS = ["none", "mild", "moderate", "severe"] as const;
+export const CRAMPING_OPTIONS = ["none", "mild", "moderate", "severe"] as const;
+
+export const LBS_TO_KG = 0.453592;
+
 // ─── Weather types ──────────────────────────────────────────────
 
 export interface RideWeather {

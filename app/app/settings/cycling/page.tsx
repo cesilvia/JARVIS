@@ -9,6 +9,7 @@ import {
   ZoneConfig, ZoneBand,
   buildDefaultPowerZones, buildDefaultHRZones,
   StravaGoal, DEFAULT_GOALS,
+  RideNoteOption,
 } from "../../bike/strava/types";
 
 const METERS_TO_MILES = 1 / 1609.34;
@@ -55,6 +56,9 @@ export default function CyclingSettingsPage() {
   const [zonesSaved, setZonesSaved] = useState(false);
   const [goals, setGoals] = useState<StravaGoal[]>(DEFAULT_GOALS);
   const [goalsSaved, setGoalsSaved] = useState(false);
+  const [noteOptions, setNoteOptions] = useState<RideNoteOption[]>([]);
+  const [noteOptCategory, setNoteOptCategory] = useState("ride_type");
+  const [newOptionLabel, setNewOptionLabel] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -71,6 +75,8 @@ export default function CyclingSettingsPage() {
       }
       const savedGoals = await api.getKV<StravaGoal[]>("strava-goals");
       if (savedGoals) setGoals(savedGoals);
+      const opts = await api.getAllRideNoteOptionsAdmin();
+      setNoteOptions(opts);
     }
     loadData();
   }, []);
@@ -394,6 +400,79 @@ export default function CyclingSettingsPage() {
               {zonesSaved && <span className="text-green-400 font-mono text-xs">Saved! Reminder set for 28 days.</span>}
             </div>
           )}
+        </section>
+
+        {/* Ride Note Options Section */}
+        <section className="border border-slate-700 rounded-lg p-6 mt-6">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Ride Note Options</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            Manage dropdown options for ride note forms. Add, remove, or reorder options by category.
+          </p>
+          <div className="mb-4">
+            <label className="text-slate-400 font-mono text-xs block mb-1">Category</label>
+            <select
+              value={noteOptCategory}
+              onChange={(e) => setNoteOptCategory(e.target.value)}
+              className="w-48 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm"
+            >
+              <option value="ride_type">Ride Type</option>
+              <option value="electrolyte_product">Electrolyte Product</option>
+            </select>
+          </div>
+          <div className="space-y-1.5 mb-4">
+            {noteOptions
+              .filter(o => o.category === noteOptCategory)
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map(opt => (
+                <div key={opt.id} className="flex items-center gap-2 text-xs font-mono">
+                  <span className={`flex-1 ${opt.active ? "text-slate-100" : "text-slate-500 line-through"}`}>{opt.label}</span>
+                  <span className="text-slate-500 text-[10px]">#{opt.sort_order}</span>
+                  <button
+                    onClick={async () => {
+                      await api.deleteRideNoteOptionById(opt.id);
+                      setNoteOptions(prev => prev.filter(o => o.id !== opt.id));
+                    }}
+                    className="text-red-400 hover:text-red-300 text-[10px]"
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            {noteOptions.filter(o => o.category === noteOptCategory).length === 0 && (
+              <p className="text-slate-500 font-mono text-xs">No options for this category yet.</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newOptionLabel}
+              onChange={(e) => setNewOptionLabel(e.target.value)}
+              placeholder="New option label"
+              className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm"
+              onKeyDown={async (e) => {
+                if (e.key === "Enter" && newOptionLabel.trim()) {
+                  const maxSort = Math.max(0, ...noteOptions.filter(o => o.category === noteOptCategory).map(o => o.sort_order));
+                  await api.saveRideNoteOption(noteOptCategory, newOptionLabel.trim(), maxSort + 1);
+                  const opts = await api.getAllRideNoteOptionsAdmin();
+                  setNoteOptions(opts);
+                  setNewOptionLabel("");
+                }
+              }}
+            />
+            <button
+              onClick={async () => {
+                if (!newOptionLabel.trim()) return;
+                const maxSort = Math.max(0, ...noteOptions.filter(o => o.category === noteOptCategory).map(o => o.sort_order));
+                await api.saveRideNoteOption(noteOptCategory, newOptionLabel.trim(), maxSort + 1);
+                const opts = await api.getAllRideNoteOptionsAdmin();
+                setNoteOptions(opts);
+                setNewOptionLabel("");
+              }}
+              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Add
+            </button>
+          </div>
         </section>
       </div>
       <SettingsNavIcon />

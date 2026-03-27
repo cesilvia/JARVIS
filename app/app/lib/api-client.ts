@@ -414,3 +414,72 @@ export async function migrateFromLocalStorage(data: Record<string, unknown>): Pr
   });
   return res.json();
 }
+
+// ─── Ride Notes ─────────────────────────────────────────────────
+
+import type { RideNote, RideNoteOption } from "@/app/bike/strava/types";
+
+export async function getRideNote(activityId: number): Promise<RideNote | null> {
+  const res = await fetch(`/api/db/strava/ride-notes?activityId=${activityId}`);
+  if (!res.ok) return null;
+  const { note } = await res.json();
+  return note ?? null;
+}
+
+export async function getAllRideNotes(): Promise<RideNote[]> {
+  const res = await fetch("/api/db/strava/ride-notes");
+  if (!res.ok) return [];
+  const { notes } = await res.json();
+  return notes ?? [];
+}
+
+export async function saveRideNote(activityId: number, data: Partial<RideNote>): Promise<void> {
+  await fetch("/api/db/strava/ride-notes", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activityId, ...data }),
+  });
+}
+
+export async function checkRideNotesExist(activityIds: number[]): Promise<Record<number, boolean>> {
+  if (activityIds.length === 0) return {};
+  const res = await fetch(`/api/db/strava/ride-notes?checkIds=${activityIds.join(",")}`);
+  if (!res.ok) return {};
+  const { exists } = await res.json();
+  return exists ?? {};
+}
+
+export async function getRideNoteOptions(category?: string): Promise<RideNoteOption[]> {
+  const params = category ? `?category=${encodeURIComponent(category)}` : "";
+  const res = await fetch(`/api/db/strava/ride-notes/options${params}`);
+  if (!res.ok) return [];
+  const { options } = await res.json();
+  return options ?? [];
+}
+
+export async function getAllRideNoteOptionsAdmin(): Promise<RideNoteOption[]> {
+  const res = await fetch("/api/db/strava/ride-notes/options?all=1");
+  if (!res.ok) return [];
+  const { options } = await res.json();
+  return options ?? [];
+}
+
+export async function saveRideNoteOption(category: string, label: string, sortOrder: number): Promise<void> {
+  await fetch("/api/db/strava/ride-notes/options", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category, label, sortOrder }),
+  });
+}
+
+export async function deleteRideNoteOptionById(id: number): Promise<void> {
+  await fetch(`/api/db/strava/ride-notes/options?id=${id}`, { method: "DELETE" });
+}
+
+export async function indexRideNoteInRAG(activityId: number): Promise<void> {
+  await fetch("/api/db/strava/ride-notes/index-rag", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activityId }),
+  });
+}
