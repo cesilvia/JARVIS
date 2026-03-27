@@ -770,6 +770,29 @@
   - Separate component (`RideNotesPanel.tsx`): keeps the 2300-line Strava page manageable
 - **Status:** Implemented
 
+### Layout Audit & Wedge Text Overhaul
+
+**Decision:** Fix nutrition page duplicate title and standardize settings page margins
+- **Rationale:** Nutrition page had "Food and Nutrition" title rendered twice. Settings sub-pages (backup, security, extras) used inconsistent `mt-4` vs `mt-6` spacing after Navigation.
+- **Implementation:** Removed duplicate title from nutrition card header. Moved "Add Manually" button into a new third input row (label + text input + button) matching the Search and Barcode rows. Added NutritionBackIcon (fork) in upper-right of page header when manual entry form is open. Standardized all settings pages to `mt-6`.
+- **Status:** Implemented
+
+**Decision:** Rewrite WedgeSummaryCard text rendering with clipPath + auto-scaling
+- **Rationale:** Wedge text frequently extended outside the pie-slice boundary at certain angles. Counter-rotating a rectangular text block inside a pie slice is geometrically impossible to contain at all angles without clipping or scaling.
+- **Implementation:**
+  - SVG `clipPath` applied to the text group — text physically cannot render outside the wedge boundary, ever
+  - Dark semi-transparent backdrop (`rgba(0,0,0,0.35)`) behind text for readability against bright wedge fill
+  - Auto-scale: computes the largest font size where the text rectangle fits inside the wedge using inscribed rectangle geometry, with minimum scale 0.55 (centered) or 0.85 (left-aligned)
+  - Text positions centered around the rotation pivot (`TC * L`) to minimize clipping
+  - Left-aligned mode (German): per-row left boundary shifts based on Y position (`LEFT_BASE_X + y * 0.3`), so entries in the wider part of the wedge use more horizontal space
+  - Stronger text shadow for contrast
+- **Status:** Implemented
+
+**Decision:** Close welcome banner before opening wedge, with transition delay
+- **Rationale:** Wedge position was calculated using `getBoundingClientRect()` which included the 300px welcome banner height. When the banner auto-collapsed or was clicked away, the wedge origin was wrong — wedge appeared disconnected from hub center.
+- **Implementation:** `handleIconClick` now closes the banner first (`setBannerOpen(false)`) and delays setting the wedge module by 550ms (CSS transition is 500ms). Wedge position is also recalculated after banner transition completes via a separate useEffect.
+- **Status:** Implemented
+
 **Decision:** Configurable dropdown options via Settings page
 - **Rationale:** User wanted ride type (TrainerRoad-based) and electrolyte product dropdowns to be extensible without code changes.
 - **Implementation:** New `ride_note_options` table with category/label/sort_order. Seeded with 11 ride types (Endurance, Recovery, Tempo, Sweet Spot, Threshold, VO2max, Anaerobic, Sprint, Race, Group Ride, Event) and 2 electrolyte products (Re-Lyte, LMNT). Settings > Cycling page has add/remove UI by category. Designed to support future categories.

@@ -67,6 +67,7 @@ export default function Home() {
   const [recipeSearch, setRecipeSearch] = useState("");
   const [savedIngredients, setSavedIngredients] = useState<NutritionData[]>([]);
   const [manualAddSuccess, setManualAddSuccess] = useState(false);
+  const [manualName, setManualName] = useState("");
   const [recentRecipesForCompare, setRecentRecipesForCompare] = useState<Recipe[]>([]);
   const [showCompareRecipes, setShowCompareRecipes] = useState(false);
 
@@ -458,30 +459,47 @@ export default function Home() {
     <div className="min-h-screen hud-scifi-bg relative" style={{ backgroundColor: hubTheme.background, color: hubTheme.text }}>
       <CircuitBackground />
       <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
-        <div className="mb-8 flex items-center justify-center relative">
-          <div className="absolute left-0">
+        <div className="grid grid-cols-3 items-center gap-4 mb-8">
+          <div className="flex justify-start w-20 h-20 min-w-20 min-h-20">
             <Navigation />
           </div>
-          <h2 className="text-2xl font-semibold hud-text">
+          <h2 className="text-2xl font-semibold hud-text text-center">
             Food and Nutrition
           </h2>
+          <div className="flex justify-end">
+            {showManualEntry ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManualEntry(false);
+                  setError(null);
+                }}
+                className="inline-flex items-center justify-center transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 rounded"
+                title="Back to Food and Nutrition"
+                aria-label="Back to Food and Nutrition"
+                style={{ width: 80, height: 80, minWidth: 80, minHeight: 80 }}
+              >
+                <div className="w-20 h-20 relative flex items-center justify-center">
+                  <svg viewBox="0 0 48 48" fill="none" stroke="#00D9FF" className="absolute inset-0 w-full h-full" aria-hidden>
+                    <circle cx="24" cy="24" r="18" strokeWidth="1.25" fill="none" />
+                  </svg>
+                  <img
+                    src="/assets/fork-silhouette.svg"
+                    alt=""
+                    className="w-[62%] h-[62%] object-contain"
+                    style={{
+                      filter: "brightness(0) saturate(100%) invert(76%) sepia(65%) saturate(1000%) hue-rotate(155deg) brightness(104%) contrast(104%)",
+                    }}
+                  />
+                </div>
+              </button>
+            ) : (
+              <div className="w-20 h-20" />
+            )}
+          </div>
         </div>
 
         <div className="hud-card rounded-lg p-6 mb-6 border border-[#00D9FF]/20">
-          <div className="flex items-center justify-center relative mb-4">
-            <h2 className="text-2xl font-semibold hud-text">
-              Food and Nutrition
-            </h2>
-            <button
-              className="absolute right-0 px-4 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] text-sm transition-colors"
-              onClick={() => {
-                setShowManualEntry(!showManualEntry);
-                setError(null);
-              }}
-            >
-              {showManualEntry ? "Cancel" : "Add Manually"}
-            </button>
-          </div>
 
           {/* Manual Entry Form */}
           {showManualEntry && (
@@ -687,6 +705,41 @@ export default function Home() {
                 className="px-6 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Scan
+              </button>
+            </div>
+          </div>
+
+          {/* Add Manually */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-[#67C7EB] mb-2">
+              Add Manually
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder="Enter product name"
+                className="flex-1 px-4 py-2 border border-[#00D9FF]/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/50 bg-black/30 text-[#00D9FF] placeholder-[#67C7EB]/50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && manualName.trim()) {
+                    setManualEntry((prev) => ({ ...prev, name: manualName }));
+                    setShowManualEntry(true);
+                    setError(null);
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (manualName.trim()) {
+                    setManualEntry((prev) => ({ ...prev, name: manualName }));
+                    setShowManualEntry(true);
+                    setError(null);
+                  }
+                }}
+                className="px-6 py-2 rounded-lg border border-[#00D9FF]/50 bg-[rgba(0,217,255,0.15)] text-[#00D9FF] hover:bg-[rgba(0,217,255,0.25)] transition-colors"
+              >
+                Add
               </button>
             </div>
           </div>

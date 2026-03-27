@@ -106,7 +106,7 @@ export default function SecuritySettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
 
-        <h1 className="text-3xl font-bold font-mono mt-4 text-blue-400">Security</h1>
+        <h1 className="text-3xl font-bold font-mono mt-6 text-blue-400">Security</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Password, biometrics, and authentication.
         </p>

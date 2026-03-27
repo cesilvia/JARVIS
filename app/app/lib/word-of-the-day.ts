@@ -143,7 +143,7 @@ export function getNewWotdWords(words: WordOfTheDay[], vocab: VocabWord[]): Voca
 // ─── Noun color coding ──────────────────────────────────────────
 // Masculine = dark blue, Feminine = reddish pink, Neuter = muted orange
 const ARTICLE_WEDGE_COLORS: Record<string, string> = {
-  der: "#4A7ECC",  // dark blue
+  der: "#191970",  // midnight blue
   die: "#D94A6B",  // reddish pink
   das: "#CC8844",  // muted orange
 };

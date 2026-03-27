@@ -81,6 +81,8 @@
 
 ## Hub Wedge Improvements
 
+- ~~**Wedge text rendering overhaul**~~ — DONE (2026-03-27): clipPath + auto-scaling + dark backdrop. Text guaranteed inside wedge at all angles. Per-wedge positioning: Strava centered with 2-char left shift, German left-aligned with per-row boundary, Nutrition centered with offset, Alerts centered. Masculine noun color darkened to #191970 for wedge readability.
+- ~~**Layout audit**~~ — DONE (2026-03-27): Fixed nutrition page duplicate title, standardized settings margins, added NutritionBackIcon for manual entry, fixed wedge disconnect when welcome banner open.
 - **Nutrition wedge** — Recipe count (nutritionStats already loaded, not displayed)
 - **German wedge** — Cards due for review today (SM-2 next_review data available)
 - **Health wedge** — Placeholder until Garmin/Apple Health wired in

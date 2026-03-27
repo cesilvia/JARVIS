@@ -787,6 +787,13 @@ export default function HubPage() {
     computeWedgeProps();
   }, [computeWedgeProps]);
 
+  // Recalculate wedge position after banner transition completes (500ms CSS transition)
+  useEffect(() => {
+    if (!wedgeModule) return;
+    const timeout = setTimeout(computeWedgeProps, 550);
+    return () => clearTimeout(timeout);
+  }, [bannerOpen, wedgeModule, computeWedgeProps]);
+
   useEffect(() => {
     if (!wedgeModule) return;
     window.addEventListener("resize", computeWedgeProps);
@@ -809,8 +816,17 @@ export default function HubPage() {
     const topModule = modules.find((m) => m.id === moduleId);
     const bottomModule = bottomModules.find((m) => m.id === moduleId);
     if (topModule && !topModule.available) return;
+    // If banner is open, close it first and wait for transition before showing wedge
+    if (bannerOpen) {
+      clearTimeout(bannerTimerRef.current);
+      setBannerOpen(false);
+      setTimeout(() => {
+        setWedgeModule((prev) => (prev === moduleId ? null : moduleId));
+      }, 550);
+      return;
+    }
     setWedgeModule((prev) => (prev === moduleId ? null : moduleId));
-  }, []);
+  }, [bannerOpen]);
 
   const handleIconDoubleClick = useCallback(
     (moduleId: string, href: string) => {

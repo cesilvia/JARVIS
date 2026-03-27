@@ -21,7 +21,7 @@ export default function ExtrasPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Navigation />
-        <h1 className="text-3xl font-bold font-mono mt-4 text-slate-400">Extras</h1>
+        <h1 className="text-3xl font-bold font-mono mt-6">Extras</h1>
         <p className="text-slate-400 mt-2 font-mono text-sm mb-8">
           Things you&apos;ve created but don&apos;t need or want to use right now. A place to park experiments, backups, or features for later.
         </p>

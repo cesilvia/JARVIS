@@ -5,38 +5,25 @@ import Link from "next/link";
 
 const ANIMATION_MS = 200;
 const LINE_HEIGHT = 26;
-const TEXT_LEFT_X = 0.15; /* label left margin (fraction of L) */
-const TEXT_LABEL_RIGHT_X = 0.52; /* right edge of label column (for label: value alignment) */
-const TEXT_VALUE_LEFT_X = 0.55; /* left edge of value column */
-const TEXT_RIGHT_X = 0.95; /* value right margin */
 const MAX_DISPLAY_LINES = 8;
 
 interface WedgeSummaryCardProps {
   originX: number;
   originY: number;
-  angleDeg: number; // direction toward icon (0 = right, 90 = down in screen coords)
+  angleDeg: number;
   length: number;
-  wedgeAngleDeg: number; // 60-120
+  wedgeAngleDeg: number;
   moduleHref: string;
   themeColor: string;
   onNavigate: () => void;
-  /** Optional summary lines (e.g. alert descriptions) shown inside the wedge */
   summaryLines?: string[];
-  /** If true, render lines without bullet prefixes */
   noBullets?: boolean;
-  /** Optional per-line colors (same length as summaryLines) */
   summaryColors?: (string | undefined)[];
-  /** Optional definitions shown in small text below each line */
   summaryDefinitions?: (string | undefined)[];
-  /** Label alignment: "right" (default) or "left" */
   labelAlign?: "left" | "right";
-  /** Optional font scale multiplier (default 1) */
   fontScale?: number;
-  /** Override text radial center position (fraction of L, default TEXT_CENTER=0.6) */
   textCenter?: number;
-  /** If true, left-justify bullet lines instead of centering them */
   bulletsLeft?: boolean;
-  /** Optional colored dot rendered after the first line's value */
   statusDot?: { color: string };
 }
 
@@ -62,18 +49,16 @@ export default function WedgeSummaryCard({
   const hasSummary = summaryLines && summaryLines.length > 0;
   const isNoAlertsMessage = hasSummary && summaryLines!.length === 1 && summaryLines![0] === "No Current Alerts";
   const skipBullets = noBullets || isNoAlertsMessage;
-  // When skipBullets, split on ": " for left-label / right-value alignment.
-  // Bullet lines wrap if too long, with continuation lines indented.
+
   const L = length;
   const halfAngleRad = (wedgeAngleDeg / 2) * (Math.PI / 180);
-  const TEXT_CENTER = textCenter ?? 0.6; // radial position of text center (fraction of L)
+  const TC = textCenter ?? 0.6;
   const fontSize = Math.max(9, L * 0.08) * fontScale;
-  const CHAR_WIDTH = 0.6 * fontSize; // approximate monospace char width
-  // Available chord width at the text's radial position, with padding
-  const availableWidth = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.8;
+  const CHAR_WIDTH = 0.6 * fontSize;
+  const availableWidth = 2 * L * TC * Math.sin(halfAngleRad) * 0.8;
   const maxChars = Math.floor(availableWidth / CHAR_WIDTH);
-  const INDENT = "    "; // continuation indent (aligns under first word after "• ")
 
+  // --- Build display lines ---
   type DisplayRow = { label: string; value: string | null; color?: string; isDefinition?: boolean; parentLabelLen?: number; isContinuation?: boolean };
   const displayLines: DisplayRow[] = [];
   const hasDefinitions = summaryDefinitions && summaryDefinitions.some(d => d);
@@ -90,15 +75,12 @@ export default function WedgeSummaryCard({
         } else {
           displayLines.push({ label: line, value: null, color: lineColor });
         }
-        // Add definition row(s) if provided, word-wrapping if too long
         if (hasDefinitions && summaryDefinitions![li]) {
           const defText = summaryDefinitions![li]!;
-          // Estimate available chars for definition (smaller font = more chars)
           const defMaxChars = Math.floor(maxChars / 0.7);
           if (defText.length <= defMaxChars) {
             displayLines.push({ label: defText, value: null, isDefinition: true, parentLabelLen: labelLen });
           } else {
-            // Word-wrap the definition
             const defWords = defText.split(" ");
             let current = "";
             for (const word of defWords) {
@@ -120,7 +102,6 @@ export default function WedgeSummaryCard({
         if (bullet.length <= maxChars) {
           displayLines.push({ label: bullet, value: null, color: lineColor });
         } else {
-          // Word-wrap: first line gets bullet, continuations positioned via x offset
           const words = line.split(" ");
           let current = "• ";
           let pastFirst = false;
@@ -142,26 +123,123 @@ export default function WedgeSummaryCard({
     }
   }
   const lineCount = displayLines.length;
-  // Adaptive line height: shrink if lines would overflow the wedge's vertical space
-  const availableHeight = 2 * L * TEXT_CENTER * Math.sin(halfAngleRad) * 0.7;
-  const baseLineHeight = lineCount > 1 ? Math.min(LINE_HEIGHT, availableHeight / lineCount) : LINE_HEIGHT;
-  // When definitions are present, definition rows are shorter (small text)
+
+  // --- Compute text dimensions at base font size, then auto-scale to fit inside wedge ---
+  // The text is a horizontal rectangle centered at (TC*L, 0) after counter-rotation.
+  // For it to fit inside the wedge (pie slice with half-angle α):
+  //   H/2 < (TC*L - W/2) * tan(α)   (top-left corner inside wedge)
+  //   TC*L + W/2 < L                  (right edge before arc)
+  // Both W and H scale with fontSize, so we find the max scale factor.
+
+  // Compute max line width in characters
+  const maxLineChars = displayLines.reduce((max, row) => {
+    if (row.value !== null) {
+      const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
+      const valLen = badgeMatch ? row.value.slice(0, badgeMatch.index).length + 3 : row.value.length;
+      return Math.max(max, row.label.length + 2 + valLen); // "label: value"
+    }
+    return Math.max(max, row.label.length);
+  }, 0);
+
+  // Text dimensions at scale=1 (base fontSize)
+  const baseCW = 0.6 * fontSize;
+  const baseTextW = maxLineChars * baseCW;
+  const baseLH = LINE_HEIGHT;
+  const baseDefLH = hasDefinitions ? baseLH * 0.65 : baseLH;
+  const baseNormLH = hasDefinitions ? baseLH * 0.85 : baseLH;
+  let baseTextH = 0;
+  for (let j = 0; j < lineCount; j++) {
+    baseTextH += displayLines[j].isDefinition ? baseDefLH : baseNormLH;
+    if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
+      baseTextH += baseNormLH * 0.9; // DEF_GAP
+    }
+  }
+
+  const tanAlpha = Math.tan(halfAngleRad);
+  const isLeftAligned = labelAlign === "left";
+
+  // For centered text: rectangle centered at (TC*L, 0)
+  //   H/2 < (TC*L - W/2) * tan(α)  =>  s < 2*TC*L*tan(α) / (H + W*tan(α))
+  // For left-aligned text: rectangle starts at left edge of chord, shifted right by padding
+  //   The left edge x = TC*L - chord/2 * 0.8. Text extends rightward from there.
+  //   Constraint: H/2 < leftX * tan(α)  and  leftX + W < L
+  let fitScale: number;
+  if (isLeftAligned) {
+    // Left-aligned: rely on clipPath for edge cases, scale gently
+    // Only scale down if text is dramatically oversized
+    const chordAtTC = 2 * TC * L * Math.sin(halfAngleRad);
+    const scaleW = baseTextW > 0 ? (chordAtTC * 0.9) / baseTextW : 1;
+    const scaleH = baseTextH > 0 ? (chordAtTC * 0.85) / baseTextH : 1;
+    fitScale = Math.max(0.85, Math.min(1, scaleW, scaleH));
+  } else {
+    // Centered: rectangle centered at TC*L
+    const scale1 = baseTextH > 0 ? (2 * TC * L * tanAlpha) / (baseTextH + baseTextW * tanAlpha) : 1;
+    const scale2 = baseTextW > 0 ? (2 * (1 - TC) * L) / baseTextW : 1;
+    fitScale = Math.max(0.55, Math.min(1, scale1, scale2)) * 0.9;
+  }
+
+  const finalFontSize = fontSize * fitScale;
+  const finalCW = 0.6 * finalFontSize;
+  const baseLineHeight = LINE_HEIGHT * fitScale;
   const lineHeight = hasDefinitions ? baseLineHeight * 0.85 : baseLineHeight;
   const defLineHeight = hasDefinitions ? baseLineHeight * 0.65 : baseLineHeight;
 
-  // Wedge path: point at origin, two rays, rounded arc at end
+  // --- Wedge path ---
   const x1 = L * Math.cos(-halfAngleRad);
   const y1 = L * Math.sin(-halfAngleRad);
   const x2 = L * Math.cos(halfAngleRad);
   const y2 = L * Math.sin(halfAngleRad);
-
-  // Arc from (x1,y1) to (x2,y2) - the rounded end (arc along circle r=L)
   const path = `M 0 0 L ${x1} ${y1} A ${L} ${L} 0 0 1 ${x2} ${y2} Z`;
-
-  // Rotate to point toward icon. CSS: angle 0 = east. We need rotation = angleDeg.
-  // Transform: translate(origin) rotate(angle) translate(-origin) - but we're drawing in local coords
-  // so we translate to origin and rotate. The path is in local coords with +x as the direction.
   const rotation = angleDeg;
+
+  // --- Text positioning ---
+  const COLON_X = L * TC; // rotation pivot & center for centered text
+  let LABEL_RIGHT_X: number;
+  let VALUE_LEFT_X: number;
+
+  // Left-aligned: base position where middle entry looks good, then offset per row.
+  // Rows above center (negative y) shift left, rows below (positive y) shift right.
+  const chordHalf = TC * L * Math.sin(halfAngleRad);
+  const LEFT_BASE_X = COLON_X - chordHalf * 0.75 - finalCW * 2; // shifted 2 chars left
+  const rowLeftX = (yText: number): number => {
+    if (!isLeftAligned) return LEFT_BASE_X;
+    return LEFT_BASE_X + yText * 0.3;
+  };
+
+  if (isLeftAligned) {
+    // Not used for rendering (each line positioned independently), but set for badge calculations
+    LABEL_RIGHT_X = LEFT_BASE_X; // unused
+    VALUE_LEFT_X = LEFT_BASE_X;  // unused
+  } else {
+    // Centered: colon at TC*L
+    LABEL_RIGHT_X = COLON_X - finalCW * 0.5 - finalCW * 2;
+    VALUE_LEFT_X = COLON_X + finalCW * 0.5 - finalCW * 2;
+  }
+
+  // Badge labels
+  const BADGE_LABELS: Record<string, string> = {
+    "\u24B6": "A", "\u24B9": "D", "\u24BC": "G",
+    "\u24CC": "W", "\u24E5": "VK", "\u2195": "↕",
+  };
+
+  const DEF_GAP = lineHeight * 0.9;
+  const rowY = (i: number) => {
+    let y = 0;
+    for (let j = 0; j < i; j++) {
+      y += displayLines[j].isDefinition ? defLineHeight : lineHeight;
+      if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
+        y += DEF_GAP;
+      }
+    }
+    let totalHeight = 0;
+    for (let j = 0; j < lineCount; j++) {
+      totalHeight += displayLines[j].isDefinition ? defLineHeight : lineHeight;
+      if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
+        totalHeight += DEF_GAP;
+      }
+    }
+    return y - totalHeight / 2 + (displayLines[i].isDefinition ? defLineHeight : lineHeight) / 2;
+  };
 
   return (
     <div
@@ -224,6 +302,7 @@ export default function WedgeSummaryCard({
               <path d={path} />
             </clipPath>
           </defs>
+          {/* Wedge fill */}
           <path
             d={path}
             fill="url(#wedgeGradient)"
@@ -232,55 +311,15 @@ export default function WedgeSummaryCard({
             strokeOpacity="0.8"
             filter="url(#wedgeGlow)"
           />
-          {hasSummary && lineCount > 0 && (() => {
-            // Gap between definition and next word group
-            const DEF_GAP = lineHeight * 0.9;
-
-            // For left-aligned mode: longest label starts at TEXT_LEFT_X,
-            // shorter labels shift left so colons align and words start at the same X
-            const labelRows = displayLines.filter(r => r.value !== null);
-            const maxLabelLen = labelRows.length > 0 ? Math.max(...labelRows.map(r => r.label.length)) : 0;
-            const labelStartX = (label: string) => {
-              let x = L * TEXT_LEFT_X - (maxLabelLen - label.length) * CHAR_WIDTH;
-              if (label === "n") x += CHAR_WIDTH * 0.75;
-              if (label === "v") x -= CHAR_WIDTH * 0.5;
-              return x;
-            };
-            const rowValueX = (label: string) => {
-              return labelStartX(label) + (label.length + 2) * CHAR_WIDTH;
-            };
-
-            // Pre-compute y positions and badge data
-            const rowY = (i: number) => {
-              let y = 0;
-              for (let j = 0; j < i; j++) {
-                y += displayLines[j].isDefinition ? defLineHeight : lineHeight;
-                if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
-                  y += DEF_GAP;
-                }
-              }
-              let totalHeight = 0;
-              for (let j = 0; j < lineCount; j++) {
-                totalHeight += displayLines[j].isDefinition ? defLineHeight : lineHeight;
-                if (displayLines[j].isDefinition && j + 1 < lineCount && !displayLines[j + 1].isDefinition) {
-                  totalHeight += DEF_GAP;
-                }
-              }
-              return y - totalHeight / 2 + (displayLines[i].isDefinition ? defLineHeight : lineHeight) / 2;
-            };
-
-            // Collect badge rects to render outside <text>
-            const BADGE_LABELS: Record<string, string> = {
-              "\u24B6": "A", "\u24B9": "D", "\u24BC": "G",
-              "\u24CC": "W", "\u24E5": "VK", "\u2195": "↕",
-            };
-            const badgeRects: { x: number; y: number; w: number; h: number; key: number }[] = [];
-
-            return (
-              <g transform={`rotate(${-rotation}, ${L * TEXT_CENTER}, 0)`}>
-                {/* Badge background rects (rendered before text so text appears on top) */}
+          {/* Clipped text group — text CANNOT extend outside the wedge */}
+          {hasSummary && lineCount > 0 && (
+            <g clipPath="url(#wedgeClip)">
+              {/* Dark backdrop for readability */}
+              <path d={path} fill="rgba(0,0,0,0.35)" />
+              <g transform={`rotate(${-rotation}, ${COLON_X}, 0)`}>
+                {/* Badge background rects */}
                 {(() => {
-                  // We need to compute badge positions first, then render rects
+                  const badgeRects: { x: number; y: number; w: number; h: number; key: number }[] = [];
                   displayLines.forEach((row, i) => {
                     if (row.value === null || labelAlign !== "left") return;
                     const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
@@ -288,13 +327,15 @@ export default function WedgeSummaryCard({
                     const mainValue = row.value.slice(0, badgeMatch.index);
                     const badgeChar = badgeMatch[1];
                     const badge = BADGE_LABELS[badgeChar] || badgeChar;
-                    const valueX = rowValueX(row.label);
-                    const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.8;
                     const y = rowY(i);
-                    const bFontSize = fontSize * 0.6;
+                    const startX = rowLeftX(y);
+                    const lineText = `${row.label}: `;
+                    const valueX = startX + lineText.length * finalCW;
+                    const badgeX = valueX + mainValue.length * finalCW + finalCW * 0.8;
+                    const bFontSize = finalFontSize * 0.6;
                     const bWidth = badge.length * bFontSize * 0.7 + bFontSize * 0.5;
                     const bHeight = bFontSize * 1.4;
-                    const bY = y - fontSize * 0.45;
+                    const bY = y - finalFontSize * 0.45;
                     badgeRects.push({ x: badgeX - bFontSize * 0.1, y: bY - bHeight * 0.72, w: bWidth, h: bHeight, key: i });
                   });
                   return badgeRects.map(b => (
@@ -314,48 +355,49 @@ export default function WedgeSummaryCard({
                 })()}
                 <text
                   fill="#ffffff"
-                  fontSize={fontSize}
+                  fontSize={finalFontSize}
                   fontFamily="ui-monospace, monospace"
                   style={{
-                    filter: "drop-shadow(0 0 1px rgba(0,0,0,0.8)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
+                    filter: "drop-shadow(0 0 2px rgba(0,0,0,1)) drop-shadow(0 1px 3px rgba(0,0,0,0.8))",
                   }}
                 >
                   {displayLines.map((row, i) => {
                     const y = rowY(i);
 
+                    // Definition rows
                     if (row.isDefinition) {
-                      let parentLabel = "";
-                      for (let pi = i - 1; pi >= 0; pi--) {
-                        if (!displayLines[pi].isDefinition && displayLines[pi].value !== null) {
-                          parentLabel = displayLines[pi].label;
-                          break;
-                        }
-                      }
-                      const defX = labelAlign === "left" ? rowValueX(parentLabel) : L * TEXT_VALUE_LEFT_X;
+                      const defX = isLeftAligned ? rowLeftX(y) + finalCW * 2 : VALUE_LEFT_X;
                       return (
-                        <tspan key={i} x={defX} y={y} textAnchor="start" fill="#ffffff" fontSize={fontSize * 0.7}>
+                        <tspan key={i} x={defX} y={y} textAnchor="start" fill="#ffffff" fontSize={finalFontSize * 0.7}>
                           {row.label}
                         </tspan>
                       );
                     }
+
                     const fill = row.color || "#ffffff";
+
+                    // Label: value rows
                     if (row.value !== null) {
-                      if (labelAlign === "left") {
-                        const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
-                        const mainValue = badgeMatch ? row.value.slice(0, badgeMatch.index) : row.value;
-                        const badgeChar = badgeMatch ? badgeMatch[1] : null;
-                        const badge = badgeChar ? (BADGE_LABELS[badgeChar] || badgeChar) : null;
-                        const valueX = rowValueX(row.label);
-                        const badgeX = valueX + mainValue.length * CHAR_WIDTH + CHAR_WIDTH * 0.8;
+                      const badgeMatch = row.value.match(/\s+([\u24B6-\u24E9\u2195])$/);
+                      const mainValue = badgeMatch ? row.value.slice(0, badgeMatch.index) : row.value;
+                      const badgeChar = badgeMatch ? badgeMatch[1] : null;
+                      const badge = badgeChar ? (BADGE_LABELS[badgeChar] || badgeChar) : null;
+
+                      if (isLeftAligned) {
+                        // Each line starts at its own left boundary based on wedge geometry
+                        const startX = rowLeftX(y);
+                        const lineText = `${row.label}: `;
+                        const valX = startX + lineText.length * finalCW;
+                        const badgeValX = valX + mainValue.length * finalCW + finalCW * 0.8;
                         return (
                           <React.Fragment key={i}>
-                            <tspan x={labelStartX(row.label)} y={y} textAnchor="start" fill="#ffffff">{row.label}:</tspan>
-                            <tspan x={valueX} y={y} textAnchor="start" fill={fill}>{mainValue}</tspan>
+                            <tspan x={startX} y={y} textAnchor="start" fill="#ffffff">{row.label}: </tspan>
+                            <tspan fill={fill}>{mainValue}</tspan>
                             {badge && (() => {
-                              const bFontSize = fontSize * 0.6;
+                              const bFontSize = finalFontSize * 0.6;
                               const bWidth = badge.length * bFontSize * 0.7 + bFontSize * 0.5;
-                              const bTextX = badgeX - bFontSize * 0.1 + bWidth / 2;
-                              const bY = y - fontSize * 0.45;
+                              const bTextX = badgeValX - bFontSize * 0.1 + bWidth / 2;
+                              const bY = y - finalFontSize * 0.45;
                               return (
                                 <tspan x={bTextX} y={bY} textAnchor="middle" fill="#FFD700" fontSize={bFontSize} fontWeight="bold">{badge}</tspan>
                               );
@@ -363,48 +405,58 @@ export default function WedgeSummaryCard({
                           </React.Fragment>
                         );
                       }
+
+                      // Centered mode: label right-aligns, value left-aligns around colon
                       return (
                         <React.Fragment key={i}>
-                          <tspan x={L * TEXT_LABEL_RIGHT_X} y={y} textAnchor="end" fill="#ffffff">{row.label}:</tspan>
-                          <tspan x={L * TEXT_VALUE_LEFT_X} y={y} textAnchor="start" fill={fill}>{row.value}</tspan>
+                          <tspan x={LABEL_RIGHT_X} y={y} textAnchor="end" fill="#ffffff">{row.label}:</tspan>
+                          <tspan x={VALUE_LEFT_X} y={y} textAnchor="start" fill={fill}>{mainValue}</tspan>
+                          {badge && (() => {
+                            const bFontSize = finalFontSize * 0.6;
+                            const bWidth = badge.length * bFontSize * 0.7 + bFontSize * 0.5;
+                            const badgeX = VALUE_LEFT_X + mainValue.length * finalCW + finalCW * 0.8;
+                            const bTextX = badgeX - bFontSize * 0.1 + bWidth / 2;
+                            const bY = y - finalFontSize * 0.45;
+                            return (
+                              <tspan x={bTextX} y={bY} textAnchor="middle" fill="#FFD700" fontSize={bFontSize} fontWeight="bold">{badge}</tspan>
+                            );
+                          })()}
+                          {i === 0 && statusDot && (
+                            <circle
+                              cx={VALUE_LEFT_X + (mainValue.length) * finalCW + finalCW * 0.6}
+                              cy={y - finalFontSize * 0.35}
+                              r={finalFontSize * 0.25}
+                              fill={statusDot.color}
+                            />
+                          )}
                         </React.Fragment>
                       );
                     }
+
+                    // Plain text (bullets, nutrition text, etc.)
                     {
-                      let plainX = (skipBullets || bulletsLeft) ? L * TEXT_LEFT_X : L * TEXT_CENTER;
-                      const plainAnchor = (skipBullets || bulletsLeft) ? "start" : "middle";
-                      // When textCenter is overridden (nutrition), push text further into wedge body
-                      if (textCenter != null && skipBullets) {
-                        plainX = L * 0.4 + CHAR_WIDTH;
-                      }
-                      // Continuation lines: offset x to align under first word after bullet
-                      if (row.isContinuation) {
-                        plainX += CHAR_WIDTH * 2;
-                      }
+                      const useCenter = !bulletsLeft && !row.isContinuation;
+                      const scaledAvailW = 2 * L * TC * Math.sin(halfAngleRad) * 0.8;
+                      const isNutrition = useCenter && noBullets;
+                      const isAlerts = useCenter && isNoAlertsMessage && !noBullets;
+                      const plainX = useCenter
+                        ? COLON_X + (isNutrition ? finalCW * 1 : isAlerts ? 0 : 0)
+                        : (COLON_X - scaledAvailW * 0.4);
+                      const anchor = useCenter ? "middle" : "start";
+                      const xOffset = row.isContinuation ? finalCW * 2 : 0;
+                      const yOffset = isNutrition ? lineHeight * 2 : isAlerts ? 0 : 0;
                       return (
-                        <tspan key={i} x={plainX} y={y} textAnchor={plainAnchor} fill={fill}>
+                        <tspan key={i} x={plainX + xOffset} y={y + yOffset} textAnchor={anchor} fill={fill}>
                           {row.label}
                         </tspan>
                       );
                     }
                   })}
                 </text>
-                {statusDot && displayLines.length > 0 && (() => {
-                  const firstRow = displayLines[0];
-                  const y0 = rowY(0);
-                  const valText = firstRow.value ?? firstRow.label;
-                  const dotX = (firstRow.value !== null && labelAlign !== "left")
-                    ? L * TEXT_VALUE_LEFT_X + valText.length * CHAR_WIDTH + CHAR_WIDTH * 0.6
-                    : L * TEXT_LEFT_X + valText.length * CHAR_WIDTH + CHAR_WIDTH * 0.6;
-                  const dotR = fontSize * 0.25;
-                  return (
-                    <circle cx={dotX} cy={y0 - fontSize * 0.35} r={dotR} fill={statusDot.color} />
-                  );
-                })()}
               </g>
-            );
-          })()}
-        </svg>
+            </g>
+          )}
+          </svg>
         </div>
       </Link>
     </div>
