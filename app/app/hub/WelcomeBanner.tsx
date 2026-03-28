@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import * as api from "../lib/api-client";
-import { computeDailyTSS, computeFitness } from "../lib/training-load";
-import { getIntervalsFitness } from "../lib/api-client";
+import { computeDailyTSS, computeFitness, type TrainingLoadConstants, DEFAULT_TRAINING_LOAD_CONSTANTS } from "../lib/training-load";
 import { METERS_TO_MILES } from "../bike/strava/types";
 import type { StravaActivity } from "../bike/strava/types";
 
@@ -312,27 +311,18 @@ async function loadTraining(): Promise<TrainingData | null> {
     ]);
     if (!activities?.length) return null;
 
-    // Prefer intervals.icu for CTL/ATL/TSB
+    // Local EMA calculation for CTL/ATL/TSB
     let tsb = 0;
     let status = "Fresh";
-    try {
-      const wellness = await getIntervalsFitness(7);
-      const latest = wellness[wellness.length - 1];
+    const ftp = zones?.ftp;
+    if (ftp) {
+      const constants = await api.getKV<TrainingLoadConstants>("training-load-constants") ?? DEFAULT_TRAINING_LOAD_CONSTANTS;
+      const dailyTSS = computeDailyTSS(activities, ftp);
+      const fitness = computeFitness(dailyTSS, 1, constants);
+      const latest = fitness[fitness.length - 1];
       if (latest) {
         tsb = latest.tsb;
         status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
-      }
-    } catch {
-      // Fallback to local calculation
-      const ftp = zones?.ftp;
-      if (ftp) {
-        const dailyTSS = computeDailyTSS(activities, ftp);
-        const fitness = computeFitness(dailyTSS, 1);
-        const latest = fitness[fitness.length - 1];
-        if (latest) {
-          tsb = latest.tsb;
-          status = tsb > -10 ? "Fresh" : tsb > -30 ? "Training" : "Overreaching";
-        }
       }
     }
 

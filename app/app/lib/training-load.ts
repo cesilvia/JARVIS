@@ -49,6 +49,20 @@ export function computeDailyTSS(
   return daily;
 }
 
+// ─── Training Load Constants ────────────────────────────────
+
+export interface TrainingLoadConstants {
+  atlConstant: number; // days, default 10 (recovery-adjusted for older athlete)
+  ctlConstant: number; // days, default 42 (standard)
+}
+
+export const DEFAULT_TRAINING_LOAD_CONSTANTS: TrainingLoadConstants = {
+  atlConstant: 10,
+  ctlConstant: 42,
+};
+
+// ─── CTL / ATL / TSB ────────────────────────────────────────
+
 export interface FitnessEntry {
   date: string;
   ctl: number;
@@ -58,34 +72,44 @@ export interface FitnessEntry {
 }
 
 /**
- * Compute CTL/ATL/TSB from daily TSS values using TrainerRoad's method:
- * CTL = simple rolling average of daily TSS over last 42 days (no exponential weighting)
- * ATL = 7-day exponential moving average (acute / fatigue)
- * TSB = CTL - ATL (form / freshness)
+ * Compute CTL/ATL/TSB from daily TSS values using the Coggan/TrainingPeaks
+ * exponential weighted moving average model.
+ *
+ *   CTL_today = CTL_yesterday + (dailyTSS - CTL_yesterday) / CTL_CONSTANT
+ *   ATL_today = ATL_yesterday + (dailyTSS - ATL_yesterday) / ATL_CONSTANT
+ *   TSB_today = CTL_today - ATL_today
+ *
+ * Days with no activities are included with TSS=0 so CTL/ATL decay correctly.
  */
-export function computeFitness(dailyTSS: Map<string, number>, days: number): FitnessEntry[] {
+export function computeFitness(
+  dailyTSS: Map<string, number>,
+  days: number,
+  constants?: Partial<TrainingLoadConstants>,
+): FitnessEntry[] {
+  const { atlConstant, ctlConstant } = { ...DEFAULT_TRAINING_LOAD_CONSTANTS, ...constants };
+
   const sorted = Array.from(dailyTSS.keys()).sort();
   if (sorted.length === 0) return [];
   const start = new Date(sorted[0]);
   const end = new Date();
   const result: FitnessEntry[] = [];
-  // Ring buffer for last 42 days of TSS (for simple rolling average CTL)
-  const ctlWindow: number[] = [];
+  let ctl = 0;
   let atl = 0;
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().slice(0, 10);
     const tss = dailyTSS.get(key) || 0;
 
-    // CTL: simple rolling average of last 42 days
-    ctlWindow.push(tss);
-    if (ctlWindow.length > 42) ctlWindow.shift();
-    const ctl = ctlWindow.reduce((sum, v) => sum + v, 0) / ctlWindow.length;
+    ctl = ctl + (tss - ctl) / ctlConstant;
+    atl = atl + (tss - atl) / atlConstant;
 
-    // ATL: 7-day exponential moving average
-    atl = atl + (tss - atl) / 7;
-
-    result.push({ date: key, ctl, atl, tsb: ctl - atl, tss });
+    result.push({
+      date: key,
+      ctl: Math.round(ctl * 10) / 10,
+      atl: Math.round(atl * 10) / 10,
+      tsb: Math.round((ctl - atl) * 10) / 10,
+      tss: Math.round(tss * 10) / 10,
+    });
   }
   return result.slice(-days);
 }

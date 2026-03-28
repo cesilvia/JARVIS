@@ -59,6 +59,9 @@ export default function CyclingSettingsPage() {
   const [noteOptions, setNoteOptions] = useState<RideNoteOption[]>([]);
   const [noteOptCategory, setNoteOptCategory] = useState("ride_type");
   const [newOptionLabel, setNewOptionLabel] = useState("");
+  const [atlConstant, setAtlConstant] = useState("10");
+  const [ctlConstant, setCtlConstant] = useState("42");
+  const [constantsSaved, setConstantsSaved] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -77,6 +80,11 @@ export default function CyclingSettingsPage() {
       if (savedGoals) setGoals(savedGoals);
       const opts = await api.getAllRideNoteOptionsAdmin();
       setNoteOptions(opts);
+      const tlc = await api.getKV<{ atlConstant: number; ctlConstant: number }>("training-load-constants");
+      if (tlc) {
+        setAtlConstant(String(tlc.atlConstant));
+        setCtlConstant(String(tlc.ctlConstant));
+      }
     }
     loadData();
   }, []);
@@ -400,6 +408,69 @@ export default function CyclingSettingsPage() {
               {zonesSaved && <span className="text-green-400 font-mono text-xs">Saved! Reminder set for 28 days.</span>}
             </div>
           )}
+        </section>
+
+        {/* Training Load Constants Section */}
+        <section className="border border-slate-700 rounded-lg p-6 mt-6">
+          <h2 className="text-xl font-semibold font-mono text-slate-100 mb-2">Training Load Constants</h2>
+          <p className="text-slate-400 font-mono text-sm mb-4">
+            CTL and ATL time constants for the exponential weighted average model. Standard defaults are CTL=42, ATL=7. ATL is set to 10 to account for slower recovery.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-slate-400 font-mono text-xs block mb-1">CTL Constant (days)</label>
+              <input
+                type="number"
+                value={ctlConstant}
+                onChange={(e) => setCtlConstant(e.target.value)}
+                placeholder="42"
+                min={1}
+                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm"
+              />
+              <p className="text-slate-500 font-mono text-[10px] mt-1">Fitness (chronic load). Standard: 42</p>
+            </div>
+            <div>
+              <label className="text-slate-400 font-mono text-xs block mb-1">ATL Constant (days)</label>
+              <input
+                type="number"
+                value={atlConstant}
+                onChange={(e) => setAtlConstant(e.target.value)}
+                placeholder="10"
+                min={1}
+                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-100 font-mono text-sm"
+              />
+              <p className="text-slate-500 font-mono text-[10px] mt-1">Fatigue (acute load). Standard: 7, yours: 10</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                const atl = parseInt(atlConstant, 10);
+                const ctl = parseInt(ctlConstant, 10);
+                if (atl > 0 && ctl > 0) {
+                  await api.setKV("training-load-constants", { atlConstant: atl, ctlConstant: ctl });
+                  setConstantsSaved(true);
+                  setTimeout(() => setConstantsSaved(false), 3000);
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-mono text-sm transition-colors"
+            >
+              Save Constants
+            </button>
+            <button
+              onClick={async () => {
+                setAtlConstant("10");
+                setCtlConstant("42");
+                await api.setKV("training-load-constants", { atlConstant: 10, ctlConstant: 42 });
+                setConstantsSaved(true);
+                setTimeout(() => setConstantsSaved(false), 3000);
+              }}
+              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 font-mono text-sm transition-colors"
+            >
+              Reset Defaults
+            </button>
+            {constantsSaved && <span className="text-green-400 font-mono text-xs">Saved!</span>}
+          </div>
         </section>
 
         {/* Ride Note Options Section */}

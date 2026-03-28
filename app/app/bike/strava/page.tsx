@@ -178,8 +178,7 @@ function computeZoneTime(data: number[], zones: { min: number; max: number }[]):
 }
 
 // ─── TSS / CTL / ATL / TSB ──────────────────────────────────────
-import { computeDailyTSS, computeFitness, type FtpEntry } from "../../lib/training-load";
-import { getIntervalsFitness, type WellnessEntry } from "../../lib/api-client";
+import { computeDailyTSS, computeFitness, type FtpEntry, type TrainingLoadConstants, DEFAULT_TRAINING_LOAD_CONSTANTS } from "../../lib/training-load";
 
 // ─── SVG Charts ─────────────────────────────────────────────────
 
@@ -1771,31 +1770,22 @@ export default function StravaPage() {
     return total.some((t) => t > 0) ? total : null;
   }, [zoneRides, zoneStreams, zones]);
 
-  // Fitness data — prefer intervals.icu, fall back to local calculation
-  const [intervalsData, setIntervalsData] = useState<WellnessEntry[]>([]);
+  // Training load constants (configurable in Settings > Cycling)
+  const [trainingLoadConstants, setTrainingLoadConstants] = useState<TrainingLoadConstants>(DEFAULT_TRAINING_LOAD_CONSTANTS);
   useEffect(() => {
-    getIntervalsFitness(Math.max(fitnessRange, 180)).then(setIntervalsData).catch(() => {});
-  }, [fitnessRange]);
+    api.getKV<TrainingLoadConstants>("training-load-constants").then(c => {
+      if (c) setTrainingLoadConstants(c);
+    });
+  }, []);
 
+  // Fitness data — local EMA calculation from Strava TSS
   const fitnessData = useMemo(() => {
-    // Use intervals.icu data if available
-    if (intervalsData.length > 0) {
-      const sliced = intervalsData.slice(-fitnessRange);
-      return sliced.map(w => ({
-        date: w.date,
-        ctl: w.ctl,
-        atl: w.atl,
-        tsb: w.tsb,
-        tss: w.ctlLoad,
-      }));
-    }
-    // Fallback to local calculation using FTP history (TR method)
     if (activities.length === 0) return [];
     const ftpSource = ftpHistory.length > 0 ? ftpHistory : zones?.ftp;
     if (!ftpSource) return [];
     const daily = computeDailyTSS(activities, ftpSource);
-    return computeFitness(daily, fitnessRange);
-  }, [intervalsData, activities, zones, ftpHistory, fitnessRange]);
+    return computeFitness(daily, fitnessRange, trainingLoadConstants);
+  }, [activities, zones, ftpHistory, fitnessRange, trainingLoadConstants]);
 
   const noData = activities.length === 0;
 
