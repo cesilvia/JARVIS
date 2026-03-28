@@ -24,6 +24,7 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
   const [options, setOptions] = useState<Record<string, RideNoteOption[]>>({});
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [carbsInput, setCarbsInput] = useState("");
   const [sections, setSections] = useState<Record<string, boolean>>({
     effort: true, nutrition: false, preride: false, recovery: false, notes: false,
   });
@@ -42,6 +43,7 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
       if (existing) {
         setNote(existing);
         setLastSaved(existing.updated_at);
+        if (existing.calories_on_bike) setCarbsInput(String(existing.calories_on_bike / 4));
       } else {
         // Auto-fill workout name and indoor/outdoor
         setNote({ workout_name: activityName });
@@ -98,6 +100,24 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     setSections(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
+  // Evaluate simple math expressions (e.g. "75+75") — only allows numbers and +-*/
+  const evalMath = (expr: string): number | null => {
+    const cleaned = expr.replace(/\s/g, "");
+    if (!cleaned || !/^[\d.+\-*/()]+$/.test(cleaned)) return null;
+    try { return Function(`"use strict"; return (${cleaned})`)() as number; } catch { return null; }
+  };
+
+  const handleCarbsBlur = () => {
+    const grams = evalMath(carbsInput);
+    if (grams != null && grams > 0) {
+      const rounded = Math.round(grams * 10) / 10;
+      setCarbsInput(String(rounded));
+      updateField("calories_on_bike", Math.round(rounded * 4));
+    } else if (!carbsInput.trim()) {
+      updateField("calories_on_bike", null);
+    }
+  };
+
   // Copy to clipboard
   const handleCopy = () => {
     const rpeLabel = note.rpe ? [,"Easy","Easy-Moderate","Moderate","Moderate-Hard","Hard","Hard-Very Hard","Very Hard","Very Hard-All Out","All Out"][note.rpe] ?? "" : "";
@@ -112,6 +132,7 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     lines.push(`Workout Name: ${note.workout_name ?? "—"}`);
     lines.push("");
     lines.push("── Nutrition ──");
+    lines.push(`Carbs on Bike: ${note.calories_on_bike ? `${note.calories_on_bike / 4} g` : "—"}`);
     lines.push(`Calories on Bike: ${note.calories_on_bike ?? "—"}`);
     lines.push(`Carbs/hr: ${carbsPerHour ?? "—"} g/hr`);
     lines.push(`Bottles: ${note.bottle_count ?? "—"}`);
@@ -237,14 +258,21 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
           {sections.nutrition && (
             <div className="grid grid-cols-3 gap-3 pt-2 px-1">
               <div>
-                <label className={labelClass}>Calories on Bike</label>
+                <label className={labelClass}>Carbs on Bike (g)</label>
                 <input
-                  type="number"
-                  value={note.calories_on_bike ?? ""}
-                  onChange={(e) => updateField("calories_on_bike", e.target.value ? Number(e.target.value) : null)}
+                  type="text"
+                  value={carbsInput}
+                  onChange={(e) => setCarbsInput(e.target.value)}
+                  onBlur={handleCarbsBlur}
                   className={inputClass}
-                  placeholder="0"
+                  placeholder="e.g. 75+75"
                 />
+              </div>
+              <div>
+                <label className={labelClass}>Calories (auto)</label>
+                <div className={`${inputClass} bg-transparent`}>
+                  {note.calories_on_bike ? `${note.calories_on_bike} cal` : "—"}
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Carbs/hr (auto)</label>
