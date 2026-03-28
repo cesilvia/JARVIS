@@ -91,8 +91,10 @@
 
 ## Hub Wedge Improvements
 
-- ~~**Wedge text rendering overhaul**~~ — DONE (2026-03-27): clipPath + auto-scaling + dark backdrop. Text guaranteed inside wedge at all angles. Per-wedge positioning: Strava centered with 2-char left shift, German left-aligned with per-row boundary, Nutrition centered with offset, Alerts centered. Masculine noun color darkened to #191970 for wedge readability.
+- ~~**Wedge text rendering overhaul**~~ — DONE (2026-03-27): clipPath + auto-scaling + dark backdrop. Text guaranteed inside wedge at all angles. Per-wedge positioning: Cycling centered with 2-char left shift, German left-aligned with per-row boundary, Nutrition centered with offset, Alerts centered. Masculine noun color darkened to #191970 for wedge readability.
 - ~~**Layout audit**~~ — DONE (2026-03-27): Fixed nutrition page duplicate title, standardized settings margins, added NutritionBackIcon for manual entry, fixed wedge disconnect when welcome banner open.
+- ~~**Hub icon rename**~~ — DONE (2026-03-28): "Strava" → "Cycling" on hub (mobile card label). Reflects broader cycling scope.
+- ~~**themeColor viewport migration**~~ — DONE (2026-03-28): Moved from `metadata` to `viewport` export, eliminating ~30 Next.js 16 build warnings.
 - **Nutrition wedge** — Recipe count (nutritionStats already loaded, not displayed)
 - **German wedge** — Cards due for review today (SM-2 next_review data available)
 - **Health wedge** — Placeholder until Garmin/Apple Health wired in
@@ -104,6 +106,9 @@
 
 ### Ride Notes
 - ~~**Structured ride notes form**~~ — DONE (2026-03-27): Collapsible form on ride detail view with 5 sections (Effort, Nutrition, Pre-Ride, Recovery, Notes). Auto-save, copy-to-clipboard for TrainerRoad, LightRAG indexing. Configurable dropdowns (ride type, electrolyte product) managed in Settings > Cycling.
+- ~~**RPE scale update**~~ — DONE (2026-03-28): Changed from 1–10 to 1–9. Odd numbers are primary anchors (Easy/Moderate/Hard/Very Hard/All Out), even numbers labeled as in-between. Label shown next to slider value.
+- ~~**Ride notes copy formatting**~~ — DONE (2026-03-28): Switched to `\r\n` line endings so each field pastes on its own line in TrainerRoad.
+- ~~**Zwift indoor detection**~~ — DONE (2026-03-28): Activities with "Zwift" in the name are now detected as indoor rides. Affects Indoor badge, mileage split, weather fetch, and ride notes. TrainerRoad indoor/outdoor detection still TBD.
 - **Ride notes trend analysis** — Charts over time: RPE vs TSS, calories/hr vs duration, weight tracking, sleep quality vs performance, GI issue correlation with nutrition. Scatter plots and line charts using stored computed fields.
 - **RENPHO integration** — Auto-pull weight from RENPHO Health app if a reliable API becomes available. Currently manual entry.
 

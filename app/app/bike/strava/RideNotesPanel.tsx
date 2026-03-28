@@ -100,13 +100,14 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
 
   // Copy to clipboard
   const handleCopy = () => {
+    const rpeLabel = note.rpe ? [,"Easy","Easy-Moderate","Moderate","Moderate-Hard","Hard","Hard-Very Hard","Very Hard","Very Hard-All Out","All Out"][note.rpe] ?? "" : "";
     const lines: string[] = [];
     lines.push(`Ride: ${note.workout_name ?? activityName}`);
     lines.push(`Date: ${new Date().toLocaleDateString()}`);
     lines.push(`Indoor/Outdoor: ${trainer ? "Indoor" : "Outdoor"}`);
     lines.push("");
     lines.push("── Effort ──");
-    lines.push(`RPE: ${note.rpe ?? "—"}/10`);
+    lines.push(`RPE: ${note.rpe ?? "—"}/9${rpeLabel ? ` (${rpeLabel})` : ""}`);
     lines.push(`Ride Type: ${note.ride_type ?? "—"}`);
     lines.push(`Workout Name: ${note.workout_name ?? "—"}`);
     lines.push("");
@@ -135,7 +136,7 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     lines.push("");
     lines.push("── Notes ──");
     lines.push(note.notes ?? "—");
-    navigator.clipboard.writeText(lines.join("\n"));
+    navigator.clipboard.writeText(lines.join("\r\n"));
   };
 
   const sectionHeaderClass = (open: boolean) =>
@@ -187,15 +188,15 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
             <div className="grid grid-cols-3 gap-3 pt-2 px-1">
               {/* RPE Slider */}
               <div>
-                <label className={labelClass}>RPE: {note.rpe ?? "—"}/10</label>
+                <label className={labelClass}>RPE: {note.rpe ?? "—"}/9{note.rpe ? ` (${[,"Easy","Easy-Moderate","Moderate","Moderate-Hard","Hard","Hard-Very Hard","Very Hard","Very Hard-All Out","All Out"][note.rpe]})` : ""}</label>
                 <input
-                  type="range" min={1} max={10} step={1}
+                  type="range" min={1} max={9} step={1}
                   value={note.rpe ?? 5}
                   onChange={(e) => updateField("rpe", Number(e.target.value))}
                   className="w-full accent-[#00D9FF] h-1.5"
                 />
                 <div className="flex justify-between text-[8px] text-[#67C7EB]/50">
-                  <span>Easy</span><span>Max</span>
+                  <span>Easy</span><span>All Out</span>
                 </div>
               </div>
               {/* Ride Type */}

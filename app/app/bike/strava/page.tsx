@@ -17,7 +17,8 @@ import * as api from "../../lib/api-client";
 import RideNotesPanel from "./RideNotesPanel";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB", background: "#000000" };
-const isOutdoorRide = (a: StravaActivity) => !a.trainer && a.sport_type !== "VirtualRide";
+const isIndoorRide = (a: StravaActivity) => a.trainer || a.sport_type === "VirtualRide" || /zwift/i.test(a.name);
+const isOutdoorRide = (a: StravaActivity) => !isIndoorRide(a);
 type Tab = "overview" | "rides" | "power" | "fitness" | "forecast";
 
 // ─── Sync helper ────────────────────────────────────────────────
@@ -78,7 +79,7 @@ async function syncActivities(): Promise<StravaActivity[]> {
       if (!byGear[gid]) byGear[gid] = { total: 0, indoor: 0, road: 0 };
       const mi = (a.distance || 0) * METERS_TO_MILES;
       byGear[gid].total += mi;
-      if (a.trainer) byGear[gid].indoor += mi;
+      if (isIndoorRide(a)) byGear[gid].indoor += mi;
       else byGear[gid].road += mi;
     }
     const now = new Date().toISOString();
@@ -1972,7 +1973,7 @@ export default function StravaPage() {
                           {routeName && <div className="text-xs truncate" style={{ color: hubTheme.secondary }}>{routeName}</div>}
                           <div className="text-xs" style={{ color: hubTheme.secondary }}>
                             {formatDate(ride.start_date)}
-                            {ride.trainer && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-[rgba(0,217,255,0.15)] border border-[#00D9FF]/30">Indoor</span>}
+                            {isIndoorRide(ride) && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-[rgba(0,217,255,0.15)] border border-[#00D9FF]/30">Indoor</span>}
                           </div>
                         </div>
                         {/* Column 2: Miles, Time, MPH, Elevation */}
@@ -2306,7 +2307,7 @@ export default function StravaPage() {
                               <RideNotesPanel
                                 activityId={ride.id}
                                 activityName={ride.name}
-                                trainer={!!ride.trainer}
+                                trainer={isIndoorRide(ride)}
                                 movingTime={ride.moving_time}
                                 averageWatts={ride.average_watts}
                               />

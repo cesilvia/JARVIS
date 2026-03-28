@@ -49,7 +49,7 @@ const modules: Module[] = [
   },
   {
     id: "strava",
-    name: "Strava",
+    name: "Cycling",
     description: "Cycling and bike gear",
     icon: "◇",
     href: "/bike",

@@ -814,3 +814,29 @@
   - Stateless: no documents or `.ics` files saved to SQLite
 - **Mockup:** mockups/calendar-ics-tool.html
 - **Status:** Designed, not yet implemented
+
+## 2026-03-28
+
+### Cycling Module Refinements
+
+**Decision:** Rename hub icon from "Strava" to "Cycling"
+- **Rationale:** The module covers cycling broadly (gear, components, tire pressure, ride notes), not just Strava data. "Cycling" better describes the scope, especially on mobile where the label is prominent.
+- **Status:** Implemented
+
+**Decision:** Change RPE scale from 1–10 to 1–9 with labeled guideposts
+- **Rationale:** Aligns with common coaching scales. Odd numbers are primary anchors (1 Easy, 3 Moderate, 5 Hard, 7 Very Hard, 9 All Out), even numbers are in-between labels (2 Easy-Moderate, 4 Moderate-Hard, etc.). All integers 1–9 selectable.
+- **Status:** Implemented
+
+**Decision:** Use `\r\n` line endings in ride notes clipboard copy
+- **Rationale:** Single `\n` was collapsing into one paragraph when pasted into TrainerRoad. `\r\n` (carriage return + line feed) preserves line breaks per field in the target text input.
+- **Status:** Implemented
+
+**Decision:** Detect Zwift rides as indoor via activity name
+- **Rationale:** Strava does not always set `trainer: true` or `sport_type: "VirtualRide"` for Zwift activities. Added `/zwift/i` name check to `isIndoorRide()` helper. This affects the Indoor badge, indoor mileage calculation, weather fetch suppression, and ride notes Indoor/Outdoor display. TrainerRoad indoor/outdoor detection deferred — TR rides can be either.
+- **Status:** Implemented
+
+### Housekeeping
+
+**Decision:** Move `themeColor` from `metadata` to `viewport` export in root layout
+- **Rationale:** Next.js 16 deprecated `themeColor` in the `metadata` export. Moving it to `viewport` eliminates ~30 build warnings (one per page inheriting root layout).
+- **Status:** Implemented
