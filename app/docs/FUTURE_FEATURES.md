@@ -48,6 +48,16 @@
 
 - ~~**Research page**~~ — RESTRUCTURED (2026-03-22): Hub icon renamed from Notes to Research. Now an umbrella page with tabs: Readwise, Notes, Journal.
 
+### Calendar Page — Document-to-ICS Tool
+- **Hub location:** Top row, furthest left icon (already wired, placeholder page exists at app/calendar/page.tsx)
+- **Core feature:** Drag-and-drop zone that accepts documents (PDF, images, text files) and uses AI (OpenRouter/Gemini with vision) to extract calendar events. Generates downloadable `.ics` files for import into Fantastical.
+- **Workflow:** Drop document → AI extracts events → side-by-side view (document preview on left, extracted event cards on right) → review/edit fields → download individual `.ics` per event or "Download All" button.
+- **Editable fields per event:** Title, Date, Time, Location, Notes. All fields editable before download.
+- **Flagging:** If AI cannot confidently extract a field (e.g., no time specified), it flags the field in amber for manual entry. Never guesses.
+- **Multiple events:** One document can produce multiple events (e.g., multi-day race schedule). Each event has its own `.ics` download button plus a bulk "Download All" option.
+- **Stateless:** No persistence — documents and `.ics` files are not saved to SQLite. Pure convert-and-download tool.
+- **Mockup:** [mockups/calendar-ics-tool.html](../mockups/calendar-ics-tool.html)
+
 ## App Integrations
 
 ### High-value

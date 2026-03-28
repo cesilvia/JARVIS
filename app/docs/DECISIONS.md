@@ -797,3 +797,20 @@
 - **Rationale:** User wanted ride type (TrainerRoad-based) and electrolyte product dropdowns to be extensible without code changes.
 - **Implementation:** New `ride_note_options` table with category/label/sort_order. Seeded with 11 ride types (Endurance, Recovery, Tempo, Sweet Spot, Threshold, VO2max, Anaerobic, Sprint, Race, Group Ride, Event) and 2 electrolyte products (Re-Lyte, LMNT). Settings > Cycling page has add/remove UI by category. Designed to support future categories.
 - **Status:** Implemented
+
+## 2026-03-27 (evening)
+
+### Calendar Page — Document-to-ICS Tool (Design)
+
+**Decision:** Build a document-to-ICS conversion tool as the first feature on the Calendar page
+- **Rationale:** User frequently receives event documents (race schedules, flyers, appointment letters) and wants a fast path to get them into Fantastical without manual re-entry.
+- **Design:**
+  - Drag-and-drop zone accepts PDFs, images, and text files
+  - AI extraction via OpenRouter/Gemini (with vision for images/scanned PDFs) parses event details
+  - Side-by-side comparison view: document preview on left, extracted event cards on right
+  - Each event card has editable fields (Title, Date, Time, Location, Notes) and its own `.ics` download button
+  - "Download All" button for bulk export when all events are wanted
+  - Uncertain fields flagged in amber for manual entry — AI never guesses
+  - Stateless: no documents or `.ics` files saved to SQLite
+- **Mockup:** mockups/calendar-ics-tool.html
+- **Status:** Designed, not yet implemented

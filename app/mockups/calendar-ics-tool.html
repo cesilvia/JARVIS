@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS Calendar — ICS Tool Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #00D9FF;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+  }
+
+  /* HUD background glow */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% 50%, rgba(0,217,255,0.12) 0%, rgba(0,217,255,0.03) 40%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; position: relative; z-index: 1; }
+
+  /* Navigation breadcrumb */
+  .nav { font-size: 13px; color: #67C7EB; margin-bottom: 8px; }
+  .nav a { color: #67C7EB; text-decoration: none; }
+  .nav a:hover { color: #00D9FF; }
+
+  h1 { font-size: 28px; font-weight: bold; margin-bottom: 24px; text-shadow: 0 0 10px rgba(0,217,255,0.5); }
+
+  /* ===== DROP ZONE ===== */
+  .drop-zone {
+    border: 2px dashed rgba(0,217,255,0.35);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    background: rgba(0,217,255,0.03);
+    transition: all 0.2s;
+    cursor: pointer;
+    margin-bottom: 32px;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #00D9FF;
+    background: rgba(0,217,255,0.08);
+    box-shadow: 0 0 20px rgba(0,217,255,0.15);
+  }
+  .drop-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.6; }
+  .drop-label { font-size: 15px; color: #67C7EB; }
+  .drop-sublabel { font-size: 12px; color: #4a6a7a; margin-top: 6px; }
+
+  /* ===== PROCESSING STATE ===== */
+  .processing {
+    display: none; /* toggle to flex when active */
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: rgba(0,217,255,0.05);
+    border: 1px solid rgba(0,217,255,0.2);
+    border-radius: 8px;
+    margin-bottom: 32px;
+    font-size: 13px;
+    color: #67C7EB;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,217,255,0.2);
+    border-top-color: #00D9FF;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== RESULTS PANEL ===== */
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .results-header h2 { font-size: 16px; color: #00D9FF; }
+  .download-all-btn {
+    background: rgba(0,255,136,0.12);
+    border: 1px solid #00FF88;
+    color: #00FF88;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .download-all-btn:hover {
+    background: rgba(0,255,136,0.22);
+    box-shadow: 0 0 12px rgba(0,255,136,0.2);
+  }
+
+  /* ===== SIDE-BY-SIDE LAYOUT ===== */
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* Document preview panel */
+  .doc-preview {
+    border: 1px solid rgba(0,217,255,0.2);
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+  }
+  .doc-preview-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0,217,255,0.15);
+    font-size: 13px;
+    color: #67C7EB;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .doc-preview-body {
+    padding: 20px;
+    min-height: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Fake PDF preview */
+  .fake-pdf {
+    background: #f5f5f0;
+    color: #222;
+    font-family: Georgia, serif;
+    padding: 28px 24px;
+    border-radius: 4px;
+    width: 100%;
+    max-width: 320px;
+    font-size: 12px;
+    line-height: 1.6;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+  .fake-pdf h3 { font-size: 16px; margin-bottom: 8px; color: #111; text-align: center; }
+  .fake-pdf .event-block { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #ddd; }
+  .fake-pdf .event-block:last-child { border-bottom: none; margin-bottom: 0; }
+  .fake-pdf .ev-title { font-weight: bold; font-size: 13px; }
+  .fake-pdf .ev-detail { font-size: 11px; color: #555; }
+
+  /* Events panel */
+  .events-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .event-card {
+    border: 1px solid rgba(0,217,255,0.2);
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+  }
+  .event-card-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(0,217,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .event-num { font-size: 11px; color: #4a6a7a; }
+  .event-download-btn {
+    background: rgba(0,255,136,0.08);
+    border: 1px solid rgba(0,255,136,0.4);
+    color: #00FF88;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .event-download-btn:hover {
+    background: rgba(0,255,136,0.18);
+  }
+
+  .event-card-body { padding: 12px 16px; }
+
+  .field-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: baseline;
+  }
+  .field-label {
+    font-size: 11px;
+    color: #4a6a7a;
+    min-width: 70px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .field-value {
+    font-size: 13px;
+    color: #00D9FF;
+    flex: 1;
+  }
+  .field-value.editable {
+    background: rgba(0,217,255,0.06);
+    border: 1px solid rgba(0,217,255,0.15);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: text;
+  }
+  .field-value.editable:hover {
+    border-color: rgba(0,217,255,0.35);
+  }
+  .field-value.flagged {
+    border-color: rgba(255,180,0,0.5);
+    background: rgba(255,180,0,0.06);
+    color: #FFB400;
+  }
+  .flag-icon { font-size: 11px; margin-left: 6px; color: #FFB400; }
+
+  /* ===== EMPTY / INITIAL STATE label ===== */
+  .state-label {
+    text-align: center;
+    font-size: 12px;
+    color: #3a5a6a;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .comparison { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="nav">
+    <a href="#">← Hub</a> &nbsp;/&nbsp; Calendar
+  </div>
+  <h1>Calendar</h1>
+
+  <!-- ===== STATE 1: Drop zone (initial) ===== -->
+  <!--
+  <div class="drop-zone">
+    <div class="drop-icon">📄</div>
+    <div class="drop-label">Drag a document here to extract calendar events</div>
+    <div class="drop-sublabel">PDF, image, or text file — AI will find dates, times, and locations</div>
+  </div>
+  -->
+
+  <!-- ===== STATE 2: Processing ===== -->
+  <!--
+  <div class="processing" style="display: flex;">
+    <div class="spinner"></div>
+    <span>Analyzing "Tour_of_Sufferlandria_2026.pdf" — extracting events…</span>
+  </div>
+  -->
+
+  <!-- ===== STATE 3: Results (shown after extraction) ===== -->
+
+  <!-- Drop zone (compact, after first use) -->
+  <div class="drop-zone" style="padding: 20px 24px;">
+    <div class="drop-label" style="font-size: 13px;">Drop another document here to extract events</div>
+    <div class="drop-sublabel">PDF, image, or text — AI extracts dates, times, and locations</div>
+  </div>
+
+  <div class="results-header">
+    <h2>3 events extracted from "Tour_of_Sufferlandria_2026.pdf"</h2>
+    <button class="download-all-btn">↓ Download All (.ics)</button>
+  </div>
+
+  <div class="comparison">
+    <!-- LEFT: Document preview -->
+    <div class="doc-preview">
+      <div class="doc-preview-header">
+        📄 Tour_of_Sufferlandria_2026.pdf
+      </div>
+      <div class="doc-preview-body">
+        <div class="fake-pdf">
+          <h3>Tour of Sufferlandria 2026</h3>
+          <div class="event-block">
+            <div class="ev-title">Stage 1 — Prologue TT</div>
+            <div class="ev-detail">Saturday, April 18, 2026</div>
+            <div class="ev-detail">8:00 AM — Indoor / Zwift</div>
+            <div class="ev-detail">14.2 km TT — Innsbruck KOM</div>
+          </div>
+          <div class="event-block">
+            <div class="ev-title">Stage 2 — Mountains</div>
+            <div class="ev-detail">Sunday, April 19, 2026</div>
+            <div class="ev-detail">9:00 AM — Indoor / Zwift</div>
+            <div class="ev-detail">62 km — Road to Sky x2</div>
+          </div>
+          <div class="event-block">
+            <div class="ev-title">Stage 3 — Grand Finale</div>
+            <div class="ev-detail">Monday, April 20, 2026</div>
+            <div class="ev-detail">Time TBD</div>
+            <div class="ev-detail">85 km — Four Horsemen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Extracted events -->
+    <div class="events-panel">
+
+      <!-- Event 1 -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <span class="event-num">EVENT 1 OF 3</span>
+          <button class="event-download-btn">↓ .ics</button>
+        </div>
+        <div class="event-card-body">
+          <div class="field-row">
+            <span class="field-label">Title</span>
+            <span class="field-value editable">Tour of Sufferlandria — Stage 1: Prologue TT</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Date</span>
+            <span class="field-value editable">Sat, April 18, 2026</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Time</span>
+            <span class="field-value editable">8:00 AM — 9:00 AM</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Location</span>
+            <span class="field-value editable">Indoor / Zwift</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Notes</span>
+            <span class="field-value editable">14.2 km TT — Innsbruck KOM</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event 2 -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <span class="event-num">EVENT 2 OF 3</span>
+          <button class="event-download-btn">↓ .ics</button>
+        </div>
+        <div class="event-card-body">
+          <div class="field-row">
+            <span class="field-label">Title</span>
+            <span class="field-value editable">Tour of Sufferlandria — Stage 2: Mountains</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Date</span>
+            <span class="field-value editable">Sun, April 19, 2026</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Time</span>
+            <span class="field-value editable">9:00 AM — 11:00 AM</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Location</span>
+            <span class="field-value editable">Indoor / Zwift</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Notes</span>
+            <span class="field-value editable">62 km — Road to Sky x2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event 3 (with flagged field) -->
+      <div class="event-card">
+        <div class="event-card-header">
+          <span class="event-num">EVENT 3 OF 3</span>
+          <button class="event-download-btn">↓ .ics</button>
+        </div>
+        <div class="event-card-body">
+          <div class="field-row">
+            <span class="field-label">Title</span>
+            <span class="field-value editable">Tour of Sufferlandria — Stage 3: Grand Finale</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Date</span>
+            <span class="field-value editable">Mon, April 20, 2026</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Time</span>
+            <span class="field-value editable flagged">No time specified — click to set<span class="flag-icon">⚠</span></span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Location</span>
+            <span class="field-value editable">Indoor / Zwift</span>
+          </div>
+          <div class="field-row">
+            <span class="field-label">Notes</span>
+            <span class="field-value editable">85 km — Four Horsemen</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
