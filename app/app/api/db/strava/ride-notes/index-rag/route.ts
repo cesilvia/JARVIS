@@ -26,14 +26,14 @@ export async function POST(request: NextRequest) {
   // Build structured text for RAG
   const lines: string[] = [];
   lines.push(`Ride Note for "${activity.name}" on ${date}`);
-  lines.push(`Type: ${note.ride_type ?? "unspecified"} | RPE: ${note.rpe ?? "—"}/10 | ${indoorOutdoor} | Duration: ${durationHrs.toFixed(1)}hr`);
+  lines.push(`Type: ${note.ride_type ?? "unspecified"} | RPE: ${note.rpe ?? "—"}/9 | ${indoorOutdoor} | Duration: ${durationHrs.toFixed(1)}hr`);
 
-  if (note.calories_on_bike || note.carbs_per_hour || note.bottle_count || note.electrolyte_mg) {
+  if (note.calories_on_bike || note.carbs_per_hour || note.bottle_count || note.electrolyte_g) {
     const parts = [];
     if (note.calories_on_bike) parts.push(`${note.calories_on_bike} cal`);
     if (note.carbs_per_hour) parts.push(`${note.carbs_per_hour} g/hr carbs`);
     if (note.bottle_count) parts.push(`${note.bottle_count} bottles (${note.total_fluid_oz ?? "?"} oz)`);
-    if (note.electrolyte_mg) parts.push(`${note.electrolyte_mg}mg electrolyte${note.electrolyte_product ? ` (${note.electrolyte_product})` : ""}`);
+    if (note.electrolyte_g) parts.push(`${note.electrolyte_g}g electrolyte${note.electrolyte_product ? ` (${note.electrolyte_product})` : ""}`);
     lines.push(`Nutrition: ${parts.join(", ")}`);
   }
   if (note.gi_issues && note.gi_issues !== "none") {

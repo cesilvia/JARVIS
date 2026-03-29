@@ -6,6 +6,7 @@ import {
   MEAL_TIMING_OPTIONS, GI_SEVERITY_OPTIONS, CRAMPING_OPTIONS, LBS_TO_KG,
 } from "./types";
 import * as api from "../../lib/api-client";
+import DrumPicker from "./DrumPicker";
 
 const hubTheme = { primary: "#00D9FF", secondary: "#67C7EB" };
 
@@ -19,12 +20,81 @@ interface RideNotesPanelProps {
 
 const DEBOUNCE_MS = 1500;
 
+// ─── Scale definitions ──────────────────────────────────────────
+
+const RPE_OPTIONS = [
+  { value: 1, label: "Easy" },
+  { value: 2, label: "Easy-Moderate" },
+  { value: 3, label: "Moderate" },
+  { value: 4, label: "Moderate-Hard" },
+  { value: 5, label: "Hard" },
+  { value: 6, label: "Hard-Very Hard" },
+  { value: 7, label: "Very Hard" },
+  { value: 8, label: "Very Hard-All Out" },
+  { value: 9, label: "All Out" },
+];
+
+const LEG_FRESHNESS_OPTIONS = [
+  { value: 1, label: "Heavy" },
+  { value: 2, label: "Heavy-Tired" },
+  { value: 3, label: "Tired" },
+  { value: 4, label: "Tired-Normal" },
+  { value: 5, label: "Normal" },
+  { value: 6, label: "Normal-Good" },
+  { value: 7, label: "Good" },
+  { value: 8, label: "Good-Fresh" },
+  { value: 9, label: "Fresh" },
+];
+
+const SLEEP_QUALITY_OPTIONS = [
+  { value: 1, label: "Terrible" },
+  { value: 2, label: "Terrible-Poor" },
+  { value: 3, label: "Poor" },
+  { value: 4, label: "Poor-OK" },
+  { value: 5, label: "OK" },
+  { value: 6, label: "OK-Good" },
+  { value: 7, label: "Good" },
+  { value: 8, label: "Good-Great" },
+  { value: 9, label: "Great" },
+];
+
+function getLabelForValue(options: { value: number; label: string }[], val: number | null | undefined): string {
+  if (val == null) return "";
+  return options.find(o => o.value === val)?.label ?? "";
+}
+
+// ─── Sleep time helpers ─────────────────────────────────────────
+
+function hoursToHHMM(hours: number | null | undefined): string {
+  if (hours == null) return "";
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function hhmmToHours(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  // Accept "7:30" or "7.5"
+  if (trimmed.includes(":")) {
+    const [hStr, mStr] = trimmed.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr || "0", 10);
+    if (isNaN(h)) return null;
+    return h + (isNaN(m) ? 0 : m / 60);
+  }
+  const num = parseFloat(trimmed);
+  return isNaN(num) ? null : num;
+}
+
 export default function RideNotesPanel({ activityId, activityName, trainer, movingTime, averageWatts }: RideNotesPanelProps) {
   const [note, setNote] = useState<Partial<RideNote>>({});
   const [options, setOptions] = useState<Record<string, RideNoteOption[]>>({});
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [carbsInput, setCarbsInput] = useState("");
+  const [electrolyteInput, setElectrolyteInput] = useState("");
+  const [sleepInput, setSleepInput] = useState("");
   const [sections, setSections] = useState<Record<string, boolean>>({
     effort: true, nutrition: false, preride: false, recovery: false, notes: false,
   });
@@ -44,6 +114,8 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
         setNote(existing);
         setLastSaved(existing.updated_at);
         if (existing.calories_on_bike) setCarbsInput(String(existing.calories_on_bike / 4));
+        if (existing.electrolyte_g != null) setElectrolyteInput(String(existing.electrolyte_g));
+        if (existing.sleep_hours != null) setSleepInput(hoursToHHMM(existing.sleep_hours));
       } else {
         // Auto-fill workout name and indoor/outdoor
         setNote({ workout_name: activityName });
@@ -118,9 +190,32 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     }
   };
 
+  const handleElectrolyteBlur = () => {
+    const grams = evalMath(electrolyteInput);
+    if (grams != null && grams > 0) {
+      const rounded = Math.round(grams * 100) / 100;
+      setElectrolyteInput(String(rounded));
+      updateField("electrolyte_g", rounded);
+    } else if (!electrolyteInput.trim()) {
+      updateField("electrolyte_g", null);
+    }
+  };
+
+  const handleSleepBlur = () => {
+    const hours = hhmmToHours(sleepInput);
+    if (hours != null && hours > 0) {
+      setSleepInput(hoursToHHMM(hours));
+      updateField("sleep_hours", Math.round(hours * 100) / 100);
+    } else if (!sleepInput.trim()) {
+      updateField("sleep_hours", null);
+    }
+  };
+
   // Copy to clipboard
   const handleCopy = () => {
-    const rpeLabel = note.rpe ? [,"Easy","Easy-Moderate","Moderate","Moderate-Hard","Hard","Hard-Very Hard","Very Hard","Very Hard-All Out","All Out"][note.rpe] ?? "" : "";
+    const rpeLabel = getLabelForValue(RPE_OPTIONS, note.rpe);
+    const legLabel = getLabelForValue(LEG_FRESHNESS_OPTIONS, note.leg_freshness);
+    const sleepLabel = getLabelForValue(SLEEP_QUALITY_OPTIONS, note.sleep_quality);
     const lines: string[] = [];
     lines.push(`Ride: ${note.workout_name ?? activityName}`);
     lines.push(`Date: ${new Date().toLocaleDateString()}`);
@@ -139,20 +234,20 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     lines.push(`Bottle Size: ${note.bottle_size_oz ?? "—"} oz`);
     lines.push(`Total Fluid: ${totalFluidOz ?? "—"} oz`);
     lines.push(`GI Issues: ${note.gi_issues ?? "—"}`);
-    lines.push(`Electrolyte: ${note.electrolyte_mg ?? "—"} mg ${note.electrolyte_product ?? ""}`);
+    lines.push(`Electrolyte: ${note.electrolyte_g ?? "—"} g ${note.electrolyte_product ?? ""}`);
     lines.push("");
     lines.push("── Pre-Ride ──");
     lines.push(`Meal Timing: ${note.meal_timing ?? "—"}`);
     lines.push(`Pre-Ride Carbs: ${note.pre_carbs_g ?? "—"} g`);
     lines.push(`Pre-Ride Protein: ${note.pre_protein_g ?? "—"} g`);
     lines.push(`Pre-Ride Fat: ${note.pre_fat_g ?? "—"} g`);
-    lines.push(`Leg Freshness: ${note.leg_freshness ?? "—"}/5`);
+    lines.push(`Leg Freshness: ${note.leg_freshness ?? "—"}/9${legLabel ? ` (${legLabel})` : ""}`);
     lines.push(`Weight: ${note.weight_lbs ?? "—"} lbs`);
     if (wattsPerKg) lines.push(`Power-to-Weight: ${wattsPerKg} w/kg`);
     lines.push("");
     lines.push("── Recovery ──");
-    lines.push(`Sleep Hours: ${note.sleep_hours ?? "—"}`);
-    lines.push(`Sleep Quality: ${note.sleep_quality ?? "—"}/10`);
+    lines.push(`Sleep: ${note.sleep_hours != null ? hoursToHHMM(note.sleep_hours) : "—"}`);
+    lines.push(`Sleep Quality: ${note.sleep_quality ?? "—"}/9${sleepLabel ? ` (${sleepLabel})` : ""}`);
     lines.push(`Cramping: ${note.cramping ?? "—"}`);
     lines.push("");
     lines.push("── Notes ──");
@@ -207,18 +302,14 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
           </button>
           {sections.effort && (
             <div className="grid grid-cols-3 gap-3 pt-2 px-1">
-              {/* RPE Slider */}
+              {/* RPE Drum Picker */}
               <div>
-                <label className={labelClass}>RPE: {note.rpe ?? "—"}/9{note.rpe ? ` (${[,"Easy","Easy-Moderate","Moderate","Moderate-Hard","Hard","Hard-Very Hard","Very Hard","Very Hard-All Out","All Out"][note.rpe]})` : ""}</label>
-                <input
-                  type="range" min={1} max={9} step={1}
-                  value={note.rpe ?? 5}
-                  onChange={(e) => updateField("rpe", Number(e.target.value))}
-                  className="w-full accent-[#00D9FF] h-1.5"
+                <label className={labelClass}>RPE: {note.rpe ?? "—"}/9{note.rpe ? ` (${getLabelForValue(RPE_OPTIONS, note.rpe)})` : ""}</label>
+                <DrumPicker
+                  options={RPE_OPTIONS}
+                  value={note.rpe ?? null}
+                  onChange={(v) => updateField("rpe", v)}
                 />
-                <div className="flex justify-between text-[8px] text-[#67C7EB]/50">
-                  <span>Easy</span><span>All Out</span>
-                </div>
               </div>
               {/* Ride Type */}
               <div>
@@ -323,14 +414,14 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Electrolyte (mg)</label>
+                <label className={labelClass}>Electrolyte (g)</label>
                 <input
-                  type="number"
-                  value={note.electrolyte_mg ?? ""}
-                  onChange={(e) => updateField("electrolyte_mg", e.target.value ? Number(e.target.value) : null)}
+                  type="text"
+                  value={electrolyteInput}
+                  onChange={(e) => setElectrolyteInput(e.target.value)}
+                  onBlur={handleElectrolyteBlur}
                   className={inputClass}
-                  placeholder="0"
-                  min={0}
+                  placeholder="e.g. 1.5+1.5"
                 />
               </div>
               <div>
@@ -404,17 +495,14 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
                   min={0}
                 />
               </div>
+              {/* Leg Freshness Drum Picker */}
               <div>
-                <label className={labelClass}>Leg Freshness: {note.leg_freshness ?? "—"}/5</label>
-                <input
-                  type="range" min={1} max={5} step={1}
-                  value={note.leg_freshness ?? 3}
-                  onChange={(e) => updateField("leg_freshness", Number(e.target.value))}
-                  className="w-full accent-[#00D9FF] h-1.5"
+                <label className={labelClass}>Legs: {note.leg_freshness ?? "—"}/9{note.leg_freshness ? ` (${getLabelForValue(LEG_FRESHNESS_OPTIONS, note.leg_freshness)})` : ""}</label>
+                <DrumPicker
+                  options={LEG_FRESHNESS_OPTIONS}
+                  value={note.leg_freshness ?? null}
+                  onChange={(v) => updateField("leg_freshness", v)}
                 />
-                <div className="flex justify-between text-[8px] text-[#67C7EB]/50">
-                  <span>Heavy</span><span>Fresh</span>
-                </div>
               </div>
               <div>
                 <label className={labelClass}>Weight (lbs)</label>
@@ -441,29 +529,24 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
           {sections.recovery && (
             <div className="grid grid-cols-3 gap-3 pt-2 px-1">
               <div>
-                <label className={labelClass}>Sleep Hours</label>
+                <label className={labelClass}>Sleep (h:mm)</label>
                 <input
-                  type="number"
-                  value={note.sleep_hours ?? ""}
-                  onChange={(e) => updateField("sleep_hours", e.target.value ? Number(e.target.value) : null)}
+                  type="text"
+                  value={sleepInput}
+                  onChange={(e) => setSleepInput(e.target.value)}
+                  onBlur={handleSleepBlur}
                   className={inputClass}
-                  placeholder="0"
-                  min={0}
-                  max={24}
-                  step={0.5}
+                  placeholder="7:30"
                 />
               </div>
+              {/* Sleep Quality Drum Picker */}
               <div>
-                <label className={labelClass}>Sleep Quality: {note.sleep_quality ?? "—"}/10</label>
-                <input
-                  type="range" min={1} max={10} step={1}
-                  value={note.sleep_quality ?? 5}
-                  onChange={(e) => updateField("sleep_quality", Number(e.target.value))}
-                  className="w-full accent-[#00D9FF] h-1.5"
+                <label className={labelClass}>Sleep: {note.sleep_quality ?? "—"}/9{note.sleep_quality ? ` (${getLabelForValue(SLEEP_QUALITY_OPTIONS, note.sleep_quality)})` : ""}</label>
+                <DrumPicker
+                  options={SLEEP_QUALITY_OPTIONS}
+                  value={note.sleep_quality ?? null}
+                  onChange={(v) => updateField("sleep_quality", v)}
                 />
-                <div className="flex justify-between text-[8px] text-[#67C7EB]/50">
-                  <span>Poor</span><span>Great</span>
-                </div>
               </div>
               <div>
                 <label className={labelClass}>Cramping</label>

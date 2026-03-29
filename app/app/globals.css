@@ -225,3 +225,7 @@ body {
 .animate-slide-up {
   animation: slideUp 0.25s ease-out;
 }
+
+/* Hide scrollbar for drum picker */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

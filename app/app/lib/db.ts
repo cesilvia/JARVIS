@@ -268,10 +268,15 @@ export function getDb(): Database.Database {
     "ALTER TABLE strava_activities ADD COLUMN start_lat REAL",
     "ALTER TABLE strava_activities ADD COLUMN start_lng REAL",
     "ALTER TABLE ride_weather ADD COLUMN timeline TEXT",
+    "ALTER TABLE ride_notes ADD COLUMN electrolyte_g REAL",
   ];
   for (const sql of migrations) {
     try { _db.exec(sql); } catch { /* column already exists */ }
   }
+  // Migrate electrolyte_mg → electrolyte_g (one-time: copy mg÷1000 where electrolyte_g is null)
+  try {
+    _db.exec("UPDATE ride_notes SET electrolyte_g = electrolyte_mg / 1000.0 WHERE electrolyte_mg IS NOT NULL AND electrolyte_g IS NULL");
+  } catch { /* table may not exist yet */ }
   // Clean up: remove weather data for indoor/virtual rides
   try {
     _db.exec("DELETE FROM ride_weather WHERE activity_id IN (SELECT id FROM strava_activities WHERE trainer = 1 OR sport_type = 'VirtualRide')");
@@ -1373,7 +1378,8 @@ export interface RideNoteRow {
   bottle_size_oz: number | null;
   total_fluid_oz: number | null;
   gi_issues: string | null;
-  electrolyte_mg: number | null;
+  electrolyte_mg: number | null; // deprecated, kept for backwards compat
+  electrolyte_g: number | null;
   electrolyte_product: string | null;
   meal_timing: string | null;
   pre_carbs_g: number | null;
@@ -1405,7 +1411,7 @@ export function upsertRideNote(activityId: number, data: Partial<RideNoteRow>): 
   db.prepare(`INSERT INTO ride_notes
     (activity_id, rpe, ride_type, workout_name, calories_on_bike,
      bottle_count, bottle_size_oz, total_fluid_oz, gi_issues,
-     electrolyte_mg, electrolyte_product, meal_timing,
+     electrolyte_g, electrolyte_product, meal_timing,
      pre_carbs_g, pre_protein_g, pre_fat_g, leg_freshness, weight_lbs,
      sleep_hours, sleep_quality, cramping, carbs_per_hour, watts_per_kg, notes, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -1413,7 +1419,7 @@ export function upsertRideNote(activityId: number, data: Partial<RideNoteRow>): 
       rpe = excluded.rpe, ride_type = excluded.ride_type, workout_name = excluded.workout_name,
       calories_on_bike = excluded.calories_on_bike, bottle_count = excluded.bottle_count,
       bottle_size_oz = excluded.bottle_size_oz, total_fluid_oz = excluded.total_fluid_oz,
-      gi_issues = excluded.gi_issues, electrolyte_mg = excluded.electrolyte_mg,
+      gi_issues = excluded.gi_issues, electrolyte_g = excluded.electrolyte_g,
       electrolyte_product = excluded.electrolyte_product, meal_timing = excluded.meal_timing,
       pre_carbs_g = excluded.pre_carbs_g, pre_protein_g = excluded.pre_protein_g,
       pre_fat_g = excluded.pre_fat_g, leg_freshness = excluded.leg_freshness,
@@ -1425,7 +1431,7 @@ export function upsertRideNote(activityId: number, data: Partial<RideNoteRow>): 
     activityId,
     data.rpe ?? null, data.ride_type ?? null, data.workout_name ?? null,
     data.calories_on_bike ?? null, data.bottle_count ?? null, data.bottle_size_oz ?? null,
-    data.total_fluid_oz ?? null, data.gi_issues ?? null, data.electrolyte_mg ?? null,
+    data.total_fluid_oz ?? null, data.gi_issues ?? null, data.electrolyte_g ?? null,
     data.electrolyte_product ?? null, data.meal_timing ?? null,
     data.pre_carbs_g ?? null, data.pre_protein_g ?? null, data.pre_fat_g ?? null,
     data.leg_freshness ?? null, data.weight_lbs ?? null, data.sleep_hours ?? null,

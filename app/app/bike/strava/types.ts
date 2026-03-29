@@ -96,7 +96,8 @@ export interface RideNote {
   bottle_size_oz: number | null;
   total_fluid_oz: number | null;
   gi_issues: string | null;
-  electrolyte_mg: number | null;
+  electrolyte_mg: number | null; // deprecated
+  electrolyte_g: number | null;
   electrolyte_product: string | null;
   meal_timing: string | null;
   pre_carbs_g: number | null;
