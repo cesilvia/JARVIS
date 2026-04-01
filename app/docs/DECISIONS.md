@@ -840,3 +840,32 @@
 **Decision:** Move `themeColor` from `metadata` to `viewport` export in root layout
 - **Rationale:** Next.js 16 deprecated `themeColor` in the `metadata` export. Moving it to `viewport` eliminates ~30 build warnings (one per page inheriting root layout).
 - **Status:** Implemented
+
+**Decision:** Change nutrition input from calories to carbs (grams) with math expression support
+- **Rationale:** User measures carbs in grams, not calories. First field is now "Carbs on Bike (g)" with math support (e.g. `75+75`). Calories auto-computed (grams × 4). Database still stores `calories_on_bike`; grams is a UI-only concept derived by ÷4.
+- **Status:** Implemented
+
+**Decision:** Rewrite CTL/ATL/TSB to proper Coggan/TrainingPeaks EMA model
+- **Rationale:** Previous CTL used a simple 42-day rolling average, which is incorrect. Both CTL and ATL now use exponential weighted moving averages: `CTL = CTL_prev + (TSS - CTL_prev) / CTL_CONSTANT`. ATL constant set to 10 (not standard 7) to reflect slower recovery for a 51-year-old athlete. Constants configurable in Settings > Cycling. Removed intervals.icu as primary data source; uses local calculation from Strava NP (power meter data is accurate enough).
+- **Status:** Implemented
+
+**Decision:** iOS-style drum picker for RPE, leg freshness, and sleep quality
+- **Rationale:** Sliders were too small to use accurately on iPhone. Built a custom DrumPicker component with scroll-snap, fade edges, and touch support. All three scales are 1–9 with labeled guideposts at every value.
+- **Leg freshness scale:** 1 Heavy → 9 Fresh (was 1–5)
+- **Sleep quality scale:** 1 Terrible → 9 Great (was 1–10)
+- **Status:** Implemented
+
+**Decision:** Electrolyte field changed from mg to grams
+- **Rationale:** User measures electrolytes in grams, not milligrams. Added new `electrolyte_g` column via migration. Existing data auto-converted (mg ÷ 1000). Old `electrolyte_mg` column preserved but unused. Math expression support added (e.g. `1.5+1.5`).
+- **Status:** Implemented
+
+**Decision:** Sleep hours input changed from decimal to h:mm format
+- **Rationale:** Typing `7:30` is more natural than calculating `7.5`. Input accepts `h:mm` format, converts to decimal hours for storage. Back-converts to `h:mm` on load.
+- **Status:** Implemented
+
+## Infrastructure Evaluation (2026-03-28)
+
+**Decision:** Stay on Mac Mini, harden for uptime (Option 1)
+- **Rationale:** Evaluated four options: (1) harden Mac Mini, (2) move to VPS, (3) hybrid VPS + Mac Mini, (4) Vercel + Turso. JARVIS is deeply tied to local infrastructure (better-sqlite3, LightRAG, N8N, podcast pipeline). Moving to Vercel/Cloudflare Pages would require rearchitecting every API route. Outages have been caused by sleep settings and Docker not auto-starting — operational issues, not architectural.
+- **Action items:** Enable "Prevent automatic sleeping", "Start Docker Desktop at login", "Start up after power failure". Add UptimeRobot monitoring. Add Docker watchdog script. If outages persist, escalate to Option 3 (hybrid VPS).
+- **Status:** Decided, hardening not yet applied

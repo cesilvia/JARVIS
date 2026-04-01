@@ -18,16 +18,18 @@
 - **MCP server** — Expose JARVIS data as MCP tools for Claude ("How many miles this week?", "Add journal entry")
 - ~~**LightRAG + OpenRouter**~~ — DONE (2026-03-24): LightRAG Docker container on Mac Mini for knowledge graph RAG. OpenRouter for embeddings (text-embedding-3-small) and LLM (Gemini 2.5 Flash). Semantic search across Readwise articles, podcast transcripts, highlights.
 - **Full Convex migration** — Consider migrating all JARVIS data from SQLite to Convex for real-time sync, native vector search, and shared infrastructure with Higgins. Currently Convex is not used; LightRAG handles vector/graph search. Evaluate after Higgins is stable and if multi-device sync becomes important.
-- ~~**intervals.icu integration**~~ — DONE (2026-03-25): CTL/ATL/TSB pulled from intervals.icu wellness API instead of local computation. Matches TrainerRoad numbers more closely. Falls back to local TR-method calculation (42-day rolling avg CTL + FTP history).
+- ~~**intervals.icu integration**~~ — DONE (2026-03-25), SUPERSEDED (2026-03-28): Originally used intervals.icu wellness API for CTL/ATL/TSB. Replaced with proper local EMA calculation from Strava NP with configurable constants. intervals.icu API route preserved for cross-reference.
 - ~~**Podcast transcription pipeline**~~ — DONE (2026-03-25): whisper.cpp + yt-dlp on Mac Mini. Downloads and transcribes Ask a Cycling Coach episodes (444 total), pushes to LightRAG. Cron runs 8pm-6am during backfill, switching to 3am after. Newest episodes first.
-- **TSB calculation revisit** — Current TSB uses TR rolling-average CTL + EMA ATL with Strava NP. ~8% NP gap vs TR remains. User wants to revisit. Consider configurable time constants in Settings, or TR API if they ever publish one.
+- ~~**TSB calculation revisit**~~ — DONE (2026-03-28): Rewrote to proper Coggan EMA model with configurable ATL/CTL constants in Settings > Cycling. Uses Strava NP (power meter data). ~8% NP gap vs TR accepted as algorithmic difference.
 - **Podcast pipeline: add more sources** — Currently only Ask a Cycling Coach. Add Successful Athletes Podcast, Science of Getting Faster, other cycling/training podcasts. Managed via Research page Sources tab.
 - **Podcast pipeline: switch to 3am cron** — After backfill completes, update cron from `0 20` to `0 3` for ongoing new-episode-only runs.
 - **Global search (FTS5)** — Full-text search across all JARVIS data (recipes, vocab, gear, notes, journal). Separate from RAG semantic search.
 - ~~**Command palette (Cmd+K)**~~ — DONE (2026-03-20): Spotlight-style overlay from any page. Fuzzy search across navigation, actions, and data (recipes, vocab, gear, bikes, rides). Recent items persist via KV.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub or as a panel. Full multi-turn chat with access to MCP tools for complex queries and follow-ups. Richer than command palette AI mode.
 - **Global search** — Search across all modules, powered by FTS5
+- **Mac Mini hardening** — Prevent sleep, Docker auto-start at login, auto-restart after power failure, Docker watchdog script (launchd checks containers every 5 min), UptimeRobot monitoring. If outages persist, escalate to hybrid VPS.
 - **Uptime Kuma** — Service monitor, pings JARVIS/N8N every minute, alerts on downtime
+- **Remove Vercel domain** — jarvis.chrissilvia.com is misconfigured on Vercel (not in use). Remove from Vercel dashboard → Settings → Domains to stop warning emails.
 - **Caddy** — Reverse proxy with auto-HTTPS (if needed beyond Cloudflare Tunnel)
 - ~~**Dev mode alert suppression**~~ — DONE (2026-03-22): Backup and Strava sync alerts hidden on localhost (N8N runs against prod Docker, not local SQLite).
 - **Offline / PWA** — Service worker + local cache for when Mac Mini is unreachable
@@ -109,7 +111,15 @@
 - ~~**RPE scale update**~~ — DONE (2026-03-28): Changed from 1–10 to 1–9. Odd numbers are primary anchors (Easy/Moderate/Hard/Very Hard/All Out), even numbers labeled as in-between. Label shown next to slider value.
 - ~~**Ride notes copy formatting**~~ — DONE (2026-03-28): Switched to `\r\n` line endings so each field pastes on its own line in TrainerRoad.
 - ~~**Zwift indoor detection**~~ — DONE (2026-03-28): Activities with "Zwift" in the name are now detected as indoor rides. Affects Indoor badge, mileage split, weather fetch, and ride notes. TrainerRoad indoor/outdoor detection still TBD.
-- **Ride notes trend analysis** — Charts over time: RPE vs TSS, calories/hr vs duration, weight tracking, sleep quality vs performance, GI issue correlation with nutrition. Scatter plots and line charts using stored computed fields.
+- ~~**Carbs input + math expressions**~~ — DONE (2026-03-28): Nutrition section first field changed from "Calories on Bike" to "Carbs on Bike (g)" with math expression support (e.g. `75+75`). Calories auto-computed (grams × 4). DB still stores calories_on_bike.
+- ~~**CTL/ATL/TSB rewrite**~~ — DONE (2026-03-28): Proper Coggan EMA for both CTL and ATL (was: rolling avg CTL). Configurable constants (ATL=10, CTL=42) in Settings > Cycling. Removed intervals.icu as primary source; uses local Strava NP calculation.
+- ~~**Drum picker UI**~~ — DONE (2026-03-28): iOS-style scroll wheel component (DrumPicker.tsx). Replaced sliders for RPE, leg freshness, and sleep quality. Touch-scrollable with snap, fade edges, selection highlight.
+- ~~**Leg freshness 1–9 scale**~~ — DONE (2026-03-28): Expanded from 1–5 to 1–9 with labels: Heavy → Tired → Normal → Good → Fresh.
+- ~~**Sleep quality 1–9 scale**~~ — DONE (2026-03-28): Changed from 1–10 to 1–9 with labels: Terrible → Poor → OK → Good → Great.
+- ~~**Electrolyte mg → grams**~~ — DONE (2026-03-28): New `electrolyte_g` column, auto-migration from mg. Math expression support. Old column preserved.
+- ~~**Sleep h:mm input**~~ — DONE (2026-03-28): Sleep hours input accepts `7:30` format instead of decimal. Converts to decimal for storage.
+- **Ride notes trend analysis** — Charts over time: RPE vs TSS, calories/hr vs duration, weight tracking, sleep quality vs performance, GI issue correlation with nutrition. Scatter plots and line charts using stored computed fields. Waiting for more data.
+- **TrainerRoad indoor/outdoor detection** — TR rides can be indoor or outdoor; needs heuristic (distance? GPS? user override?).
 - **RENPHO integration** — Auto-pull weight from RENPHO Health app if a reliable API becomes available. Currently manual entry.
 
 ### Strava Dashboard
