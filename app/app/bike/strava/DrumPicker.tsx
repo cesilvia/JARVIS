@@ -125,7 +125,6 @@ export default function DrumPicker({
         ref={containerRef}
         className="h-full overflow-y-scroll scrollbar-hide"
         style={{
-          scrollSnapType: "y mandatory",
           WebkitOverflowScrolling: "touch",
         }}
         onScroll={handleScroll}
@@ -141,7 +140,6 @@ export default function DrumPicker({
               className="flex items-center justify-center cursor-pointer select-none transition-all"
               style={{
                 height: itemHeight,
-                scrollSnapAlign: "start",
                 color: isSelected ? "#00D9FF" : "#67C7EB",
                 opacity: isSelected ? 1 : 0.5,
                 fontSize: isSelected ? "13px" : "11px",
