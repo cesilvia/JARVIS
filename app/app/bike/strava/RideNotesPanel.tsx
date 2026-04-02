@@ -211,6 +211,18 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     }
   };
 
+  const fallbackCopy = (text: string) => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  };
+
   // Copy to clipboard
   const handleCopy = () => {
     const rpeLabel = getLabelForValue(RPE_OPTIONS, note.rpe);
@@ -252,7 +264,12 @@ export default function RideNotesPanel({ activityId, activityName, trainer, movi
     lines.push("");
     lines.push("── Notes ──");
     lines.push(note.notes ?? "—");
-    navigator.clipboard.writeText(lines.join("\r\n"));
+    const text = lines.join("\r\n");
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
   };
 
   const sectionHeaderClass = (open: boolean) =>
