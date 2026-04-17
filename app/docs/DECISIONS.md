@@ -868,4 +868,30 @@
 **Decision:** Stay on Mac Mini, harden for uptime (Option 1)
 - **Rationale:** Evaluated four options: (1) harden Mac Mini, (2) move to VPS, (3) hybrid VPS + Mac Mini, (4) Vercel + Turso. JARVIS is deeply tied to local infrastructure (better-sqlite3, LightRAG, N8N, podcast pipeline). Moving to Vercel/Cloudflare Pages would require rearchitecting every API route. Outages have been caused by sleep settings and Docker not auto-starting — operational issues, not architectural.
 - **Action items:** Enable "Prevent automatic sleeping", "Start Docker Desktop at login", "Start up after power failure". Add UptimeRobot monitoring. Add Docker watchdog script. If outages persist, escalate to Option 3 (hybrid VPS).
-- **Status:** Decided, hardening not yet applied
+- **Status:** Mostly applied (2026-04-06). pmset configured (sleep 0, disksleep 0, autorestart 1, womp 1). Docker in Login Items. FileVault stays on (no auto-login — requires Screens 5 login after reboot). UptimeRobot configured. Watchdog script TBD. Vercel domain removed.
+
+## Agent Architecture (2026-04-06)
+
+**Decision:** Introduce specialized AI agents for distinct domains instead of one general-purpose agent
+- **Rationale:** Different domains benefit from different system prompts, tool sets, and interaction patterns. A cycling coach agent needs analytical/proactive behavior over ride data. A German tutor needs conversation memory and awareness of SM-2 progress. A document processor needs structured extraction. These are meaningfully different from the existing RAG lookup agent.
+- **Agents planned:**
+  1. **Cycling coach** — Analyzes ride history, TSB trends, ride notes. Surfaces insights proactively (fatigue patterns, nutrition correlations, cramping trends). Different from RAG because it's analytical, not retrieval.
+  2. **German tutor** — Conversational practice with grammar correction. Aware of SM-2 progress (which words the user struggles with). Persists conversation context. Already in feature queue as "German translation chat."
+  3. **Calendar/document processor** — Extracts structured event data from documents (PDF/image/text → ICS). Narrow, focused prompt for reliability. Already in feature queue as Calendar page.
+  4. **Email/document triage** — Forward emails or drop PDFs, agent extracts action items, calendar events, or reference material.
+  5. **Natural language data entry** — Parse free-text ride notes into structured form fields via function calling.
+- **Not separate agents:** Nutrition, gear, tasks — not enough complexity to justify separate agents vs. adding tools to existing chat.
+- **Architecture:** Each agent = different system prompt + different tool set + potentially different model. Not a big infrastructure change — no coordinator/router needed for a single-user app.
+- **Status:** Decided, not yet implemented. German tutor and cycling coach are highest priority.
+
+**Decision:** Expand JARVIS from dashboard to proactive assistant + AI learning platform
+- **Rationale:** JARVIS has two purposes: (1) daily personal assistant, (2) hands-on AI learning. Both are served by building features that push JARVIS from "website you check" to "assistant that comes to you."
+- **Proactive assistant features:**
+  - Morning briefing agent (N8N-triggered, assembles weather/TSB/calendar/German, pushes summary)
+  - Smart alerts (AI layer over rule-based alerts, surfaces non-obvious patterns)
+  - Voice interaction (Web Speech API input + TTS output, speech-to-intent pipeline)
+- **AI learning features:**
+  - RAG evaluation pipeline (curated test questions, score LightRAG quality)
+  - Multi-model comparison (same query to Gemini vs Claude, side-by-side)
+  - Fine-tuning on personal cycling data (after sufficient ride notes accumulate)
+- **Status:** Decided, added to feature queue

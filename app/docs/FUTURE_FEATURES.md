@@ -27,9 +27,8 @@
 - ~~**Command palette (Cmd+K)**~~ — DONE (2026-03-20): Spotlight-style overlay from any page. Fuzzy search across navigation, actions, and data (recipes, vocab, gear, bikes, rides). Recent items persist via KV.
 - **Chat widget in JARVIS** — Embedded Claude conversation on the hub or as a panel. Full multi-turn chat with access to MCP tools for complex queries and follow-ups. Richer than command palette AI mode.
 - **Global search** — Search across all modules, powered by FTS5
-- **Mac Mini hardening** — Prevent sleep, Docker auto-start at login, auto-restart after power failure, Docker watchdog script (launchd checks containers every 5 min), UptimeRobot monitoring. If outages persist, escalate to hybrid VPS.
-- **Uptime Kuma** — Service monitor, pings JARVIS/N8N every minute, alerts on downtime
-- **Remove Vercel domain** — jarvis.chrissilvia.com is misconfigured on Vercel (not in use). Remove from Vercel dashboard → Settings → Domains to stop warning emails.
+- ~~**Mac Mini hardening**~~ — MOSTLY DONE (2026-04-06): pmset configured (sleep 0, disksleep 0, autorestart 1, womp 1). Docker in Login Items. FileVault stays on (no auto-login — requires Screens 5 login after reboot). UptimeRobot configured. Watchdog script TBD.
+- ~~**Remove Vercel domain**~~ — DONE (2026-04-06): jarvis.chrissilvia.com removed from Vercel dashboard. JARVIS project still exists on Vercel but disconnected from repo.
 - **Caddy** — Reverse proxy with auto-HTTPS (if needed beyond Cloudflare Tunnel)
 - ~~**Dev mode alert suppression**~~ — DONE (2026-03-22): Backup and Strava sync alerts hidden on localhost (N8N runs against prod Docker, not local SQLite).
 - **Offline / PWA** — Service worker + local cache for when Mac Mini is unreachable
@@ -82,9 +81,20 @@
 - **Apple Music** — Currently playing, workout playlists
 - **LDS Tools / Gospel Library** — Reading plans, ward info
 
+## Specialized AI Agents (decided 2026-04-06)
+Architecture: each agent = different system prompt + tool set + potentially different model. No coordinator needed for single-user app.
+
+- **Cycling coach agent** — Analyzes ride history, TSB trends, ride notes. Surfaces insights proactively (fatigue patterns, nutrition correlations, cramping trends). E.g. "Your RPE is rising faster than TSS — consider a recovery week" or "GI issues correlate with rides under 60g/hr carbs." Analytical, not retrieval.
+- **German tutor agent** — Conversational practice with grammar correction. Aware of SM-2 progress (which words the user struggles with). Persists conversation context. Extends the planned "German translation chat" feature.
+- **Calendar/document processor agent** — Extracts structured event data from documents (PDF/image/text → ICS). Narrow, focused prompt. Powers the Calendar page.
+- **Email/document triage agent** — Forward emails or drop PDFs into JARVIS, agent extracts action items, calendar events, or reference material. Structured extraction from unstructured input.
+- **Natural language data entry** — Instead of filling ride notes form fields: "Rode 90 minutes on the trainer, RPE 6, legs felt heavy, ate a gel and a bottle of Skratch, slept 7 hours." Agent parses into structured fields via function calling.
+
 ## Cross-Module Intelligence
 
-- ~~**Morning briefing**~~ — DONE (2026-03-22): Welcome banner on hub. Training TSB + weather + German cards due. Placeholders for calendar/tasks.
+- ~~**Morning briefing (static)**~~ — DONE (2026-03-22): Welcome banner on hub. Training TSB + weather + German cards due. Placeholders for calendar/tasks.
+- **Morning briefing agent** — Upgrade from static banner. Runs at 6am via N8N, AI assembles weather + ride window + TSB/freshness + German words due + calendar events (once Fantastical wired). Synthesizes what matters today and pushes summary (push notification or email). Not a dashboard you look at — it *comes to you*. Teaches agentic orchestration.
+- **Proactive smart alerts** — AI layer on top of rule-based alerts. Surfaces things rules wouldn't catch: "You haven't ridden outdoors in 12 days — weather looks good Thursday afternoon" or "German vocab review frequency is dropping this month." The difference between a dashboard and an assistant.
 - **Pre-ride briefing** — Weather at ride time + TSB/freshness + TrainerRoad workout + calendar conflicts.
 - **Ride planner** — Weather + training load + calendar free time → best ride window.
 - **Weekly review** — Auto-generated: miles ridden, words learned, recipes cooked, tasks completed.
@@ -147,9 +157,15 @@
 - Hexis: no public API — watch for Apple Health sync or Intervals.icu path
 
 ## "Wow Factor"
-- **Voice control** — Web Speech API for basic commands
+- **Voice interaction** — Full speech-to-intent pipeline: Web Speech API for input + TTS for output. Transcription → intent classification → tool calling → response generation. "Hey JARVIS, how many miles this week?" / "You've ridden 127 miles across 4 rides, TSB is minus 12." The most Iron Man thing JARVIS can do.
 - **Animated transitions** — HUD-themed page transitions (scan lines, holographic fade-in)
 - **Dashboard mode** — Fullscreen always-on display view
+
+## AI Learning Lab (added 2026-04-06)
+Features primarily valuable for learning AI concepts hands-on:
+- **RAG evaluation pipeline** — Curate 20 questions with known answers, run through LightRAG, score results. Teaches RAG quality measurement — the thing most people skip.
+- **Multi-model comparison** — Send same question to Gemini Flash and Claude Sonnet side by side. See tradeoffs (speed/cost vs. quality) in a hands-on way. Informs model selection across JARVIS.
+- **Fine-tuning on personal data** — After accumulating enough ride notes and coaching insights, fine-tune a small model on personal cycling patterns. Full data → training → evaluation loop. Advanced, but the data is already accumulating.
 
 ## Authentication & Security
 - Password reset from Settings
