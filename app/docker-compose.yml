@@ -31,9 +31,11 @@ services:
       - N8N_SECURE_COOKIE=false
 
   lightrag:
-    image: ghcr.io/hkuds/lightrag:latest
+    image: ghcr.io/hkuds/lightrag@sha256:e147e37f0f4d0d5cfddd8fe00a3fd4da53a82523d044054b73a66346ccfbaf89
     container_name: lightrag
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     ports:
       - "9621:9621"
     volumes:
