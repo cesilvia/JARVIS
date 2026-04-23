@@ -65,6 +65,7 @@ services:
       - WATCHTOWER_SCHEDULE=0 0 3 * * 0
       - WATCHTOWER_INCLUDE_STOPPED=false
       - TZ=America/Los_Angeles
+      - DOCKER_API_VERSION=1.45
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
