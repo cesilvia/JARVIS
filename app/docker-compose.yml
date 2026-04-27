@@ -1,6 +1,9 @@
 services:
   jarvis:
-    build: .
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
     container_name: jarvis
     restart: unless-stopped
     labels:
