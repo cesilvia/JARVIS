@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
+        NEXT_PUBLIC_SENTRY_DSN: https://eab68816f63703280a26d787c3447cc8@o4511237570560000.ingest.us.sentry.io/4511237573967872
     container_name: jarvis
     restart: unless-stopped
     labels:
